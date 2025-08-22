@@ -1,160 +1,143 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!doctype html>
+<html lang="zh-TW">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2575.7">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; -webkit-text-stroke: #000000; min-height: 14.0px}
-    span.s1 {font-kerning: none}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>文輝打卡系統</title>
+<style>
+  body { font-family: ui-sans-serif, system-ui; margin:0; background:#f7f7f8; font-size:16px; }
+  .container { width:100%; margin:0; padding:16px; background:#fff; box-sizing:border-box; }
+  h1 { font-size: clamp(18px,4vw,30px); margin:0 0 16px; }
+  .muted { color:#666; font-size:14px; margin:8px 0 16px; }
+  button { padding:12px 16px; border-radius:12px; border:0; cursor:pointer; font-size:16px; width:100%; }
+  .primary { background:#2563eb; color:#fff; }
+  .ghost { background:#eef2ff; color:#374151; }
+  .row { display:flex; flex-direction: column; gap:12px; }
+  @media (min-width: 480px) { .row { flex-direction: row; } button { flex:1; } }
+  .msg { margin-top:16px; padding:12px; border-radius:12px; background:#f1f5f9; }
+  .error { background:#fee2e2; color:#991b1b; }
+  .ok    { background:#dcfce7; color:#065f46; }
+  .foot { margin-top:20px; font-size:12px; color:#777; text-align:center; }
+</style>
 </head>
 <body>
-<p class="p1"><span class="s1">&lt;!doctype html&gt;</span></p>
-<p class="p1"><span class="s1">&lt;html lang="zh-TW"&gt;</span></p>
-<p class="p1"><span class="s1">&lt;head&gt;</span></p>
-<p class="p1"><span class="s1">&lt;meta charset="utf-8"&gt;</span></p>
-<p class="p1"><span class="s1">&lt;meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"&gt;</span></p>
-<p class="p1"><span class="s1">&lt;title&gt;文輝打卡系統&lt;/title&gt;</span></p>
-<p class="p1"><span class="s1">&lt;style&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>body { font-family: ui-sans-serif, system-ui; margin:0; background:#f7f7f8; font-size:16px; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.container { width:100%; margin:0; padding:16px; background:#fff; box-sizing:border-box; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>h1 { font-size: clamp(18px,4vw,30px); margin:0 0 16px; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.muted { color:#666; font-size:14px; margin:8px 0 16px; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>button { padding:12px 16px; border-radius:12px; border:0; cursor:pointer; font-size:16px; width:100%; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.primary { background:#2563eb; color:#fff; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.ghost { background:#eef2ff; color:#374151; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.row { display:flex; flex-direction: column; gap:12px; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>@media (min-width: 480px) { .row { flex-direction: row; } button { flex:1; } }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.msg { margin-top:16px; padding:12px; border-radius:12px; background:#f1f5f9; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.error { background:#fee2e2; color:#991b1b; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.ok<span class="Apple-converted-space">    </span>{ background:#dcfce7; color:#065f46; }</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>.foot { margin-top:20px; font-size:12px; color:#777; text-align:center; }</span></p>
-<p class="p1"><span class="s1">&lt;/style&gt;</span></p>
-<p class="p1"><span class="s1">&lt;/head&gt;</span></p>
-<p class="p1"><span class="s1">&lt;body&gt;</span></p>
-<p class="p1"><span class="s1">&lt;div class="container"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;h1&gt;文輝打卡系統&lt;/h1&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;div id="status" class="muted"&gt;正在檢查登入狀態…&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;div id="actions" class="row" style="display:none;"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;button class="primary" id="btnIn"&gt;上班打卡&lt;/button&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;button class="ghost" id="btnOut"&gt;下班打卡&lt;/button&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;button id="btnLogout" style="margin-left:auto;"&gt;登出&lt;/button&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;div id="login" style="display:none;"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>&lt;button class="primary" id="btnLogin"&gt;使用 LINE 登入&lt;/button&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;div id="message" class="msg" style="display:none;"&gt;&lt;/div&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;div class="foot"&gt;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</span></p>
-<p class="p1"><span class="s1">&lt;/div&gt;</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">&lt;script&gt;</span></p>
-<p class="p1"><span class="s1">// ====== 設定 Web App URL ======</span></p>
-<p class="p1"><span class="s1">const API_URL = "https://script.google.com/macros/s/AKfycbwshaaU6fiNJA0dnFSacIELj5_7ja-BRDQyahtxCBUOvbgS-MjRiaFzlxtdXR3bYL7o/exec";</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">// ====== fetch POST 封裝 ======</span></p>
-<p class="p1"><span class="s1">async function POST(json) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>const res = await fetch(API_URL, {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>method: "POST",</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>headers: { "Content-Type": "application/json" },</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>body: JSON.stringify(json)</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>});</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>return res.json();</span></p>
-<p class="p1"><span class="s1">}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">const $ = id =&gt; document.getElementById(id);</span></p>
-<p class="p1"><span class="s1">const setMsg = (text, ok=true) =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>const el = $("message");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>el.textContent = text;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>el.className = "msg " + (ok ? "ok" : "error");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>el.style.display = "block";</span></p>
-<p class="p1"><span class="s1">};</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">async function ensureLoginOrShowButton() {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("message").style.display = "none";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>let token = localStorage.getItem("sessionToken");</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>if (token) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>try {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>const res = await POST({ action:"checkSession", sessionToken: token });</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>if (res.ok) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>$("status").textContent = "✅ 已登入";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>$("actions").style.display = "";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>$("login").style.display = "none";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>bindPunch(token);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>return;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>} else {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">        </span>throw new Error(res.error || "Session 已失效");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>} catch (err) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>console.warn("checkSession 失敗:", err);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>localStorage.removeItem("sessionToken");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>$("status").textContent = err;</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>// 尚未登入</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("status").textContent = "尚未登入";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("actions").style.display = "none";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("login").style.display = "";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>bindLoginButton();</span></p>
-<p class="p1"><span class="s1">}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">function bindLoginButton() {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("btnLogin").onclick = async () =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const res = await POST({ action: "loginUrl" });</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>if (res.ok &amp;&amp; res.url) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>// Google Sites 內 iframe 用 _top 開新頁面避免 sandbox</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>window.open(res.url, "_top");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>} else {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>setMsg("無法取得登入網址，請稍後再試", false);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>}</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>};</span></p>
-<p class="p1"><span class="s1">}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">function bindPunch(sessionToken) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("btnIn").onclick = () =&gt; doPunch(sessionToken, "上班");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("btnOut").onclick = () =&gt; doPunch(sessionToken, "下班");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>$("btnLogout").onclick = async () =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>await POST({ action:"logout", sessionToken });</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>localStorage.removeItem("sessionToken");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>$("status").textContent = "已登出";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>$("actions").style.display = "none";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>$("login").style.display = "";</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>setMsg("你已登出");</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>ensureLoginOrShowButton();</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>};</span></p>
-<p class="p1"><span class="s1">}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">async function doPunch(sessionToken, type) {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>navigator.geolocation.getCurrentPosition(async pos =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>const res = await POST({</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>action: "punch",</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>sessionToken,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>type,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>lat: pos.coords.latitude,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>lng: pos.coords.longitude,</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">      </span>note: navigator.userAgent</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>});</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>if (res.ok) setMsg(`✅ ${type} 打卡成功 (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})`);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>else setMsg(`❌ ${type} 打卡失敗：${res.error || ""}`, false);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>}, err =&gt; {</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">    </span>setMsg("⚠️ 無法取得定位：" + err.message, false);</span></p>
-<p class="p1"><span class="s1"><span class="Apple-converted-space">  </span>});</span></p>
-<p class="p1"><span class="s1">}</span></p>
-<p class="p2"><span class="s1"></span><br></p>
-<p class="p1"><span class="s1">// 啟動</span></p>
-<p class="p1"><span class="s1">ensureLoginOrShowButton();</span></p>
-<p class="p1"><span class="s1">&lt;/script&gt;</span></p>
-<p class="p1"><span class="s1">&lt;/body&gt;</span></p>
-<p class="p1"><span class="s1">&lt;/html&gt;</span></p>
+<div class="container">
+  <h1>文輝打卡系統</h1>
+  <div id="status" class="muted">正在檢查登入狀態…</div>
+
+  <div id="actions" class="row" style="display:none;">
+    <button class="primary" id="btnIn">上班打卡</button>
+    <button class="ghost" id="btnOut">下班打卡</button>
+    <button id="btnLogout" style="margin-left:auto;">登出</button>
+  </div>
+
+  <div id="login" style="display:none;">
+    <button class="primary" id="btnLogin">使用 LINE 登入</button>
+  </div>
+
+  <div id="message" class="msg" style="display:none;"></div>
+  <div class="foot">
+    ※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。
+  </div>
+</div>
+
+<script>
+// ====== 設定 Web App URL ======
+const API_URL = "https://script.google.com/macros/s/AKfycbwshaaU6fiNJA0dnFSacIELj5_7ja-BRDQyahtxCBUOvbgS-MjRiaFzlxtdXR3bYL7o/exec";
+
+// ====== fetch POST 封裝 ======
+async function POST(json) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(json)
+  });
+  return res.json();
+}
+
+const $ = id => document.getElementById(id);
+const setMsg = (text, ok=true) => {
+  const el = $("message");
+  el.textContent = text;
+  el.className = "msg " + (ok ? "ok" : "error");
+  el.style.display = "block";
+};
+
+async function ensureLoginOrShowButton() {
+  $("message").style.display = "none";
+  let token = localStorage.getItem("sessionToken");
+
+  if (token) {
+    try {
+      const res = await POST({ action:"checkSession", sessionToken: token });
+      if (res.ok) {
+        $("status").textContent = "✅ 已登入";
+        $("actions").style.display = "";
+        $("login").style.display = "none";
+        bindPunch(token);
+        return;
+      } else {
+        throw new Error(res.error || "Session 已失效");
+      }
+    } catch (err) {
+      console.warn("checkSession 失敗:", err);
+      localStorage.removeItem("sessionToken");
+      $("status").textContent = err;
+    }
+  }
+
+  // 尚未登入
+  $("status").textContent = "尚未登入";
+  $("actions").style.display = "none";
+  $("login").style.display = "";
+  bindLoginButton();
+}
+
+function bindLoginButton() {
+  $("btnLogin").onclick = async () => {
+    const res = await POST({ action: "loginUrl" });
+    if (res.ok && res.url) {
+      // Google Sites 內 iframe 用 _top 開新頁面避免 sandbox
+      window.open(res.url, "_top");
+    } else {
+      setMsg("無法取得登入網址，請稍後再試", false);
+    }
+  };
+}
+
+function bindPunch(sessionToken) {
+  $("btnIn").onclick = () => doPunch(sessionToken, "上班");
+  $("btnOut").onclick = () => doPunch(sessionToken, "下班");
+  $("btnLogout").onclick = async () => {
+    await POST({ action:"logout", sessionToken });
+    localStorage.removeItem("sessionToken");
+    $("status").textContent = "已登出";
+    $("actions").style.display = "none";
+    $("login").style.display = "";
+    setMsg("你已登出");
+    ensureLoginOrShowButton();
+  };
+}
+
+async function doPunch(sessionToken, type) {
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const res = await POST({
+      action: "punch",
+      sessionToken,
+      type,
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      note: navigator.userAgent
+    });
+    if (res.ok) setMsg(`✅ ${type} 打卡成功 (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})`);
+    else setMsg(`❌ ${type} 打卡失敗：${res.error || ""}`, false);
+  }, err => {
+    setMsg("⚠️ 無法取得定位：" + err.message, false);
+  });
+}
+
+// 啟動
+ensureLoginOrShowButton();
+</script>
 </body>
 </html>
