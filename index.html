@@ -45,14 +45,24 @@
 // ====== 設定 Web App URL ======
 const API_URL = "https://script.google.com/macros/s/AKfycbwshaaU6fiNJA0dnFSacIELj5_7ja-BRDQyahtxCBUOvbgS-MjRiaFzlxtdXR3bYL7o/exec";
 
-// ====== fetch POST 封裝 ======
-async function POST(json) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(json)
+// 通用 JSONP：回傳 Promise
+function jsonp(params = {}) {
+  return new Promise((resolve, reject) => {
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    params.callback = cb;
+    const qs = new URLSearchParams(params).toString();
+
+    const s = document.createElement('script');
+    s.src = API_URL + '?' + qs;
+    s.onerror = () => { delete window[cb]; s.remove(); reject(new Error('JSONP failed')); };
+
+    window[cb] = (data) => {
+      resolve(data);
+      delete window[cb];
+      s.remove();
+    };
+    document.head.appendChild(s);
   });
-  return res.json();
 }
 
 const $ = id => document.getElementById(id);
@@ -69,7 +79,7 @@ async function ensureLoginOrShowButton() {
 
   if (token) {
     try {
-      const res = await POST({ action:"checkSession", sessionToken: token });
+      const res = await jsonp({ action:"checkSession", sessionToken: token });
       if (res.ok) {
         $("status").textContent = "✅ 已登入";
         $("actions").style.display = "";
@@ -95,9 +105,8 @@ async function ensureLoginOrShowButton() {
 
 function bindLoginButton() {
   $("btnLogin").onclick = async () => {
-    const res = await POST({ action: "loginUrl" });
+    const res = await jsonp({ action: "loginUrl" });
     if (res.ok && res.url) {
-      // Google Sites 內 iframe 用 _top 開新頁面避免 sandbox
       window.open(res.url, "_top");
     } else {
       setMsg("無法取得登入網址，請稍後再試", false);
@@ -109,7 +118,7 @@ function bindPunch(sessionToken) {
   $("btnIn").onclick = () => doPunch(sessionToken, "上班");
   $("btnOut").onclick = () => doPunch(sessionToken, "下班");
   $("btnLogout").onclick = async () => {
-    await POST({ action:"logout", sessionToken });
+    await jsonp({ action:"logout", sessionToken });
     localStorage.removeItem("sessionToken");
     $("status").textContent = "已登出";
     $("actions").style.display = "none";
@@ -121,7 +130,7 @@ function bindPunch(sessionToken) {
 
 async function doPunch(sessionToken, type) {
   navigator.geolocation.getCurrentPosition(async pos => {
-    const res = await POST({
+    const res = await jsonp({
       action: "punch",
       sessionToken,
       type,
