@@ -80,7 +80,7 @@
   window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const otoken = params.get('otoken');
-    
+    alert("登入：" + otoken);
     if (otoken) {
       // 用 JSONP 交換一次性 token
       exchangeToken(otoken, res => {
