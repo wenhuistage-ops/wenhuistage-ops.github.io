@@ -1,152 +1,98 @@
-<!doctype html>
-<html lang="zh-TW">
+<!DOCTYPE html>
+<html lang="zh-Hant">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>文輝打卡系統</title>
-<style>
-  body { font-family: ui-sans-serif, system-ui; margin:0; background:#f7f7f8; font-size:16px; }
-  .container { width:100%; margin:0; padding:16px; background:#fff; box-sizing:border-box; }
-  h1 { font-size: clamp(18px,4vw,30px); margin:0 0 16px; }
-  .muted { color:#666; font-size:14px; margin:8px 0 16px; }
-  button { padding:12px 16px; border-radius:12px; border:0; cursor:pointer; font-size:16px; width:100%; }
-  .primary { background:#2563eb; color:#fff; }
-  .ghost { background:#eef2ff; color:#374151; }
-  .row { display:flex; flex-direction: column; gap:12px; }
-  @media (min-width: 480px) { .row { flex-direction: row; } button { flex:1; } }
-  .msg { margin-top:16px; padding:12px; border-radius:12px; background:#f1f5f9; }
-  .error { background:#fee2e2; color:#991b1b; }
-  .ok    { background:#dcfce7; color:#065f46; }
-  .foot { margin-top:20px; font-size:12px; color:#777; text-align:center; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文輝打卡系統</title>
+  <style>
+    body { font-family: system-ui; margin:0; background:#f7f7f8; padding:20px; }
+    .card { max-width:400px; margin:40px auto; background:#fff; padding:20px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+    button { padding:12px; width:100%; border:0; border-radius:8px; font-size:16px; cursor:pointer; }
+    .primary { background:#2563eb; color:#fff; }
+    .ghost { background:#e5e7eb; }
+    .msg { margin-top:16px; padding:12px; border-radius:8px; font-size:14px; }
+    .ok { background:#dcfce7; color:#065f46; }
+    .error { background:#fee2e2; color:#991b1b; }
+  </style>
 </head>
 <body>
-<div class="container">
-  <h1>文輝打卡系統</h1>
-  <div id="status" class="muted">正在檢查登入狀態…</div>
-
-  <div id="actions" class="row" style="display:none;">
-    <button class="primary" id="btnIn">上班打卡</button>
-    <button class="ghost" id="btnOut">下班打卡</button>
-    <button id="btnLogout" style="margin-left:auto;">登出</button>
+  <div class="card">
+    <h1>文輝打卡系統</h1>
+    <div id="status">檢查登入中...</div>
+    <div id="actions" style="display:none;">
+      <button class="primary" id="btnIn">上班打卡</button>
+      <button class="ghost" id="btnOut">下班打卡</button>
+      <button id="btnLogout">登出</button>
+    </div>
+    <div id="login" style="display:none;">
+      <button class="primary" id="btnLogin">使用 LINE 登入</button>
+    </div>
+    <div id="message" class="msg" style="display:none;"></div>
   </div>
-
-  <div id="login" style="display:none;">
-    <button class="primary" id="btnLogin">使用 LINE 登入</button>
-  </div>
-
-  <div id="message" class="msg" style="display:none;"></div>
-  <div class="foot">
-    ※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。
-  </div>
-</div>
 
 <script>
-// ====== 設定 Web App URL ======
-const API_URL = "https://script.google.com/macros/s/AKfycbwx-wMUt5RrIGOe84oJh_1cvfphfOHAb8VqBHCGfOX1gBODy1DYMijHEhsRiw4fdYmnhQ/exec";
+const API_URL = "https://script.google.com/macros/s/你的GAS部署ID/exec";
 
-// 通用 JSONP：回傳 Promise
-function jsonp(params = {}) {
-  return new Promise((resolve, reject) => {
-    const cb = 'cb_' + Math.random().toString(36).slice(2);
-    params.callback = cb;
-    const qs = new URLSearchParams(params).toString();
+// 如果網址帶 token → 存進 localStorage
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has("token")) {
+  localStorage.setItem("sessionToken", urlParams.get("token"));
+  // 移除網址上的 token
+  window.history.replaceState({}, document.title, location.pathname);
+}
 
-    const s = document.createElement('script');
-    s.src = API_URL + '?' + qs;
-    s.onerror = () => { delete window[cb]; s.remove(); reject(new Error('JSONP failed')); };
+function showMessage(text, type="ok") {
+  const el = document.getElementById("message");
+  el.textContent = text;
+  el.className = "msg " + type;
+  el.style.display = "block";
+}
 
-    window[cb] = (data) => {
-      resolve(data);
-      delete window[cb];
-      s.remove();
-    };
-    document.head.appendChild(s);
+function callApi(action, cb) {
+  const token = localStorage.getItem("sessionToken");
+  const url = `${API_URL}?action=${action}&token=${token}&callback=?`;
+  fetch(url)
+    .then(r => r.text())
+    .then(js => eval(js)) // JSONP callback
+    .catch(() => showMessage("連線失敗","error"));
+
+  window.handleResponse = cb;
+}
+
+// 檢查登入狀態
+function ensureLogin() {
+  callApi("checkSession", (res) => {
+    if (res.ok) {
+      document.getElementById("status").textContent = "已登入：" + res.user;
+      document.getElementById("actions").style.display = "block";
+    } else {
+      document.getElementById("status").textContent = "尚未登入";
+      document.getElementById("login").style.display = "block";
+    }
   });
 }
 
-const $ = id => document.getElementById(id);
-const setMsg = (text, ok=true) => {
-  const el = $("message");
-  el.textContent = text;
-  el.className = "msg " + (ok ? "ok" : "error");
-  el.style.display = "block";
+document.getElementById("btnLogin").onclick = () => {
+  callApi("getLoginUrl", (res) => {
+    if (res.url) window.location.href = res.url;
+  });
 };
 
-async function ensureLoginOrShowButton() {
-  $("message").style.display = "none";
-  let token = localStorage.getItem("sessionToken");
+document.getElementById("btnLogout").onclick = () => {
+  localStorage.removeItem("sessionToken");
+  location.reload();
+};
 
-  if (token) {
-    try {
-      const res = await jsonp({ action:"checkSession", sessionToken: token });
-      if (res.ok) {
-        $("status").textContent = "✅ 已登入";
-        $("actions").style.display = "";
-        $("login").style.display = "none";
-        bindPunch(token);
-        return;
-      } else {
-        throw new Error(res.error || "Session 已失效");
-      }
-    } catch (err) {
-      console.warn("checkSession 失敗:", err);
-      localStorage.removeItem("sessionToken");
-      $("status").textContent = err;
-    }
-  }
+document.getElementById("btnIn").onclick = () => {
+  callApi("punchIn", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
+};
 
-  // 尚未登入
-  $("status").textContent = "尚未登入";
-  $("actions").style.display = "none";
-  $("login").style.display = "";
-  bindLoginButton();
-}
+document.getElementById("btnOut").onclick = () => {
+  callApi("punchOut", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
+};
 
-function bindLoginButton() {
-  $("btnLogin").onclick = async () => {
-    const res = await jsonp({ action: "loginUrl" });
-    if (res.ok && res.url) {
-      window.open(res.url, "_top");
-    } else {
-      setMsg("無法取得登入網址，請稍後再試", false);
-    }
-  };
-}
-
-function bindPunch(sessionToken) {
-  $("btnIn").onclick = () => doPunch(sessionToken, "上班");
-  $("btnOut").onclick = () => doPunch(sessionToken, "下班");
-  $("btnLogout").onclick = async () => {
-    await jsonp({ action:"logout", sessionToken });
-    localStorage.removeItem("sessionToken");
-    $("status").textContent = "已登出";
-    $("actions").style.display = "none";
-    $("login").style.display = "";
-    setMsg("你已登出");
-    ensureLoginOrShowButton();
-  };
-}
-
-async function doPunch(sessionToken, type) {
-  navigator.geolocation.getCurrentPosition(async pos => {
-    const res = await jsonp({
-      action: "punch",
-      sessionToken,
-      type,
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      note: navigator.userAgent
-    });
-    if (res.ok) setMsg(`✅ ${type} 打卡成功 (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})`);
-    else setMsg(`❌ ${type} 打卡失敗：${res.error || ""}`, false);
-  }, err => {
-    setMsg("⚠️ 無法取得定位：" + err.message, false);
-  });
-}
-
-// 啟動
-ensureLoginOrShowButton();
+// 初始化
+ensureLogin();
 </script>
 </body>
 </html>
