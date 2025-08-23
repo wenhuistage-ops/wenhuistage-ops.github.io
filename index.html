@@ -72,7 +72,22 @@ function ensureLogin() {
     }
   });
 }
-
+    // 偵測 POST 送來的 sessionToken
+window.addEventListener('DOMContentLoaded', () => {
+      // 假設前端頁面有表單接收 POST
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!localStorage.getItem('sessionToken')) {
+    // 如果沒有 sessionToken，嘗試從 POST 表單抓
+    const formElements = document.forms[0]?.elements;
+    if (formElements && formElements.sessionToken) {
+        const token = formElements.sessionToken.value;
+        localStorage.setItem('sessionToken', token);
+        // 移除表單避免再次送出
+        document.forms[0].remove();
+        }
+    }
+});
+    
 document.getElementById("btnLogin").onclick = () => {
   callApi("getLoginUrl", (res) => {
     if (res.url) window.location.href = res.url;
