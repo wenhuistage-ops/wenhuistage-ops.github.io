@@ -31,6 +31,28 @@
   </div>
 
 <script>
+    
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      const otoken = params.get('otoken');
+      if (otoken) {
+        fetch(`https://script.google.com/macros/s/.../exec?action=exchangeToken&otoken=${otoken}`)
+          .then(r => r.json())
+          .then(res => {
+            if(res.ok) {
+              localStorage.setItem('sessionToken', res.sessionToken);
+              // 移除 URL 參數
+              window.history.replaceState({}, document.title, window.location.pathname);
+              ensureLogin(); // 立即檢查登入狀態
+            } else {
+              alert("登入失敗：" + res.error);
+            }
+          });
+      } else {
+        ensureLogin(); // 沒 token 就檢查現有 sessionToken
+      }
+    });
+    
 const API_URL = "https://script.google.com/macros/s/AKfycbwx-wMUt5RrIGOe84oJh_1cvfphfOHAb8VqBHCGfOX1gBODy1DYMijHEhsRiw4fdYmnhQ/exec";
 
 // 如果網址帶 token → 存進 localStorage
@@ -72,21 +94,6 @@ function ensureLogin() {
     }
   });
 }
-    // 偵測 POST 送來的 sessionToken
-window.addEventListener('DOMContentLoaded', () => {
-      // 假設前端頁面有表單接收 POST
-    const urlParams = new URLSearchParams(window.location.search);
-    if (!localStorage.getItem('sessionToken')) {
-    // 如果沒有 sessionToken，嘗試從 POST 表單抓
-    const formElements = document.forms[0]?.elements;
-    if (formElements && formElements.sessionToken) {
-        const token = formElements.sessionToken.value;
-        localStorage.setItem('sessionToken', token);
-        // 移除表單避免再次送出
-        document.forms[0].remove();
-        }
-    }
-});
     
 document.getElementById("btnLogin").onclick = () => {
   callApi("getLoginUrl", (res) => {
