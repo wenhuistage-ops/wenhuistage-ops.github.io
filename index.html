@@ -32,27 +32,6 @@
 
 <script>
     
-    window.addEventListener('DOMContentLoaded', () => {
-        alert("登入：DOMContentLoaded" );
-      const params = new URLSearchParams(window.location.search);
-      const otoken = params.get('otoken');
-      if (otoken) {
-        fetch(`https://script.google.com/macros/s/.../exec?action=exchangeToken&otoken=${otoken}`)
-          .then(r => r.json())
-          .then(res => {
-            if(res.ok) {
-              localStorage.setItem('sessionToken', res.sessionToken);
-              // 移除 URL 參數
-              window.history.replaceState({}, document.title, window.location.pathname);
-              ensureLogin(); // 立即檢查登入狀態
-            } else {
-              alert("登入失敗：" + res.error);
-            }
-          });
-      } else {
-        ensureLogin(); // 沒 token 就檢查現有 sessionToken
-      }
-    });
     
 const API_URL = "https://script.google.com/macros/s/AKfycbwx-wMUt5RrIGOe84oJh_1cvfphfOHAb8VqBHCGfOX1gBODy1DYMijHEhsRiw4fdYmnhQ/exec";
 
@@ -82,7 +61,16 @@ function callApi(action, cb) {
   script.onerror = () => showMessage("連線失敗","error");
   document.body.appendChild(script);
 }
-    
+  
+  // JSONP 交換一次性 token
+  function exchangeToken(otoken, cb) {
+    const url = `${API_URL}?action=exchangeToken&otoken=${otoken}&callback=handleExchange`;
+    window.handleExchange = cb;
+
+    const script = document.createElement("script");
+    script.src = url;
+    document.body.appendChild(script);
+  }
 // 檢查登入狀態
 function ensureLogin() {
   callApi("checkSession", (res) => {
@@ -95,6 +83,27 @@ function ensureLogin() {
     }
   });
 }
+    
+    // DOMContentLoaded
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      const otoken = params.get('otoken');
+      
+      if (otoken) {
+        // 用 JSONP 交換一次性 token
+        exchangeToken(otoken, res => {
+          if(res.ok) {
+            localStorage.setItem('sessionToken', res.sessionToken);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            ensureLogin();
+          } else {
+            alert("登入失敗：" + res.error);
+          }
+        });
+      } else {
+        ensureLogin();
+      }
+
     
 document.getElementById("btnLogin").onclick = () => {
   callApi("getLoginUrl", (res) => {
