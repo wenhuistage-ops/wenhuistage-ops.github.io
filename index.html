@@ -33,6 +33,7 @@
 <script>
     
     window.addEventListener('DOMContentLoaded', () => {
+        alert("登入：DOMContentLoaded" );
       const params = new URLSearchParams(window.location.search);
       const otoken = params.get('otoken');
       if (otoken) {
