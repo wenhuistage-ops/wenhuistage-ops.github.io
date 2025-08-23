@@ -50,15 +50,16 @@ function showMessage(text, type="ok") {
 
 function callApi(action, cb) {
   const token = localStorage.getItem("sessionToken");
-  const url = `${API_URL}?action=${action}&token=${token}&callback=?`;
-  fetch(url)
-    .then(r => r.text())
-    .then(js => eval(js)) // JSONP callback
-    .catch(() => showMessage("連線失敗","error"));
+  const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
 
   window.handleResponse = cb;
-}
 
+  const script = document.createElement("script");
+  script.src = url;
+  script.onerror = () => showMessage("連線失敗","error");
+  document.body.appendChild(script);
+}
+    
 // 檢查登入狀態
 function ensureLogin() {
   callApi("checkSession", (res) => {
