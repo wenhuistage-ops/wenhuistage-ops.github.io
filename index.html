@@ -48,10 +48,11 @@
     window.handleResponse = cb;
 
     const script = document.createElement("script");
+    alert("登入：" + script);
     script.src = url;
     script.onerror = () => showMessage("連線失敗","error");
     document.body.appendChild(script);
-    alert("登入：" + script);
+
   }
 
   // JSONP 交換一次性 token
