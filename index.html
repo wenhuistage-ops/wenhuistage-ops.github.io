@@ -103,7 +103,7 @@ function ensureLogin() {
       } else {
         ensureLogin();
       }
-
+}
     
 document.getElementById("btnLogin").onclick = () => {
   callApi("getLoginUrl", (res) => {
