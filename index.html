@@ -1,123 +1,112 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
+<!doctype html>
+<html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>文輝打卡系統</title>
+  <meta charset="utf-8">
+  <title>員工打卡系統</title>
   <style>
-    body { font-family: system-ui; margin:0; background:#f7f7f8; padding:20px; }
-    .card { max-width:400px; margin:40px auto; background:#fff; padding:20px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-    button { padding:12px; width:100%; border:0; border-radius:8px; font-size:16px; cursor:pointer; }
-    .primary { background:#2563eb; color:#fff; }
-    .ghost { background:#e5e7eb; }
-    .msg { margin-top:16px; padding:12px; border-radius:8px; font-size:14px; }
-    .ok { background:#dcfce7; color:#065f46; }
-    .error { background:#fee2e2; color:#991b1b; }
+    body { font-family: sans-serif; text-align: center; margin: 40px; }
+    button { font-size: 18px; padding: 10px 20px; margin: 10px; }
+    #status { margin: 20px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>文輝打卡系統</h1>
-    <div id="status">檢查登入中...</div>
-    <div id="actions" style="display:none;">
-      <button class="primary" id="btnIn">上班打卡</button>
-      <button class="ghost" id="btnOut">下班打卡</button>
-      <button id="btnLogout">登出</button>
-    </div>
-    <div id="login" style="display:none;">
-      <button class="primary" id="btnLogin">使用 LINE 登入</button>
-    </div>
-    <div id="message" class="msg" style="display:none;"></div>
+  <h1>員工打卡系統</h1>
+  <div id="status">載入中...</div>
+  <div id="buttons" style="display:none;">
+    <button onclick="punch('punchIn')">上班打卡</button>
+    <button onclick="punch('punchOut')">下班打卡</button>
   </div>
+  <button id="loginBtn" style="display:none;" onclick="getLoginUrl()">LINE 登入</button>
 
   <script>
-  const API_URL = "https://script.google.com/macros/s/AKfycbwx-wMUt5RrIGOe84oJh_1cvfphfOHAb8VqBHCGfOX1gBODy1DYMijHEhsRiw4fdYmnhQ/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwx-wMUt5RrIGOe84oJh_1cvfphfOHAb8VqBHCGfOX1gBODy1DYMijHEhsRiw4fdYmnhQ/exec"; // ⚠️ 請改成部署後的 URL
+    let sessionToken = localStorage.getItem("sessionToken") || null;
 
-  function showMessage(text, type="ok") {
-    const el = document.getElementById("message");
-    el.textContent = text;
-    el.className = "msg " + type;
-    el.style.display = "block";
-  }
+    // === 主流程 ===
+    window.onload = async () => {
+      const params = new URLSearchParams(location.search);
 
-  // JSONP 呼叫
-  function callApi(action, cb) {
-    const token = localStorage.getItem("sessionToken");
-    const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
-
-    window.handleResponse = cb;
-
-    const script = document.createElement("script");
-    alert("登入：" + script);
-    script.src = url;
-    script.onerror = () => showMessage("連線失敗","error");
-    document.body.appendChild(script);
-
-  }
-
-  // JSONP 交換一次性 token
-  function exchangeToken(otoken, cb) {
-    const url = `${API_URL}?action=exchangeToken&otoken=${otoken}&callback=handleExchange`;
-    window.handleExchange = cb;
-
-    const script = document.createElement("script");
-    script.src = url;
-    document.body.appendChild(script);
-  }
-
-  // 檢查登入狀態
-  function ensureLogin() {
-    callApi("checkSession", (res) => {
-      if (res.ok) {
-        document.getElementById("status").textContent = "已登入：" + res.user.displayName;
-        document.getElementById("actions").style.display = "block";
-      } else {
-        document.getElementById("status").textContent = "尚未登入";
-        document.getElementById("login").style.display = "block";
+      // 如果帶有一次性 otoken，交換成 sessionToken
+      if (params.has("otoken")) {
+        const otoken = params.get("otoken");
+        await exchangeToken(otoken);
+        history.replaceState(null, "", location.pathname); // 清除網址上的 otoken
       }
-    });
-  }
 
-  // DOMContentLoaded
-  window.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.location.search);
-    const otoken = params.get('otoken');
-    
-    if (otoken) {
-      // 用 JSONP 交換一次性 token
-      exchangeToken(otoken, res => {
-        if(res.ok) {
-          localStorage.setItem('sessionToken', res.sessionToken);
-          window.history.replaceState({}, document.title, window.location.pathname);
-          ensureLogin();
-        } else {
-          alert("登入失敗：" + res.error);
-        }
-      });
-    } else {
-      ensureLogin();
+      if (sessionToken) {
+        checkSession();
+      } else {
+        document.getElementById("status").innerText = "尚未登入";
+        document.getElementById("loginBtn").style.display = "inline-block";
+      }
+    };
+
+    // === 向 GAS 要求登入 URL ===
+    async function getLoginUrl() {
+      const url = `${GAS_URL}?action=getLoginUrl&callback=?`;
+      const resp = await fetchJsonp(url).then(r => r.json());
+      if (resp.url) {
+        location.href = resp.url;
+      } else {
+        alert("取得登入網址失敗");
+      }
     }
 
-    document.getElementById("btnLogin").onclick = () => {
-      callApi("getLoginUrl", (res) => {
-        if (res.url) window.location.href = res.url;
+    // === 交換一次性 token ===
+    async function exchangeToken(otoken) {
+      const url = `${GAS_URL}?action=exchangeToken&otoken=${otoken}&callback=?`;
+      const resp = await fetchJsonp(url).then(r => r.json());
+      if (resp.ok) {
+        sessionToken = resp.sessionToken;
+        localStorage.setItem("sessionToken", sessionToken);
+        document.getElementById("status").innerText = "登入成功";
+      } else {
+        document.getElementById("status").innerText = "登入失敗: " + resp.error;
+      }
+    }
+
+    // === 檢查 Session ===
+    async function checkSession() {
+      const url = `${GAS_URL}?action=checkSession&token=${sessionToken}&callback=?`;
+      const resp = await fetchJsonp(url).then(r => r.json());
+      if (resp.ok) {
+        document.getElementById("status").innerText = `歡迎 ${resp.user.name}`;
+        document.getElementById("buttons").style.display = "block";
+      } else {
+        document.getElementById("status").innerText = "尚未登入: " + resp.error;
+        document.getElementById("loginBtn").style.display = "inline-block";
+        localStorage.removeItem("sessionToken");
+        sessionToken = null;
+      }
+    }
+
+    // === 打卡 ===
+    async function punch(type) {
+      const url = `${GAS_URL}?action=${type}&token=${sessionToken}&callback=?`;
+      const resp = await fetchJsonp(url).then(r => r.json());
+      if (resp.ok) {
+        alert(resp.msg);
+      } else {
+        alert("打卡失敗: " + resp.error);
+      }
+    }
+
+    // JSONP helper
+    function fetchJsonp(url) {
+      return new Promise((resolve, reject) => {
+        const callbackName = "cb" + Math.random().toString(36).substr(2);
+        url = url.replace("callback=?", "callback=" + callbackName);
+        const script = document.createElement("script");
+        script.src = url;
+        script.onerror = reject;
+        window[callbackName] = data => {
+          resolve({ json: () => Promise.resolve(data) });
+          document.body.removeChild(script);
+          delete window[callbackName];
+        };
+        document.body.appendChild(script);
       });
-    };
-
-    document.getElementById("btnLogout").onclick = () => {
-      localStorage.removeItem("sessionToken");
-      location.reload();
-    };
-
-    document.getElementById("btnIn").onclick = () => {
-      callApi("punchIn", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
-    };
-
-    document.getElementById("btnOut").onclick = () => {
-      callApi("punchOut", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
-    };
-  });
+    }
   </script>
-
 </body>
 </html>
