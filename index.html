@@ -138,14 +138,19 @@
     const otoken = params.get('code');
     
     if (otoken) {
-        console.log("登入成功：", otoken);
+      console.log("登入成功：", otoken);
 
-        alert("歡迎 " + otoken);
+      alert("歡迎 " + otoken);
     } else {
       ensureLogin();
     }
 
-
+    document.getElementById("btnLogin").onclick = () => {
+      callApi("getLoginUrl", (res) => {
+          alert("登入失敗：" + res.url);
+        if (res.url) window.location.href = res.url;
+      });
+    };
 
     document.getElementById("btnLogout").onclick = () => {
       localStorage.removeItem("sessionToken");
