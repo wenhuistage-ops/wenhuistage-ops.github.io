@@ -135,7 +135,7 @@
   // DOMContentLoaded
     window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.top.location.search);
-    const otoken = params.get('otoken');
+    const otoken = params.get('code');
     
     if (otoken) {
       // 用 JSONP 交換一次性 token
@@ -152,12 +152,7 @@
       ensureLogin();
     }
 
-    document.getElementById("btnLogin").onclick = () => {
-      callApi("getLoginUrl", (res) => {
-          alert("登入失敗：" + res.url);
-        if (res.url) window.location.href = res.url;
-      });
-    };
+
 
     document.getElementById("btnLogout").onclick = () => {
       localStorage.removeItem("sessionToken");
