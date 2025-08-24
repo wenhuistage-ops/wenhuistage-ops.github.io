@@ -94,72 +94,41 @@
     el.style.display = "block";
   }
 
-  // JSONP 呼叫
-  function callApi(action, cb) {
+  // fetch API 呼叫
+  function callApi(action, params = {}) {
     const token = localStorage.getItem("sessionToken");
-    const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
-
-    window.handleResponse = cb;
-
-    const script = document.createElement("script");
-    
-    script.src = url;
-    script.onerror = () => showMessage("連線失敗","error");
-    document.body.appendChild(script);
-
-  }
-
-  // JSONP 交換一次性 token
-  function exchangeToken(otoken, cb) {
-    const url = `${API_URL}?action=exchangeToken&otoken=${otoken}&callback=handleExchange`;
-    window.handleExchange = cb;
-
-    const script = document.createElement("script");
-    script.src = url;
-    document.body.appendChild(script);
-  }
-
-  // 檢查登入狀態
-  function ensureLogin() {
-    callApi("checkSession", (res) => {
-      if (res.ok) {
-        document.getElementById("status").textContent = "已登入：" + res.user.displayName;
-        document.getElementById("actions").style.display = "block";
-      } else {
-        document.getElementById("status").textContent = "尚未登入";
-        document.getElementById("login").style.display = "block";
-      }
-    });
+    const searchParams = new URLSearchParams({...params, action, token});
+    return fetch(`${API_URL}?${searchParams}`)
+      .then(res => res.json());
   }
 
   // DOMContentLoaded
-    window.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.top.location.search);
+  window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
     const otoken = params.get('otoken');
-    
+
     if (otoken) {
-      // 用 JSONP 交換一次性 token
-      exchangeToken(otoken, res => {
-        if(res.ok) {
-          localStorage.setItem('sessionToken', res.sessionToken);
-          window.history.replaceState({}, document.title, window.location.pathname);
-          ensureLogin();
-        } else {
-          alert("登入失敗：" + res.error);
-        }
-      });
+      callApi("exchangeToken",{otoken})
+        .then(res => {
+          if(res.ok) {
+            localStorage.setItem("sessionToken", res.sessionToken);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            ensureLogin();
+          } else {
+            alert("登入失敗：" + res.error);
+          }
+        })
+        .catch(()=>showMessage("連線失敗","error"));
     } else {
       ensureLogin();
     }
 
     document.getElementById("btnLogin").onclick = () => {
-      fetch(`${API_URL}?action=getLoginUrl`)
-        .then(res => res.json())
+      callApi("getLoginUrl")
         .then(res => {
-          if (res.url) window.location.href = res.url;
-          else alert("登入失敗");
-        })
-        .catch(err => showMessage("連線失敗","error"));
+          if(res.url) window.location.href = res.url;
+          else showMessage("登入失敗","error");
+        });
     };
 
     document.getElementById("btnLogout").onclick = () => {
@@ -168,13 +137,27 @@
     };
 
     document.getElementById("btnIn").onclick = () => {
-      callApi("punchIn", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
+      callApi("punchIn").then(res => showMessage(res.msg || res.error, res.ok ? "ok":"error"));
     };
 
     document.getElementById("btnOut").onclick = () => {
-      callApi("punchOut", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
+      callApi("punchOut").then(res => showMessage(res.msg || res.error, res.ok ? "ok":"error"));
     };
   });
+
+  function ensureLogin() {
+    callApi("checkSession")
+      .then(res => {
+        if(res.ok) {
+          document.getElementById("status").textContent = "已登入：" + res.user.displayName;
+          document.getElementById("actions").style.display = "block";
+        } else {
+          document.getElementById("status").textContent = "尚未登入";
+          document.getElementById("login").style.display = "block";
+        }
+      })
+      .catch(()=>showMessage("連線失敗","error"));
+  }
   </script>
 
 </body>
