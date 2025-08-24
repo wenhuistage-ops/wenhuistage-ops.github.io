@@ -138,16 +138,9 @@
     const otoken = params.get('code');
     
     if (otoken) {
-      // 用 JSONP 交換一次性 token
-      exchangeToken(otoken, res => {
-        if(res.ok) {
-          localStorage.setItem('sessionToken', res.sessionToken);
-          window.history.replaceState({}, document.title, window.location.pathname);
-          ensureLogin();
-        } else {
-          alert("登入失敗：" + res.error);
-        }
-      });
+        console.log("登入成功：", otoken);
+
+        alert("歡迎 " + otoken);
     } else {
       ensureLogin();
     }
