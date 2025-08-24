@@ -1,35 +1,90 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>文輝打卡系統</title>
-  <style>
-    body { font-family: system-ui; margin:0; background:#f7f7f8; padding:20px; }
-    .card { max-width:400px; margin:40px auto; background:#fff; padding:20px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-    button { padding:12px; width:100%; border:0; border-radius:8px; font-size:16px; cursor:pointer; }
-    .primary { background:#2563eb; color:#fff; }
-    .ghost { background:#e5e7eb; }
-    .msg { margin-top:16px; padding:12px; border-radius:8px; font-size:14px; }
-    .ok { background:#dcfce7; color:#065f46; }
-    .error { background:#fee2e2; color:#991b1b; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>文輝打卡系統</h1>
-    <div id="status">檢查登入中...</div>
-    <div id="actions" style="display:none;">
-      <button class="primary" id="btnIn">上班打卡</button>
-      <button class="ghost" id="btnOut">下班打卡</button>
-      <button id="btnLogout">登出</button>
-    </div>
-    <div id="login" style="display:none;">
-      <button class="primary" id="btnLogin">使用 LINE 登入</button>
-    </div>
-    <div id="message" class="msg" style="display:none;"></div>
-  </div>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+      <title>文輝打卡系統</title>
+      <link rel="stylesheet" href="style.css?v=20250822">
+      <style>
+        /* 全局樣式 */
+        body {
+          font-family: ui-sans-serif, system-ui;
+          margin: 0;
+          background: #f0f2f5;  /* 卡片外圍灰色背景 */
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+          font-size: 16px;
+        }
 
+        /* 卡片容器 */
+        .container {
+          width: 100%;
+          max-width: 400px;       /* 卡片寬度限制 */
+          margin: 16px;           /* 外圍留空 */
+          border-radius: 16px;    /* 圓角 */
+          box-shadow: 0 4px 20px rgba(0,0,0,0.1); /* 卡片陰影 */
+          background: #fff;
+          padding: 24px;
+          box-sizing: border-box;
+        }
+
+        h1 { font-size: clamp(18px, 4vw, 30px); margin: 0 0 16px; }
+        .muted { color:#666; font-size: 14px; margin: 8px 0 16px; }
+
+        button {
+          padding: 12px 16px;
+          border-radius: 12px;
+          border:0;
+          cursor:pointer;
+          font-size:16px;
+          width: 100%; /* 撐滿手機寬度 */
+        }
+
+        .primary {
+          background: linear-gradient(90deg, #4f46e5, #2563eb);
+          color:#fff;
+        }
+        .ghost {
+          background:#eef2ff;
+          color:#374151;
+          border: 1px solid #dbeafe;
+        }
+
+        .row { display:flex; flex-direction: column; gap:12px; }
+       
+
+        .msg { margin-top: 16px; padding:12px; border-radius:12px; background:#f1f5f9; }
+        .error { background:#fee2e2; color:#991b1b; }
+        .ok    { background:#dcfce7; color:#065f46; }
+        .foot { margin-top: 20px; font-size: 12px; color:#777; text-align:center;}
+
+        @media (max-width: 480px) {
+          .container {
+            margin: 12px;
+            padding: 16px;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>文輝打卡系統</h1>
+        <div id="status" class="muted">正在檢查登入狀態…</div>
+
+        <div id="actions" class="row" style="display:none;">
+          <button class="primary" id="btnIn">上班打卡</button>
+          <button class="ghost" id="btnOut">下班打卡</button>
+          <button id="btnLogout" style="margin-left:auto;">登出</button>
+        </div>
+
+        <div id="login" style="display:none;">
+          <button class="primary" id="btnLogin">使用 LINE 登入</button>
+        </div>
+
+        <div id="message" class="msg" style="display:none;"></div>
+        <div class="foot">※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。</div>
+      </div>
   <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbwx-wMUt5RrIGOe84oJh_1cvfphfOHAb8VqBHCGfOX1gBODy1DYMijHEhsRiw4fdYmnhQ/exec";
 
@@ -79,8 +134,8 @@
   }
 
   // DOMContentLoaded
-  window.addEventListener('DOMContentLoaded', () => {
-      const params = new URLSearchParams(window.top.location.search);
+    window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.top.location.search);
     const otoken = params.get('otoken');
     
     if (otoken) {
