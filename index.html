@@ -153,13 +153,10 @@
     }
 
     document.getElementById("btnLogin").onclick = () => {
-      fetch(`${API_URL}?action=getLoginUrl`)
-        .then(res => res.json())
-        .then(res => {
-          if (res.url) window.location.href = res.url;
-          else alert("登入失敗");
-        })
-        .catch(err => showMessage("連線失敗","error"));
+      callApi("getLoginUrl", (res) => {
+          alert("登入失敗：" + res.url);
+        if (res.url) window.location.href = res.url;
+      });
     };
 
     document.getElementById("btnLogout").onclick = () => {
