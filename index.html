@@ -80,7 +80,7 @@
 
   // DOMContentLoaded
   window.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(window.top.location.search);
     const otoken = params.get('otoken');
     
     if (otoken) {
