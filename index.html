@@ -155,7 +155,7 @@
     document.getElementById("btnLogin").onclick = () => {
       callApi("getLoginUrl", (res) => {
           alert("登入失敗：" + res.url);
-        if (res.url) window.location.href = res.url;
+        if (res.url) window.top.location.href = res.url;
       });
     };
 
