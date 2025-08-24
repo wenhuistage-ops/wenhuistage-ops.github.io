@@ -43,10 +43,7 @@
   // JSONP 呼叫
   function callApi(action, cb) {
     const token = localStorage.getItem("sessionToken");
-    const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
-
-    window.handleResponse = cb;
-
+    const url = `${API_URL}?action=${action}`;
     const script = document.createElement("script");
     
     script.src = url;
