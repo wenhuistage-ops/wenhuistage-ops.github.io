@@ -97,7 +97,7 @@
   // JSONP 呼叫
   function callApi(action, cb) {
     const token = localStorage.getItem("sessionToken");
-    const url = `${API_URL}?action=${action}&token=${otoken}&callback=handleResponse`;
+    const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
 
     window.handleResponse = cb;
 
@@ -110,7 +110,7 @@
   }
 
   // JSONP 交換一次性 token
-  function exchangeToken(action, cb) {
+  function exchangeToken(action,otoken, cb) {
     const url = `${API_URL}?action=${action}&otoken=${otoken}&callback=handleExchange`;
     window.handleExchange = cb;
     const script = document.createElement("script");
@@ -140,7 +140,7 @@
     
       
     if (otoken) {
-        callApi("getProfile", (res) => showMessage(res.msg, res.ok ? "ok":"debug:" + res.url));
+        exchangeToken("getProfile", otoken,(res) => showMessage(res.msg, res.ok ? "ok":"debug:" + res.url));
       console.log("登入成功：", otoken);
       alert("歡迎 " + otoken);
     } else {
