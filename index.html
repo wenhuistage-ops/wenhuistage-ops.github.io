@@ -97,7 +97,7 @@
   // JSONP 呼叫
   function callApi(action, cb) {
     const token = localStorage.getItem("sessionToken");
-    const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
+    const url = `${API_URL}?action=${action}&token=${otoken}&callback=handleResponse`;
 
     window.handleResponse = cb;
 
