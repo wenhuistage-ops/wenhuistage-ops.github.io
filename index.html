@@ -116,6 +116,7 @@
     window.otoken=token;
     const script = document.createElement("script");
     script.src = url;
+    script.onerror = () => showMessage("連線失敗","error");
     document.body.appendChild(script);
   }
 
