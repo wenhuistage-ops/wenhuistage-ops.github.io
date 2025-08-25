@@ -110,7 +110,7 @@
   }
 
   // JSONP 交換一次性 token
-  function exchangeToken(action,otoken, cb) {
+  function exchangeToken(action,otokenS, cb) {
     const url = `${API_URL}?action=${action}&otoken=${otoken}&callback=handleExchange`;
     window.handleExchange = cb;
     const script = document.createElement("script");
