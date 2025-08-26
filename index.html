@@ -70,8 +70,7 @@
     <body>
       <div class="container">
         <h1>文輝打卡系統</h1>
-        <!-- 狀態區塊 -->
-        <div id="status" class="muted flex items-center gap-2">
+        <div id="status" class="muted" style="display:flex; align-items:center; gap:8px;">
           <img id="profileImg" src="" alt="頭像" style="display:none; width:40px; height:40px; border-radius:50%;">
           <span id="userName">正在檢查登入狀態…</span>
         </div>
@@ -129,9 +128,12 @@
     return new Promise((resolve) => {
       callApi("checkSession", (res) => {
         if (res.ok) {
-          document.getElementById("status").textContent = "已登入：" + res.user.name;
-          document.getElementById("profileImg").src = res.user.picture;
-          document.getElementById("actions").style.display = "block";
+            document.getElementById("userName").textContent = "已登入：" + res.user.name;
+            let img = document.getElementById("profileImg");
+            img.src = res.user.picture || res.user.rate; // 你回傳的參數有時叫 rate
+            img.style.display = "inline-block";
+
+            document.getElementById("actions").style.display = "block";
           resolve(true);
         } else {
           document.getElementById("status").textContent = "尚未登入";
