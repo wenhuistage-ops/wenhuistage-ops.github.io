@@ -122,6 +122,7 @@
   // 檢查登入狀態
   function ensureLogin() {
     callApi("checkSession", (res) => {
+    alert("檢查登入狀態 " + localStorage.getItem("sessionToken"));
       if (res.ok) {
         document.getElementById("status").textContent = "已登入：" + res.user.displayName;
         document.getElementById("actions").style.display = "block";
@@ -141,6 +142,10 @@
     const ret =ensureLogin();
     if(ret)
     {
+
+    }
+    else
+    {
         if (otoken) {
             exchangeToken("getProfile", otoken,(res) => showMessage(res.msg, res.ok ? "ok":"debug:" + res.url));
           console.log("登入成功：", otoken);
@@ -148,10 +153,6 @@
         } else {
           ensureLogin();
         }
-    }
-    else
-    {
-        
     }
 
 
