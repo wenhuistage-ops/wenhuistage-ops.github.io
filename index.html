@@ -70,7 +70,11 @@
     <body>
       <div class="container">
         <h1>文輝打卡系統</h1>
-        <div id="status" class="muted">正在檢查登入狀態…</div>
+        <!-- 狀態區塊 -->
+        <div id="status" class="muted flex items-center gap-2">
+          <img id="profileImg" src="" alt="頭像" style="display:none; width:40px; height:40px; border-radius:50%;">
+          <span id="userName">正在檢查登入狀態…</span>
+        </div>
 
         <div id="actions" class="row" style="display:none;">
           <button class="primary" id="btnIn">上班打卡</button>
@@ -126,6 +130,7 @@
       callApi("checkSession", (res) => {
         if (res.ok) {
           document.getElementById("status").textContent = "已登入：" + res.user.name;
+          document.getElementById("profileImg").src = res.user.picture;
           document.getElementById("actions").style.display = "block";
           resolve(true);
         } else {
