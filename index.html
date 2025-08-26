@@ -121,17 +121,18 @@
 
   // 檢查登入狀態
   function ensureLogin() {
-    callApi("checkSession", (res) => {
-    alert("檢查登入狀態 " + localStorage.getItem("sessionToken"));
-      if (res.ok) {
-        document.getElementById("status").textContent = "已登入：" + res.user.displayName;
-        document.getElementById("actions").style.display = "block";
-        return true;
-      } else {
-        document.getElementById("status").textContent = "尚未登入";
-        document.getElementById("login").style.display = "block";
-        return false;
-      }
+    return new Promise((resolve) => {
+      callApi("checkSession", (res) => {
+        if (res.ok) {
+          document.getElementById("status").textContent = "已登入：" + res.user.displayName;
+          document.getElementById("actions").style.display = "block";
+          resolve(true);
+        } else {
+          document.getElementById("status").textContent = "尚未登入";
+          document.getElementById("login").style.display = "block";
+          resolve(false);
+        }
+      });
     });
   }
 
@@ -162,15 +163,18 @@
     }
     else//需要檢查
     {
-        const ret =ensureLogin();
-        if(ret)
-        {
-            alert("檢查成功 " + ret);
-        }
-        else
-        {
-            alert("檢查失敗 " + ret);
-        }
+        (async () => {let loggedIn = await ensureLogin();
+          console.log("登入狀態：", loggedIn);
+          if(loggedIn)
+          {
+              alert("檢查成功 " + loggedIn);
+          }
+          else
+          {
+              alert("檢查失敗 " + loggedIn);
+          }
+        })();
+
     }
     document.getElementById("btnLogin").onclick = () => {
       callApi("getLoginUrl", (res) => {
