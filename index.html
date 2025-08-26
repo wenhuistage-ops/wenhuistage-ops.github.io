@@ -124,7 +124,7 @@
     return new Promise((resolve) => {
       callApi("checkSession", (res) => {
         if (res.ok) {
-          document.getElementById("status").textContent = "已登入：" + res.user.displayName;
+          document.getElementById("status").textContent = "已登入：" + res.user.name;
           document.getElementById("actions").style.display = "block";
           resolve(true);
         } else {
