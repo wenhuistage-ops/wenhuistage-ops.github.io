@@ -142,7 +142,7 @@
     const localStoragetoken = params.get('stoken');
     if (otoken)//剛登入完
     {
-        lert("登入： " + localStoragetoken);
+        alert("登入： " + localStoragetoken);
         exchangeToken("getProfile", otoken,(res) => showMessage(res.msg, res.ok ? "ok":"debug:" + res.url));
       console.log("登入成功：", otoken);
       alert("歡迎 " + otoken);
@@ -152,11 +152,11 @@
         const ret =ensureLogin();
         if(ret)
         {
-            lert("檢查成功 " + ret);
+            alert("檢查成功 " + ret);
         }
         else
         {
-            lert("檢查失敗 " + ret);
+            alert("檢查失敗 " + ret);
         }
     }
     document.getElementById("btnLogin").onclick = () => {
