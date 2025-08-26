@@ -145,8 +145,17 @@
      
         exchangeToken("getProfile", otoken,(res) =>
                       {
-                      showMessage(res.msg, res.ok ? "ok":"debug:" + res.url);
-                      alert("登入： " + res.sToken);
+            showMessage(res.msg, res.ok);
+
+                if (res.ok && res.sToken) {
+                  // 把 sToken 存進 localStorage
+                  localStorage.setItem("sessionToken", res.sToken);
+
+                  alert("登入成功，已儲存 Token！");
+                  console.log("已寫入 localStorage：", res.sToken);
+                } else {
+                  alert("登入失敗：" + res.msg);
+                }
                       });
       console.log("登入成功：", otoken);
       alert("歡迎 " + otoken);
