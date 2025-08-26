@@ -139,7 +139,7 @@
     window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.top.location.search);
     const otoken = params.get('code');
-    const localStoragetoken = params.get('stoken');
+    const localStoragetoken = params.get('sToken');
     if (otoken)//剛登入完
     {
         alert("登入： " + localStoragetoken);
