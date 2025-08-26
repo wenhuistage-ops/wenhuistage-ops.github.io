@@ -125,27 +125,36 @@
       if (res.ok) {
         document.getElementById("status").textContent = "已登入：" + res.user.displayName;
         document.getElementById("actions").style.display = "block";
+        return true;
       } else {
         document.getElementById("status").textContent = "尚未登入";
         document.getElementById("login").style.display = "block";
+        return false;
       }
     });
   }
 
   // DOMContentLoaded
     window.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.top.location.search);
-    
-    const otoken = params.get('code');//getProfile
-    
-      
-    if (otoken) {
-        exchangeToken("getProfile", otoken,(res) => showMessage(res.msg, res.ok ? "ok":"debug:" + res.url));
-      console.log("登入成功：", otoken);
-      alert("歡迎 " + otoken);
-    } else {
-      ensureLogin();
+        const params = new URLSearchParams(window.top.location.search);
+        const otoken = params.get('code');//getProfile
+    const ret =ensureLogin();
+    if(ret)
+    {
+        if (otoken) {
+            exchangeToken("getProfile", otoken,(res) => showMessage(res.msg, res.ok ? "ok":"debug:" + res.url));
+          console.log("登入成功：", otoken);
+          alert("歡迎 " + otoken);
+        } else {
+          ensureLogin();
+        }
     }
+    else
+    {
+        
+    }
+
+
 
     document.getElementById("btnLogin").onclick = () => {
       callApi("getLoginUrl", (res) => {
