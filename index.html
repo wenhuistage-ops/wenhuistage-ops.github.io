@@ -161,12 +161,12 @@
     
     if (otoken)//剛登入完
     {
-     
         exchangeToken("getProfile", otoken,(res) =>
                       {
             showMessage(res.msg, res.ok);
 
-                if (res.ok && res.sToken) {
+                if (res.ok && res.sToken)
+                {
                   // 把 sToken 存進 localStorage
                   localStorage.setItem("sessionToken", res.sToken);
                   alert("登入成功，已儲存 Token！");
@@ -184,8 +184,20 @@
                     }
                   })();
                   
-                } else {
+                }
+                else
+                {
                   alert("登入失敗：" + res.msg);
+                  // 顯示一個重新登入按鈕
+                        const container = document.getElementById("loginActions");
+                        container.innerHTML = `
+                          <button id="btnRelogin">重新登入</button>
+                        `;
+                        document.getElementById("btnRelogin").onclick = () => {
+                          // 重新導向到登入頁（依你之前的流程修改 URL）
+                          window.location.href = "https://wenhuistage-ops.github.io/";
+                        };
+                      }
                 }
                       });
       console.log("登入成功：", otoken);
