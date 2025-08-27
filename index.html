@@ -161,8 +161,6 @@
     
     if (otoken) { // 剛登入完
       exchangeToken("getProfile", otoken, (res) => {
-        showMessage(res.msg, res.ok);
-
         if (res.ok && res.sToken) {
           // 把 sToken 存進 localStorage
           localStorage.setItem("sessionToken", res.sToken);
@@ -174,10 +172,10 @@
             console.log("登入狀態：", loggedIn);
             alert(loggedIn ? "檢查成功 " + loggedIn : "檢查失敗 " + loggedIn);
           })();
-
+          showMessage(res.msg);
         } else {
           alert("登入失敗：" + res.msg);
-
+          showMessage(res.err);
           // 取得容器
           const container = document.getElementById("login");
           if (container) {
