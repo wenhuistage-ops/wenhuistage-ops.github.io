@@ -137,14 +137,19 @@
             let img = document.getElementById("profileImg");
             img.src = res.user.picture || res.user.rate; // 你回傳的參數有時叫 rate
             img.style.display = "inline-block";
-
             document.getElementById("actions").style.display = "block";
+
           resolve(true);
         } else {
           document.getElementById("status").textContent = "尚未登入";
           document.getElementById("login").style.display = "block";
           resolve(false);
         }
+        showMessage(
+          res.ok ? `✅ 登入成功 (${lat.toFixed(5)}, ${lng.toFixed(5)})`
+                 : `❌ 登入失敗：${res.error || ''}`,
+          res.ok ? "ok" : "error"
+        );
       });
     });
   }
