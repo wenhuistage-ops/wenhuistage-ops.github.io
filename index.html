@@ -209,7 +209,8 @@
 
     // 專門給打卡用的包裝函式
     function doPunch(type, cb) {
-      navigator.geolocation.getCurrentPosition((pos) => {
+        console.log("doPunch：");
+        navigator.geolocation.getCurrentPosition((pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
