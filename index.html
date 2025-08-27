@@ -159,45 +159,45 @@
     const params = new URLSearchParams(window.top.location.search);
     const otoken = params.get('code');
     
-    if (otoken)//剛登入完
-    {
-        exchangeToken("getProfile", otoken,(res) =>
-                      {
-            showMessage(res.msg, res.ok);
+    if (otoken) { // 剛登入完
+      exchangeToken("getProfile", otoken, (res) => {
+        showMessage(res.msg, res.ok);
 
-                if (res.ok && res.sToken)
-                {
-                  // 把 sToken 存進 localStorage
-                  localStorage.setItem("sessionToken", res.sToken);
-                  alert("登入成功，已儲存 Token！");
-                  console.log("已寫入 localStorage：", res.sToken);
-                  
-                  (async () => {let loggedIn = await ensureLogin();
-                    console.log("登入狀態：", loggedIn);
-                    if(loggedIn)
-                    {
-                        alert("檢查成功 " + loggedIn);
-                    }
-                    else
-                    {
-                        alert("檢查失敗 " + loggedIn);
-                    }
-                  })();
-                  
-                }
-                else
-                {
-                  alert("登入失敗：" + res.msg);
-                  const container = document.getElementById("login");
-                        container.innerHTML = '<button id="btnRelogin">重新登入</button>';
-                        document.getElementById("btnRelogin").onclick = () => {
-                          // 重新導向到登入頁（依你之前的流程修改 URL）
-                          window.location.href = "https://wenhuistage-ops.github.io/";
-                        };
-                  
-                }
-                      });
+        if (res.ok && res.sToken) {
+          // 把 sToken 存進 localStorage
+          localStorage.setItem("sessionToken", res.sToken);
+          alert("登入成功，已儲存 Token！");
+          console.log("已寫入 localStorage：", res.sToken);
+
+          (async () => {
+            let loggedIn = await ensureLogin();
+            console.log("登入狀態：", loggedIn);
+            alert(loggedIn ? "檢查成功 " + loggedIn : "檢查失敗 " + loggedIn);
+          })();
+
+        } else {
+          alert("登入失敗：" + res.msg);
+
+          // 取得容器
+          const container = document.getElementById("login");
+          if (container) {
+            // 正確建立按鈕
+            container.innerHTML = '<button id="btnRelogin">重新登入</button>';
+
+            // 立刻取得按鈕並綁定事件
+            const btn = document.getElementById("btnRelogin");
+            if (btn) {
+              btn.onclick = () => {
+                window.location.href = "https://wenhuistage-ops.github.io/";
+              };
+            }
+          } else {
+            console.warn("找不到 #login 容器，無法建立重新登入按鈕");
+          }
+        }
+      });
     }
+
     else//需要檢查
     {
         (async () => {let loggedIn = await ensureLogin();
