@@ -188,6 +188,14 @@
                 else
                 {
                   alert("登入失敗：" + res.msg);
+                  const container = document.getElementById("loginActions");
+                        container.innerHTML = `
+                          <button id="btnRelogin">重新登入</button>
+                        `;
+                        document.getElementById("btnRelogin").onclick = () => {
+                          // 重新導向到登入頁（依你之前的流程修改 URL）
+                          window.location.href = "https://你的登入網址";
+                        };
                   
                 }
                       });
