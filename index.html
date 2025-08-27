@@ -207,14 +207,45 @@
       location.reload();
     };
 
+    // 專門給打卡用的包裝函式
+    function doPunch(type, cb) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        // 呼叫 punch API，但把經緯度和 type 放進去
+        const action = `punch&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(navigator.userAgent)}`;
+
+        callApi(action, (res) => {
+          if (cb) cb(res, lat, lng);
+        });
+
+      }, (err) => {
+        showMessage("⚠️ 無法取得定位：" + err.message, "error");
+      });
+    }
+
+    
+    // 綁定按鈕
     document.getElementById("btnIn").onclick = () => {
-      callApi("punchIn", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
+      doPunch("上班", (res, lat, lng) => {
+        showMessage(
+          res.ok ? `✅ 上班打卡成功 (${lat.toFixed(5)}, ${lng.toFixed(5)})`
+                 : `❌ 上班打卡失敗：${res.error || ''}`,
+          res.ok ? "ok" : "error"
+        );
+      });
     };
 
     document.getElementById("btnOut").onclick = () => {
-      callApi("punchOut", (res) => showMessage(res.msg, res.ok ? "ok":"error"));
+      doPunch("下班", (res, lat, lng) => {
+        showMessage(
+          res.ok ? `✅ 下班打卡成功 (${lat.toFixed(5)}, ${lng.toFixed(5)})`
+                 : `❌ 下班打卡失敗：${res.error || ''}`,
+          res.ok ? "ok" : "error"
+        );
+      });
     };
-  });
   </script>
 
 </body>
