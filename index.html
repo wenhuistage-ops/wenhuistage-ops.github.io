@@ -188,20 +188,9 @@
                 else
                 {
                   alert("登入失敗：" + res.msg);
-                  // 顯示一個重新登入按鈕
-                        const container = document.getElementById("loginActions");
-                        container.innerHTML = `
-                          <button id="btnRelogin">重新登入</button>
-                        `;
-                        document.getElementById("btnRelogin").onclick = () => {
-                          // 重新導向到登入頁（依你之前的流程修改 URL）
-                          window.location.href = "https://wenhuistage-ops.github.io/";
-                        };
-                      }
+                  
                 }
                       });
-      console.log("登入成功：", otoken);
-      alert("歡迎 " + otoken);
     }
     else//需要檢查
     {
