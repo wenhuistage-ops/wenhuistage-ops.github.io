@@ -93,6 +93,11 @@
   
   function showMessage(text, type="ok") {
     const el = document.getElementById("message");
+    if (!text) { // 如果沒有傳訊息就清空
+      el.textContent = "";
+      el.style.display = "none";
+      return;
+    }
     el.textContent = text;
     el.className = "msg " + type;
     el.style.display = "block";
@@ -228,6 +233,7 @@
 
     // 綁定按鈕
     document.getElementById("btnIn").onclick = () => {
+        showMessage("");  // 清空上次訊息
       doPunch("上班", (res, lat, lng) => {
         showMessage(
           res.ok ? `✅ 上班打卡成功 (${lat.toFixed(5)}, ${lng.toFixed(5)})`
@@ -238,6 +244,7 @@
     };
 
     document.getElementById("btnOut").onclick = () => {
+        showMessage("");  // 清空上次訊息
       doPunch("下班", (res, lat, lng) => {
         showMessage(
           res.ok ? `✅ 下班打卡成功 (${lat.toFixed(5)}, ${lng.toFixed(5)})`
