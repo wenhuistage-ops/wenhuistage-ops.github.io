@@ -139,9 +139,8 @@ function callApiAdjustPunch(type, datetime, cb) {
     const dateObj = new Date(datetime);
     const lat = 0; // 補打卡不檢查 GPS
     const lng = 0;
-    const note = `補打卡（手動選擇時間）`;
 
-    const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(note)}&datetime=${dateObj.toISOString()}&callback=handleAdjustResponse&note=${encodeURIComponent(navigator.userAgent)}`;
+    const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&datetime=${dateObj.toISOString()}&callback=handleAdjustResponse&note=${encodeURIComponent(navigator.userAgent)}`;
     window.handleAdjustResponse = cb;
 
     const script = document.createElement("script");
