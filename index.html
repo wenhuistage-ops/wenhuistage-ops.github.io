@@ -101,7 +101,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5
 
 /* ===== 共用訊息顯示 ===== */
 function showMessage(text, type="ok", msgId="message") {
-  const el = document.getElementById("message");
+  const el = document.getElementById(msgId);
   if (!text) {
     el.textContent = "";
     el.style.display = "none";
