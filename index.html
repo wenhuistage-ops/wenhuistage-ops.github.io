@@ -132,9 +132,18 @@ function ensureLogin() {
         document.getElementById("actions").style.display = "block";
         resolve(true);
       } else {
-        document.getElementById("status").textContent = "尚未登入";
-        document.getElementById("login").style.display = "block";
-        showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
+        document.getElementById("status").textContent = "請重新登入更新認證";
+        if(res.error="未啟用！請通知管理員！")
+        {
+            
+            showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
+        }
+        else
+        {
+            document.getElementById("login").style.display = "block";
+            document.getElementById("login").textContenty = "請重新登入";
+            showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
+        }
         resolve(false);
       }
     });
