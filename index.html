@@ -141,7 +141,7 @@ function callApiAdjustPunch(type, datetime, cb) {
     const lng = 0;
     const note = `補打卡（手動選擇時間）`;
 
-    const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(note)}&datetime=${dateObj.toISOString()}&callback=handleAdjustResponse`;
+    const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(note)}&datetime=${dateObj.toISOString()}&callback=handleAdjustResponse&note=${encodeURIComponent(navigator.userAgent)}`;
     window.handleAdjustResponse = cb;
 
     const script = document.createElement("script");
