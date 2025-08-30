@@ -84,9 +84,8 @@
   </div>
   
   <!-- 新增補打卡卡片 -->
-  <div class="container" id="adjustPunchCard">
+  <div class="container" id="adjustPunchCard" style="display:none;">
     <h1>補打卡</h1>
-    
     <div class="row">
       <label>補打卡日期與時間：
         <input type="datetime-local" id="adjustDateTime" />
@@ -94,7 +93,6 @@
       <button class="ghost" id="btnAdjustIn">補上班打卡</button>
       <button class="ghost" id="btnAdjustOut">補下班打卡</button>
     </div>
-
     <div id="adjustMessage" class="msg" style="display:none;"></div>
   </div>
 </div>
@@ -146,6 +144,9 @@ function ensureLogin() {
         img.src = res.user.picture || res.user.rate;
         img.style.display = "inline-block";
         document.getElementById("actions").style.display = "block";
+
+        // 顯示補打卡卡片
+        document.getElementById("adjustPunchCard").style.display = "block";
         resolve(true);
       } else {
        
