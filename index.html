@@ -55,6 +55,7 @@
     }
   </style>
 </head>
+<div class="cardsContainer" style="display:flex; flex-direction:column; gap:16px; align-items:center;">
 <body>
   <div class="container" id="normalPunchCard">
     <h1>文輝打卡系統</h1>
@@ -96,6 +97,7 @@
 
     <div id="adjustMessage" class="msg" style="display:none;"></div>
   </div>
+</div>
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec";
 
@@ -156,7 +158,7 @@ function ensureLogin() {
         {
             document.getElementById("status").textContent = "請重新登入更新認證";
             document.getElementById("login").style.display = "block";
-            document.getElementById("login").textContent = "重新登入";
+            document.getElementById("btnLogin").textContent = "重新登入";
             showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
         }
         resolve(false);
