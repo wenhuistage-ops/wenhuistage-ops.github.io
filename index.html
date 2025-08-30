@@ -94,6 +94,8 @@
       <button class="ghost" id="btnAdjustOut">補下班打卡</button>
     </div>
     <div id="adjustMessage" class="msg" style="display:none;"></div>
+    <!-- 查看異常紀錄按鈕（預設隱藏） -->
+    <button id="btnViewAbnormal" style="display:none;">查看異常紀錄</button>
   </div>
 </div>
 <script>
@@ -240,6 +242,36 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function checkAbnormal() {
+    const now = new Date();
+    const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
+
+    callApi(`getPunchRecords&month=${month}`, (res) => {
+      if (res.ok) {
+        if (hasAbnormal(res.records)) {
+          document.getElementById("btnViewAbnormal").style.display = "block";
+        }
+      }
+    });
+  }
+
+  function hasAbnormal(records) {
+    const grouped = {};
+    records.forEach(r => {
+      const d = r.date.split(" ")[0]; // yyyy-mm-dd
+      if (!grouped[d]) grouped[d] = [];
+      grouped[d].push(r.type);
+    });
+
+    for (let day in grouped) {
+      const types = grouped[day];
+      if (!(types.includes("上班") && types.includes("下班"))) {
+        return true; // 異常
+      }
+    }
+    return false;
+  }
+  
   document.getElementById("btnIn").onclick = () => {
     showMessage("");
     doPunch("上班", (res, lat, lng) => {
@@ -288,6 +320,10 @@ window.addEventListener('DOMContentLoaded', () => {
           "adjustMessage"
         );
       });
+    };
+    // 綁定按鈕行為-查看異常
+    document.getElementById("btnViewAbnormal").onclick = () => {
+      window.location.href = "records.html"; // 或者開啟彈窗
     };
 </script>
 </body>
