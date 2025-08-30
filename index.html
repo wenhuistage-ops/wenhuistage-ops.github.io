@@ -211,7 +211,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById("btnLogout").onclick = () => {
     localStorage.removeItem("sessionToken");
-    location.reload();
+    //location.reload();
+    window.location.href = "/index.html"
   };
 
   function doPunch(type, cb) {
