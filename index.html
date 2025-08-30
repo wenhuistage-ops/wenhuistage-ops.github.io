@@ -134,7 +134,7 @@ function ensureLogin() {
       } else {
         document.getElementById("status").textContent = "尚未登入";
         document.getElementById("login").style.display = "block";
-        showMessage("❌ 檢查失敗：" + (res..error || "未知錯誤"), "error");
+        showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
         resolve(false);
       }
     });
