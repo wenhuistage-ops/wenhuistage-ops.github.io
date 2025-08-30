@@ -133,9 +133,8 @@ function ensureLogin() {
         resolve(true);
       } else {
         document.getElementById("status").textContent = "請重新登入更新認證";
-        if(res.error="未啟用！請通知管理員！")
+        if(res.error=="未啟用！請通知管理員！")
         {
-            
             showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
         }
         else
