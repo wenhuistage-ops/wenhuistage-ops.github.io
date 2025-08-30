@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>文輝打卡系統</title>
   <style>
@@ -134,6 +134,7 @@ function ensureLogin() {
       } else {
         document.getElementById("status").textContent = "尚未登入";
         document.getElementById("login").style.display = "block";
+        showMessage("❌ 檢查失敗：" + (res..error || "未知錯誤"), "error");
         resolve(false);
       }
     });
