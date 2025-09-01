@@ -77,7 +77,10 @@
     <div id="login" style="display:none;">
       <button class="primary" id="btnLogin">使用 LINE 登入</button>
     </div>
-
+    <!-- 加載中的圖示 -->
+    <div id="loading" style="display:none; text-align:center; margin:10px;">
+      <span>⏳ 處理中...</span>
+    </div>
     <!-- 訊息顯示 -->
     <div id="message" class="msg" style="display:none;"></div>
     <div class="foot">※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。</div>
@@ -118,8 +121,17 @@ function showMessage(text, type="ok", msgId="message") {
 function callApi(action, cb) {
   const token = localStorage.getItem("sessionToken");
   const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
-  window.handleResponse = cb;
-
+  //window.handleResponse = cb;
+  
+  // 顯示 loading
+    document.getElementById("loading").style.display = "block";
+    
+    window.handleResponse = (res) => {
+       // 關閉 loading
+       document.getElementById("loading").style.display = "none";
+       cb(res);
+     };
+    
   const script = document.createElement("script");
   script.src = url;
   script.onerror = () => showMessage("連線失敗","error");
@@ -241,7 +253,7 @@ window.addEventListener('DOMContentLoaded', () => {
       showMessage("⚠️ 無法取得定位：" + err.message, "error");
     });
   }
-
+//檢查異常
   function checkAbnormal() {
     const now = new Date();
     const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
@@ -254,7 +266,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
+//檢查「本月打卡是否有異常」
   function hasAbnormal(records) {
     const grouped = {};
     records.forEach(r => {
