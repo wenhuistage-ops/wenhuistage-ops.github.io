@@ -55,7 +55,7 @@
     }
   </style>
 </head>
-<div class="cardsContainer" style="display:flex; flex-direction:column; gap:16px; align-items:center;">
+<div class="cardsContainer" style="display:flex; flex-direction:column; gap:8px; align-items:center;">
 <body>
   <div class="container" id="normalPunchCard">
     <h1>文輝打卡系統</h1>
@@ -88,6 +88,8 @@
   
   <!-- 新增補打卡卡片 -->
   <div class="container" id="adjustPunchCard" style="display:none;">
+      <!-- 查看異常紀錄按鈕（預設隱藏） -->
+    <button id="btnViewAbnormal" style="display:block;">查看異常紀錄</button>
     <h1>補打卡</h1>
     <div class="row">
       <label>補打卡日期與時間：
@@ -97,8 +99,7 @@
       <button class="ghost" id="btnAdjustOut">補下班打卡</button>
     </div>
     <div id="adjustMessage" class="msg" style="display:none;"></div>
-    <!-- 查看異常紀錄按鈕（預設隱藏） -->
-    <button id="btnViewAbnormal" style="display:block;">查看異常紀錄</button>
+   
   </div>
 </div>
 <script>
