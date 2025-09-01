@@ -169,6 +169,7 @@ function ensureLogin() {
     callApi("checkSession", (res) => {
       if (res.ok) {
         document.getElementById("userName").textContent = "已登入：" + res.user.name;
+        localStorage.setItem("sessionUserId", res.user.userId);
         let img = document.getElementById("profileImg");
         img.src = res.user.picture || res.user.rate;
         img.style.display = "inline-block";
@@ -209,7 +210,8 @@ window.addEventListener('DOMContentLoaded', () => {
     exchangeToken("getProfile", otoken, (res) => {
       if (res.ok && res.sToken) {
         localStorage.setItem("sessionToken", res.sToken);
-        localStorage.setItem("sessionUserId", res.user.userId);
+        
+        
         showMessage("✅ 登入成功，已儲存 Token！");
 
         ensureLogin();
