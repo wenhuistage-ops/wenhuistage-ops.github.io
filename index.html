@@ -209,6 +209,7 @@ window.addEventListener('DOMContentLoaded', () => {
     exchangeToken("getProfile", otoken, (res) => {
       if (res.ok && res.sToken) {
         localStorage.setItem("sessionToken", res.sToken);
+        localStorage.setItem("sessionUserId", res.user.userId);
         showMessage("✅ 登入成功，已儲存 Token！");
 
         ensureLogin();
@@ -315,7 +316,7 @@ window.addEventListener('DOMContentLoaded', () => {
     function checkAbnormal() {
       const now = new Date();
       const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
-      const userId = localStorage.getItem("sessionToken"); // 假設你有存登入者 ID
+      const userId = localStorage.getItem("sessionUserId"); // 假設你有存登入者 ID
 
       callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
         if (res.ok) {
