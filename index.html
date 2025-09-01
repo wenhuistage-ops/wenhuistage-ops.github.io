@@ -232,7 +232,19 @@ window.addEventListener('DOMContentLoaded', () => {
     // 沒有 otoken → 檢查登入狀態
     ensureLogin();
   }
+  //檢查本月打卡異常
+  function checkAbnormal() {
+    const now = new Date();
+    const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
+    const userId = localStorage.getItem("sessionUserId"); // 假設你有存登入者 ID
 
+    callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
+      if (res.ok) {
+        const hasAbnormal = res.records.some(r => r.abnormal);
+        document.getElementById("btnViewAbnormal").style.display = hasAbnormal ? "block" : "none";
+      }
+    });
+  }
   /* ===== 綁定按鈕 ===== */
   document.getElementById("btnLogin").onclick = () => {
     callApi("getLoginUrl", (res) => {
@@ -256,19 +268,7 @@ window.addEventListener('DOMContentLoaded', () => {
       showMessage("⚠️ 無法取得定位：" + err.message, "error");
     });
   }
-//檢查本月打卡異常
-function checkAbnormal() {
-  const now = new Date();
-  const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
-  const userId = localStorage.getItem("sessionUserId"); // 假設你有存登入者 ID
 
-  callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
-    if (res.ok) {
-      const hasAbnormal = res.records.some(r => r.abnormal);
-      document.getElementById("btnViewAbnormal").style.display = hasAbnormal ? "block" : "none";
-    }
-  });
-}
   
   document.getElementById("btnIn").onclick = () => {
     showMessage("");
