@@ -98,7 +98,7 @@
     </div>
     <div id="adjustMessage" class="msg" style="display:none;"></div>
     <!-- 查看異常紀錄按鈕（預設隱藏） -->
-    <button id="btnViewAbnormal" style="display:none;">查看異常紀錄</button>
+    <button id="btnViewAbnormal" style="display:block;">查看異常紀錄</button>
   </div>
 </div>
 <script>
@@ -253,36 +253,19 @@ window.addEventListener('DOMContentLoaded', () => {
       showMessage("⚠️ 無法取得定位：" + err.message, "error");
     });
   }
-//檢查異常
-  function checkAbnormal() {
-    const now = new Date();
-    const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
+//檢查本月打卡異常
+function checkAbnormal() {
+  const now = new Date();
+  const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
+  const userId = localStorage.getItem("sessionUserId"); // 假設你有存登入者 ID
 
-    callApi(`getPunchRecords&month=${month}`, (res) => {
-      if (res.ok) {
-        if (hasAbnormal(res.records)) {
-          document.getElementById("btnViewAbnormal").style.display = "block";
-        }
-      }
-    });
-  }
-//檢查「本月打卡是否有異常」
-  function hasAbnormal(records) {
-    const grouped = {};
-    records.forEach(r => {
-      const d = r.date.split(" ")[0]; // yyyy-mm-dd
-      if (!grouped[d]) grouped[d] = [];
-      grouped[d].push(r.type);
-    });
-
-    for (let day in grouped) {
-      const types = grouped[day];
-      if (!(types.includes("上班") && types.includes("下班"))) {
-        return true; // 異常
-      }
+  callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
+    if (res.ok) {
+      const hasAbnormal = res.records.some(r => r.abnormal);
+      document.getElementById("btnViewAbnormal").style.display = hasAbnormal ? "block" : "none";
     }
-    return false;
-  }
+  });
+}
   
   document.getElementById("btnIn").onclick = () => {
     showMessage("");
