@@ -89,7 +89,7 @@
   <!-- 新增補打卡卡片 -->
   <div class="container" id="adjustPunchCard" style="display:none;">
       <!-- 查看異常紀錄按鈕（預設隱藏） -->
-    <button id="btnViewAbnormal" style="display:block;">查看異常紀錄</button>
+    <button id="btnViewAbnormal" style="display:none;">查看異常紀錄</button>
     <h1>補打卡</h1>
     <div class="row">
       <label>補打卡日期與時間：
@@ -174,6 +174,8 @@ function ensureLogin() {
         img.style.display = "inline-block";
         document.getElementById("actions").style.display = "block";
 
+        //檢查異常打卡
+        checkAbnormal();
         // 顯示補打卡卡片
         document.getElementById("adjustPunchCard").style.display = "block";
         resolve(true);
