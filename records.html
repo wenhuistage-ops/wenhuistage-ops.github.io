@@ -213,22 +213,27 @@
       });
     }
 
-    function initData(data){
-      state.all = (data.records || []).map((r,i)=>({
-        id: r.id ?? i,
-        date: r.date || (r.firstIn ? (new Date(r.firstIn)).toISOString().slice(0,10) : ''),
-        userId: r.userId ?? r.employeeId,
-        userName: r.userName || r.employeeName || (r.user && r.user.name) || '未知',
-        firstIn: r.firstIn,
-        lastOut: r.lastOut,
-        hours: (typeof r.hours === 'number') ? r.hours : (r.hoursWorked || null),
-        status: r.status || r.punchStatus || '正常',
-        raw: r
-      }));
-      state.users = data.users || Array.from(new Map(state.all.map(x=>[x.userId,{id:x.userId,name:x.userName}])).values());
-      loadUsers();
-      applyFilters();
-    }
+      function initData(data){
+        const records = data.records || data; // 如果有 records 就用，沒有就直接用 data
+        const arr = Array.isArray(records) ? records : [records];
+
+        state.all = arr.map((r,i)=>({
+          id: r.id ?? i,
+          date: r.date || (r.firstIn ? (new Date(r.firstIn)).toISOString().slice(0,10) : ''),
+          userId: r.userId,
+          userName: r.userName || r.employeeName || r.name || '未知',
+          firstIn: r.firstIn,
+          lastOut: r.lastOut,
+          hours: (typeof r.hours === 'number') ? r.hours : (r.hoursWorked || null),
+          status: r.status || (r.abnormal ? '異常' : '正常'),
+          reasons: r.reasons || [],
+          raw: r
+        }));
+
+        state.users = data.users || Array.from(new Map(state.all.map(x=>[x.userId,{id:x.userId,name:x.userName}])).values());
+        loadUsers();
+        applyFilters();
+      }
 
     // UI 事件
     el('prevPage').onclick = ()=>{ if(state.page>1){ state.page--; renderTable(); } };
