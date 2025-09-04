@@ -92,9 +92,7 @@
   </div>
 
   <script>
-    // 假設你的全域 callApi(action, cb) 已存在（見你之前的程式片段）
-    // 如果沒有，可以把 fetchRecords 改為直接用 fetch() 呼叫你的 API。
-
+    // 全域狀態
     const state = {
       all: [],
       users: [],
@@ -105,12 +103,6 @@
 
     const el = id => document.getElementById(id);
     const tbody = document.querySelector('#recordsTable tbody');
-
-    function fmtDate(dt){
-      if(!dt) return '';
-      const d = new Date(dt);
-      return d.toLocaleString();
-    }
 
     function loadUsers(){
       const sel = el('filterUser');
@@ -151,7 +143,6 @@
       state.filtered = state.all.filter(r=>{
         if(user && String(r.userId) !== String(user)) return false;
         if(month){
-          // assume r.date is yyyy-mm-dd or ISO
           const d = r.date || r.firstIn || r.createdAt;
           if(!d) return false;
           const m = (new Date(d)).toISOString().slice(0,7);
@@ -175,7 +166,6 @@
       `;
       el('modalBackdrop').style.display = 'flex';
     }
-
     function closeModal(){ el('modalBackdrop').style.display = 'none'; }
 
     function exportCsv(){
@@ -192,62 +182,38 @@
       document.body.appendChild(a); a.click(); a.remove();
     }
 
-    // pagination
-    el('prevPage').onclick = ()=>{ if(state.page>1){ state.page--; renderTable(); } };
-    el('nextPage').onclick = ()=>{ if(state.page*state.pageSize < state.filtered.length){ state.page++; renderTable(); } };
-
-    // UI events
-    el('filterUser').onchange = applyFilters;
-    el('filterMonth').onchange = applyFilters;
-    el('btnRefresh').onclick = fetchRecords;
-    el('btnExport').onclick = exportCsv;
-    el('closeModal').onclick = closeModal;
-    el('modalBackdrop').onclick = (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); };
-
-    // --- fetch records from backend ---
-    function fetchRecords(){
-      // 若你已有 callApi(action, cb)（JSONP），可以改成： callApi('getRecords', res => { if(res.ok) initData(res.data); else alert(res.msg||'讀取失敗'); });
-
-      // 下面示範 fetch() 版本；請根據你後端實作修改 URL / body / headers
-      const API = '/api/records'; // <<--- 替換成你實際的 API
-
-      // show simple loading
-      el('btnRefresh').textContent = '讀取中...'; el('btnRefresh').disabled = true;
-
-      fetch(API, {credentials:'same-origin'})
-        .then(r=>r.json())
-        .then(data=>{
-          // 假設回傳格式：{ok:true, records:[...], users:[{id,name},...]}
-          if(data.ok){
-            initData(data);
-          }else{
-            alert(data.msg || '伺服器回傳錯誤');
-          }
-        })
-        .catch(err=>{ console.error(err); alert('讀取發生錯誤'); })
-        .finally(()=>{ el('btnRefresh').textContent = '重新整理'; el('btnRefresh').disabled = false; });
+    // API 呼叫 (JSONP)
+    function callApi(action, cb) {
+      const token = localStorage.getItem("sessionToken");
+      const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
+      window.handleResponse = (res) => cb(res);
+      const script = document.createElement("script");
+      script.src = url;
+      script.onerror = () => alert("連線失敗");
+      document.body.appendChild(script);
     }
-      
-      function fetchAbnormalRecords() {
-        const API = '/api/abnormal-records'; // 這裡改成你後端的異常 API
 
-        fetch(API)
-          .then(r => r.json())
-          .then(data => {
-            if (data.ok) {
-              initData(data);
-            } else {
-              alert(data.msg || '讀取異常紀錄失敗');
-            }
-          })
-          .catch(err => {
-            console.error(err);
-            alert('讀取發生錯誤');
-          });
-      }
+    function fetchRecords(month="", userId="") {
+      let action = "getRecords";
+      if (month) action += `&month=${month}`;
+      if (userId) action += `&userId=${userId}`;
+      callApi(action, (res) => {
+        if (res.ok) initData(res);
+        else alert(res.msg || "讀取紀錄失敗");
+      });
+    }
+
+    function fetchAbnormalRecords(month="", userId="") {
+      let action = "getAbnormalRecords";
+      if (month) action += `&month=${month}`;
+      if (userId) action += `&userId=${userId}`;
+      callApi(action, (res) => {
+        if (res.ok) initData(res);
+        else alert(res.msg || "讀取異常紀錄失敗");
+      });
+    }
 
     function initData(data){
-      // normalize records: ensure fields used in UI exist
       state.all = (data.records || []).map((r,i)=>({
         id: r.id ?? i,
         date: r.date || (r.firstIn ? (new Date(r.firstIn)).toISOString().slice(0,10) : ''),
@@ -259,43 +225,32 @@
         status: r.status || r.punchStatus || '正常',
         raw: r
       }));
-
       state.users = data.users || Array.from(new Map(state.all.map(x=>[x.userId,{id:x.userId,name:x.userName}])).values());
       loadUsers();
       applyFilters();
     }
-      function callApi(action, cb) {
-        const token = localStorage.getItem("sessionToken");
-        const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
-        //window.handleResponse = cb;
-          window.handleResponse = (res) => {
-             cb(res);
-           };
-        const script = document.createElement("script");
-        script.src = url;
-        document.body.appendChild(script);
-      }
+
+    // UI 事件
+    el('prevPage').onclick = ()=>{ if(state.page>1){ state.page--; renderTable(); } };
+    el('nextPage').onclick = ()=>{ if(state.page*state.pageSize < state.filtered.length){ state.page++; renderTable(); } };
+    el('filterUser').onchange = applyFilters;
+    el('filterMonth').onchange = applyFilters;
+    el('btnRefresh').onclick = ()=>{ fetchRecords(); };
+    el('btnExport').onclick = exportCsv;
+    el('closeModal').onclick = closeModal;
+    el('modalBackdrop').onclick = (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); };
+
     // initial
     document.addEventListener("DOMContentLoaded", () => {
       const params = new URLSearchParams(window.location.search);
-
+      const month = params.get("month") || "";
+      const userId = params.get("userId") || "";
       if (params.get("type") === "abnormal") {
-        const month = params.get("month");
-        const userId = params.get("userId");
-
-        callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
-          if (res.ok) {
-            initData(res);
-          } else {
-            showMessage(res.msg || "讀取異常紀錄失敗","error");
-          }
-        });
+        fetchAbnormalRecords(month, userId);
       } else {
-        fetchRecords();
+        fetchRecords(month, userId);
       }
     });
-
-
   </script>
 </body>
 </html>

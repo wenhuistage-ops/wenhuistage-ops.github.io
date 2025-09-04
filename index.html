@@ -315,8 +315,9 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     // 綁定按鈕行為-查看異常
     document.getElementById("btnViewAbnormal").onclick = () => {
-        window.location.href = "records.html?type=abnormal";
+      window.location.href = `records.html?type=abnormal&month=${month}&userId=${userId}`;
     };
+
     //檢查本月打卡異常
     function checkAbnormal() {
       const now = new Date();
