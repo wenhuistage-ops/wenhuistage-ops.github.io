@@ -90,6 +90,9 @@
   <div class="container" id="adjustPunchCard" style="display:none;">
       <!-- 查看異常紀錄按鈕（預設隱藏） -->
     <button id="btnViewAbnormal" style="display:none;">查看異常紀錄</button>
+    <div id="loadingMsg" style="display:none;">
+      <span>⏳ 處理中...</span>
+    </div>
     <h1>補打卡</h1>
     <div class="row">
       <label>補打卡日期與時間：
@@ -119,17 +122,17 @@ function showMessage(text, type="ok", msgId="message") {
 }
 
 /* ===== JSONP 呼叫 ===== */
-function callApi(action, cb) {
+function callApi(action, loadingId="loading") {
   const token = localStorage.getItem("sessionToken");
   const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
   //window.handleResponse = cb;
   
-  // 顯示 loading
-    document.getElementById("loading").style.display = "block";
+    // 顯示指定 loading
+    document.getElementById(loadingId).style.display = "block";
     
     window.handleResponse = (res) => {
        // 關閉 loading
-       document.getElementById("loading").style.display = "none";
+       document.getElementById("loadingId").style.display = "none";
        cb(res);
      };
     
@@ -319,13 +322,14 @@ window.addEventListener('DOMContentLoaded', () => {
       const now = new Date();
       const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
       const userId = localStorage.getItem("sessionUserId"); // 假設你有存登入者 ID
-
+      // 顯示補打卡 loading
+        document.getElementById("loadingMsg").style.display = "block";
       callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
         if (res.ok) {
           const hasAbnormal = res.records.some(r => r.abnormal);
           document.getElementById("btnViewAbnormal").style.display = hasAbnormal ? "block" : "none";
         }
-      });
+      },loadingMsg);
     }
 </script>
 </body>
