@@ -276,25 +276,25 @@
         document.body.appendChild(script);
       }
     // initial
-    document.addEventListener('DOMContentLoaded', () => {
-        document.addEventListener("DOMContentLoaded", () => {
-          const params = new URLSearchParams(window.location.search);
+    document.addEventListener("DOMContentLoaded", () => {
+      const params = new URLSearchParams(window.location.search);
 
-          if (params.get("type") === "abnormal") {
-            const month = params.get("month");
-            const userId = params.get("userId");
+      if (params.get("type") === "abnormal") {
+        const month = params.get("month");
+        const userId = params.get("userId");
 
-            callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
-              if (res.ok) {
-                initData(res);
-              } else {
-                showMessage(res.msg || "讀取異常紀錄失敗","error");
-              }
-            });
+        callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
+          if (res.ok) {
+            initData(res);
           } else {
-            fetchRecords();
+            showMessage(res.msg || "讀取異常紀錄失敗","error");
           }
         });
+      } else {
+        fetchRecords();
+      }
+    });
+
 
   </script>
 </body>
