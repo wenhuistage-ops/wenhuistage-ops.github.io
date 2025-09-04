@@ -322,16 +322,25 @@ window.addEventListener('DOMContentLoaded', () => {
     function checkAbnormal() {
       const now = new Date();
       const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
-      const userId = localStorage.getItem("sessionUserId"); // 假設你有存登入者 ID
-      // 顯示補打卡 loading
-        document.getElementById("loadingMsg").style.display = "block";
+      const userId = localStorage.getItem("sessionUserId");
+
+      document.getElementById("loadingMsg").style.display = "block";
       callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
         if (res.ok) {
           const hasAbnormal = res.records.some(r => r.abnormal);
-          document.getElementById("btnViewAbnormal").style.display = hasAbnormal ? "block" : "none";
+          const btn = document.getElementById("btnViewAbnormal");
+          if (hasAbnormal) {
+            btn.style.display = "block";
+            btn.onclick = () => {
+              window.location.href = `records.html?type=abnormal&month=${month}&userId=${userId}`;
+            };
+          } else {
+            btn.style.display = "none";
+          }
         }
-      },"loadingMsg");
+      }, "loadingMsg");
     }
+
 </script>
 </body>
 </html>
