@@ -122,7 +122,7 @@ function showMessage(text, type="ok", msgId="message") {
 }
 
 /* ===== JSONP 呼叫 ===== */
-function callApi(action, loadingId="loading") {
+function callApi(action, cb, loadingId="loading") {
   const token = localStorage.getItem("sessionToken");
   const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
   //window.handleResponse = cb;
@@ -132,7 +132,7 @@ function callApi(action, loadingId="loading") {
     
     window.handleResponse = (res) => {
        // 關閉 loading
-       document.getElementById("loadingId").style.display = "none";
+       document.getElementById(loadingId).style.display = "none";
        cb(res);
      };
     
