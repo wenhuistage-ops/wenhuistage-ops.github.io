@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的打卡月曆</title>
+<style>
+body {font-family: ui-sans-serif, system-ui; background:#f0f2f5; margin:0; display:flex; justify-content:center; padding:20px;}
+.container {max-width:500px; width:100%;}
+header {display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+button {padding:8px 12px; border-radius:12px; border:0; cursor:pointer;}
+button.primary {background: linear-gradient(90deg,#4f46e5,#2563eb); color:#fff;}
+button.ghost {background:#eef2ff; color:#374151; border:1px solid #dbeafe;}
+.calendar {display:grid; grid-template-columns:repeat(7,1fr); gap:8px;}
+.day-card {background:#fff; border-radius:12px; padding:8px; min-height:60px; box-shadow:0 2px 6px rgba(0,0,0,0.1); position:relative; cursor:pointer;}
+.day-card .date {font-size:14px; font-weight:600;}
+.day-card .status {position:absolute; top:6px; right:6px; font-size:10px; padding:2px 4px; border-radius:6px; color:#fff;}
+.status.normal {background:#046c6a;}
+.status.abnormal {background:#dc2626;}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center}
+.modal{background:#fff;padding:16px;border-radius:12px;min-width:280px;max-width:90%;}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <button id="prevMonth" class="ghost">上一月</button>
+  <h2 id="monthLabel"></h2>
+  <button id="nextMonth" class="ghost">下一月</button>
+</header>
+<div class="calendar" id="calendar"></div>
+</div>
+
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="modal">
+    <h3 id="modalTitle">打卡明細</h3>
+    <div id="modalBody" style="margin-top:8px"></div>
+    <div style="text-align:right;margin-top:12px"><button id="closeModal" class="ghost">關閉</button></div>
+  </div>
+</div>
+
+<script>
+const calendarEl = document.getElementById('calendar');
+const monthLabel = document.getElementById('monthLabel');
+const modalBackdrop = document.getElementById('modalBackdrop');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+
+let currentDate = new Date();
+let myRecords = []; // 後端回傳 checkAttendanceAbnormal 的資料
+
+function fetchMyRecords(year, month) {
+  const userId = localStorage.getItem('sessionUserId');
+  const monthStr = `${year}-${String(month).padStart(2,'0')}`;
+  const action = `getAbnormalRecords&month=${monthStr}&userId=${userId}`;
+  callApi(action, res => {
+    if(res.ok){
+      myRecords = res.records;
+      renderCalendar();
+    } else {
+      alert(res.msg||'讀取紀錄失敗');
+    }
+  });
+}
+
+function renderCalendar(){
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  monthLabel.textContent = `${year} 年 ${month+1} 月`;
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month+1, 0);
+
+  calendarEl.innerHTML = '';
+
+  for(let d=1; d<=lastDay.getDate(); d++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const record = myRecords.find(r=>r.reasons.some(reason=>reason.startsWith(dateStr)));
+    const card = document.createElement('div');
+    card.className = 'day-card';
+    card.innerHTML = `<div class="date">${d}</div>`;
+
+    if(record){
+      const span = document.createElement('span');
+      span.className = 'status abnormal';
+      span.textContent = '異常';
+      card.appendChild(span);
+      card.dataset.reasons = record.reasons.filter(r=>r.startsWith(dateStr)).join('\n');
+    } else {
+      const span = document.createElement('span');
+      span.className = 'status normal';
+      span.textContent = '正常';
+      card.appendChild(span);
+    }
+
+    card.onclick = () => {
+      modalTitle.textContent = `${dateStr} 打卡明細`;
+      modalBody.textContent = card.dataset.reasons || '無異常';
+      modalBackdrop.style.display = 'flex';
+    };
+
+    calendarEl.appendChild(card);
+  }
+}
+
+document.getElementById('prevMonth').onclick = ()=>{
+  currentDate.setMonth(currentDate.getMonth()-1);
+  fetchMyRecords(currentDate.getFullYear(), currentDate.getMonth()+1);
+};
+
+document.getElementById('nextMonth').onclick = ()=>{
+  currentDate.setMonth(currentDate.getMonth()+1);
+  fetchMyRecords(currentDate.getFullYear(), currentDate.getMonth()+1);
+};
+
+document.getElementById('closeModal').onclick = ()=>{ modalBackdrop.style.display='none'; };
+
+// 初始載入
+const now = new Date();
+fetchMyRecords(now.getFullYear(), now.getMonth()+1);
+
+// JSONP callApi 範例
+function callApi(action, cb){
+  const token = localStorage.getItem('sessionToken');
+  const url = `https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec?action=${action}&token=${token}&callback=handleResponse`;
+  window.handleResponse = cb;
+  const script = document.createElement('script');
+  script.src = url;
+  document.body.appendChild(script);
+}
+</script>
+</body>
+</html>
