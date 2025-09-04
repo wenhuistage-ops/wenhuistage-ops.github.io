@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>打卡紀錄 — Records</title>
+  <style>
+    :root{--bg:#f7f8fb;--card:#ffffff;--muted:#6b7280;--accent:#0ea5a4}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial}
+    body{background:var(--bg);color:#111}
+    .container{max-width:1100px;margin:28px auto;padding:20px}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(16,24,40,0.06)}
+    header.row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    h1{font-size:20px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    label{font-size:13px;color:var(--muted)}
+    select,input[type=date],button{padding:8px 10px;border-radius:8px;border:1px solid #e6e9ef;background:#fff}
+    button.primary{background:var(--accent);color:#fff;border:0;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid #e6e9ef}
+    .table-wrap{overflow:auto;margin-top:12px}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    thead th{position:sticky;top:0;background:#fafafa;padding:10px;border-bottom:1px solid #eef2f6;text-align:left}
+    tbody td{padding:10px;border-bottom:1px dashed #eef2f6}
+    .muted{color:var(--muted);font-size:13px}
+    .pill{display:inline-block;padding:6px 8px;border-radius:999px;font-size:12px}
+    .ok{background:#eefdfb;color:#046c6a}
+    .late{background:#fff3f2;color:#9b2c2c}
+    .pagination{display:flex;gap:6px;align-items:center;margin-top:12px}
+    .small{font-size:13px;color:var(--muted)}
+    /* modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center}
+    .modal{background:#fff;padding:16px;border-radius:10px;min-width:320px;max-width:90%}
+    @media (max-width:640px){header.row{flex-direction:column;align-items:flex-start;gap:8px}.controls{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <header class="row">
+        <div>
+          <h1>打卡紀錄</h1>
+          <div class="small muted">查看與匯出員工打卡資料</div>
+        </div>
+
+        <div class="controls">
+          <label for="filterUser">員工</label>
+          <select id="filterUser"><option value="">所有</option></select>
+
+          <label for="filterMonth">月份</label>
+          <input id="filterMonth" type="month" />
+
+          <button id="btnRefresh" class="ghost">重新整理</button>
+          <button id="btnExport" class="primary">匯出 CSV</button>
+        </div>
+      </header>
+
+      <div class="table-wrap">
+        <table id="recordsTable">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>員工</th>
+              <th>最早上班</th>
+              <th>最晚下班</th>
+              <th>工時 (小時)</th>
+              <th>狀態</th>
+              <th>備註</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <div class="small muted">顯示 <span id="showingCount">0</span> 筆</div>
+        <div style="flex:1"></div>
+        <button id="prevPage" class="ghost">上一頁</button>
+        <button id="nextPage" class="ghost">下一頁</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- modal -->
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div class="modal card" role="dialog" aria-modal="true">
+      <h3 id="modalTitle">紀錄明細</h3>
+      <div id="modalBody" style="margin-top:8px"></div>
+      <div style="text-align:right;margin-top:12px">
+        <button id="closeModal" class="ghost">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 假設你的全域 callApi(action, cb) 已存在（見你之前的程式片段）
+    // 如果沒有，可以把 fetchRecords 改為直接用 fetch() 呼叫你的 API。
+
+    const state = {
+      all: [],
+      users: [],
+      filtered: [],
+      page: 1,
+      pageSize: 20
+    };
+
+    const el = id => document.getElementById(id);
+    const tbody = document.querySelector('#recordsTable tbody');
+
+    function fmtDate(dt){
+      if(!dt) return '';
+      const d = new Date(dt);
+      return d.toLocaleString();
+    }
+
+    function loadUsers(){
+      const sel = el('filterUser');
+      sel.innerHTML = '<option value="">所有</option>' + state.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+    }
+
+    function renderTable(){
+      const start = (state.page-1)*state.pageSize;
+      const pageItems = state.filtered.slice(start, start+state.pageSize);
+      el('showingCount').textContent = state.filtered.length;
+
+      tbody.innerHTML = pageItems.map(r=>{
+        const statusClass = r.status === '正常' ? 'ok' : (r.status === '遲到' ? 'late' : 'pill');
+        return `
+          <tr data-id="${r.id || ''}">
+            <td>${r.date || ''}</td>
+            <td>${r.userName || ''}</td>
+            <td>${r.firstIn ? new Date(r.firstIn).toLocaleString() : ''}</td>
+            <td>${r.lastOut ? new Date(r.lastOut).toLocaleString() : ''}</td>
+            <td>${(r.hours !== undefined && r.hours !== null) ? r.hours.toFixed(2) : ''}</td>
+            <td><span class="pill ${statusClass}">${r.status || ''}</span></td>
+            <td><button data-id="${r.id || ''}" class="viewBtn ghost">查看</button></td>
+          </tr>
+        `;
+      }).join('');
+
+      // attach view listeners
+      document.querySelectorAll('.viewBtn').forEach(btn=>btn.onclick = (e)=>{
+        const id = e.currentTarget.dataset.id;
+        const rec = state.all.find(x=>String(x.id) === String(id));
+        openModal(rec);
+      });
+    }
+
+    function applyFilters(){
+      const user = el('filterUser').value;
+      const month = el('filterMonth').value; // yyyy-mm
+      state.filtered = state.all.filter(r=>{
+        if(user && String(r.userId) !== String(user)) return false;
+        if(month){
+          // assume r.date is yyyy-mm-dd or ISO
+          const d = r.date || r.firstIn || r.createdAt;
+          if(!d) return false;
+          const m = (new Date(d)).toISOString().slice(0,7);
+          if(m !== month) return false;
+        }
+        return true;
+      });
+      state.page = 1;
+      renderTable();
+    }
+
+    function openModal(rec){
+      if(!rec) return;
+      el('modalTitle').textContent = `紀錄 - ${rec.userName || ''} (${rec.date})`;
+      el('modalBody').innerHTML = `
+        <div><strong>最早上班：</strong>${rec.firstIn ? new Date(rec.firstIn).toLocaleString() : '-'}</div>
+        <div><strong>最晚下班：</strong>${rec.lastOut ? new Date(rec.lastOut).toLocaleString() : '-'}</div>
+        <div><strong>工時：</strong>${rec.hours ?? '-'} 小時</div>
+        <div><strong>狀態：</strong>${rec.status || '-'}</div>
+        <div style="margin-top:8px"><strong>原始打卡資料：</strong><pre style="white-space:pre-wrap;max-height:220px;overflow:auto">${JSON.stringify(rec.raw || rec.checkins || [], null, 2)}</pre></div>
+      `;
+      el('modalBackdrop').style.display = 'flex';
+    }
+
+    function closeModal(){ el('modalBackdrop').style.display = 'none'; }
+
+    function exportCsv(){
+      const rows = state.filtered.map(r=>({
+        日期:r.date||'', 員工:r.userName||'', 最早上班:r.firstIn||'', 最晚下班:r.lastOut||'', 工時:r.hours||'', 狀態:r.status||''
+      }));
+      if(rows.length===0){ alert('沒有資料可匯出'); return; }
+      const keys = Object.keys(rows[0]);
+      const csv = [keys.join(',')].concat(rows.map(r=>keys.map(k=>'"'+String(r[k]||'')+'"').join(','))).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `records_${(new Date()).toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    // pagination
+    el('prevPage').onclick = ()=>{ if(state.page>1){ state.page--; renderTable(); } };
+    el('nextPage').onclick = ()=>{ if(state.page*state.pageSize < state.filtered.length){ state.page++; renderTable(); } };
+
+    // UI events
+    el('filterUser').onchange = applyFilters;
+    el('filterMonth').onchange = applyFilters;
+    el('btnRefresh').onclick = fetchRecords;
+    el('btnExport').onclick = exportCsv;
+    el('closeModal').onclick = closeModal;
+    el('modalBackdrop').onclick = (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); };
+
+    // --- fetch records from backend ---
+    function fetchRecords(){
+      // 若你已有 callApi(action, cb)（JSONP），可以改成： callApi('getRecords', res => { if(res.ok) initData(res.data); else alert(res.msg||'讀取失敗'); });
+
+      // 下面示範 fetch() 版本；請根據你後端實作修改 URL / body / headers
+      const API = '/api/records'; // <<--- 替換成你實際的 API
+
+      // show simple loading
+      el('btnRefresh').textContent = '讀取中...'; el('btnRefresh').disabled = true;
+
+      fetch(API, {credentials:'same-origin'})
+        .then(r=>r.json())
+        .then(data=>{
+          // 假設回傳格式：{ok:true, records:[...], users:[{id,name},...]}
+          if(data.ok){
+            initData(data);
+          }else{
+            alert(data.msg || '伺服器回傳錯誤');
+          }
+        })
+        .catch(err=>{ console.error(err); alert('讀取發生錯誤'); })
+        .finally(()=>{ el('btnRefresh').textContent = '重新整理'; el('btnRefresh').disabled = false; });
+    }
+
+    function initData(data){
+      // normalize records: ensure fields used in UI exist
+      state.all = (data.records || []).map((r,i)=>({
+        id: r.id ?? i,
+        date: r.date || (r.firstIn ? (new Date(r.firstIn)).toISOString().slice(0,10) : ''),
+        userId: r.userId ?? r.employeeId,
+        userName: r.userName || r.employeeName || (r.user && r.user.name) || '未知',
+        firstIn: r.firstIn,
+        lastOut: r.lastOut,
+        hours: (typeof r.hours === 'number') ? r.hours : (r.hoursWorked || null),
+        status: r.status || r.punchStatus || '正常',
+        raw: r
+      }));
+
+      state.users = data.users || Array.from(new Map(state.all.map(x=>[x.userId,{id:x.userId,name:x.userName}])).values());
+      loadUsers();
+      applyFilters();
+    }
+
+    // initial
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // 如果後端支援 query string month=user, 可以預設填入
+      const now = new Date();
+      el('filterMonth').value = now.toISOString().slice(0,7);
+      // 嘗試讀取資料
+      fetchRecords();
+    });
+  </script>
+</body>
+</html>
