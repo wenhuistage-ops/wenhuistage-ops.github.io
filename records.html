@@ -181,7 +181,7 @@
       a.download = `records_${(new Date()).toISOString().slice(0,10)}.csv`;
       document.body.appendChild(a); a.click(); a.remove();
     }
-
+      const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec";
     // API 呼叫 (JSONP)
     function callApi(action, cb) {
       const token = localStorage.getItem("sessionToken");
