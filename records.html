@@ -227,6 +227,24 @@
         .catch(err=>{ console.error(err); alert('讀取發生錯誤'); })
         .finally(()=>{ el('btnRefresh').textContent = '重新整理'; el('btnRefresh').disabled = false; });
     }
+      
+      function fetchAbnormalRecords() {
+        const API = '/api/abnormal-records'; // 這裡改成你後端的異常 API
+
+        fetch(API)
+          .then(r => r.json())
+          .then(data => {
+            if (data.ok) {
+              initData(data);
+            } else {
+              alert(data.msg || '讀取異常紀錄失敗');
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            alert('讀取發生錯誤');
+          });
+      }
 
     function initData(data){
       // normalize records: ensure fields used in UI exist
@@ -246,15 +264,38 @@
       loadUsers();
       applyFilters();
     }
-
+      function callApi(action, cb) {
+        const token = localStorage.getItem("sessionToken");
+        const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
+        //window.handleResponse = cb;
+          window.handleResponse = (res) => {
+             cb(res);
+           };
+        const script = document.createElement("script");
+        script.src = url;
+        document.body.appendChild(script);
+      }
     // initial
-    document.addEventListener('DOMContentLoaded', ()=>{
-      // 如果後端支援 query string month=user, 可以預設填入
-      const now = new Date();
-      el('filterMonth').value = now.toISOString().slice(0,7);
-      // 嘗試讀取資料
-      fetchRecords();
-    });
+    document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener("DOMContentLoaded", () => {
+          const params = new URLSearchParams(window.location.search);
+
+          if (params.get("type") === "abnormal") {
+            const month = params.get("month");
+            const userId = params.get("userId");
+
+            callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
+              if (res.ok) {
+                initData(res);
+              } else {
+                showMessage(res.msg || "讀取異常紀錄失敗","error");
+              }
+            });
+          } else {
+            fetchRecords();
+          }
+        });
+
   </script>
 </body>
 </html>
