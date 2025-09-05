@@ -185,7 +185,7 @@ function ensureLogin() {
         //檢查異常打卡
         checkAbnormal();
         // 顯示補打卡卡片
-        document.getElementById("adjustPunchCard").style.display = "block";
+       // document.getElementById("adjustPunchCard").style.display = "block";
         resolve(true);
       } else {
        
@@ -329,8 +329,10 @@ window.addEventListener('DOMContentLoaded', () => {
         if (res.ok) {
           const hasAbnormal = res.records.some(r => r.abnormal);
           const btn = document.getElementById("btnViewAbnormal");
+          const di = document.getElementById("adjustPunchCard");
+          
           if (hasAbnormal) {
-            btn.style.display = "block";
+            di.style.display = "block";
             btn.onclick = () => {
               window.location.href = `punchCalendar.html?type=abnormal&month=${month}&userId=${userId}`;
             };
