@@ -5,37 +5,111 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>我的打卡月曆</title>
 <style>
-body {font-family: ui-sans-serif, system-ui; background:#f0f2f5; margin:0; display:flex; justify-content:center; padding:20px;}
-.container {max-width:500px; width:100%;}
-header {display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
-button {padding:8px 12px; border-radius:12px; border:0; cursor:pointer;}
-button.primary {background: linear-gradient(90deg,#4f46e5,#2563eb); color:#fff;}
-button.ghost {background:#eef2ff; color:#374151; border:1px solid #dbeafe;}
-.calendar {display:grid; grid-template-columns:repeat(7,1fr); gap:8px;}
-.day-card {background:#fff; border-radius:12px; padding:8px; min-height:60px; box-shadow:0 2px 6px rgba(0,0,0,0.1); position:relative; cursor:pointer;}
-.day-card .date {font-size:14px; font-weight:600;}
-.day-card .status {position:absolute; top:6px; right:6px; font-size:10px; padding:2px 4px; border-radius:6px; color:#fff;}
-.status.normal {background:#046c6a;}
-.status.abnormal {background:#dc2626;}
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center}
-.modal{background:#fff;padding:16px;border-radius:12px;min-width:280px;max-width:90%;}
+body {
+  font-family: ui-sans-serif, system-ui;
+  background:#f0f2f5;
+  margin:0;
+  display:flex;
+  justify-content:center;
+  padding:20px;
+}
+.container {
+  max-width:520px;
+  width:100%;
+  background:#fff;
+  border-radius:16px;
+  padding:16px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.1);
+}
+header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:16px;
+}
+button {
+  padding:8px 12px;
+  border-radius:12px;
+  border:0;
+  cursor:pointer;
+}
+button.primary {
+  background: linear-gradient(90deg,#4f46e5,#2563eb);
+  color:#fff;
+}
+button.ghost {
+  background:#eef2ff;
+  color:#374151;
+  border:1px solid #dbeafe;
+}
+.calendar {
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:8px;
+}
+.day-card {
+  background:#fff;
+  border-radius:12px;
+  padding:8px;
+  min-height:70px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  align-items:flex-start;
+  font-size:14px;
+  position:relative;
+}
+.day-card.today {
+  border: 2px solid #2563eb; /* 藍色框標示今天 */
+}
+.day-card .date {
+  font-weight:600;
+  margin-bottom:4px;
+}
+.day-card .status {
+  font-size:12px;
+  padding:2px 6px;
+  border-radius:6px;
+  color:#fff;
+  margin-top:auto; /* 靠底 */
+}
+.status.normal { background:#16a34a; }   /* 綠 */
+.status.abnormal { background:#dc2626; } /* 紅 */
+.modal-backdrop {
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.35);
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+.modal {
+  background:#fff;
+  padding:16px;
+  border-radius:12px;
+  min-width:280px;
+  max-width:90%;
+}
 </style>
 </head>
 <body>
 <div class="container">
-<header>
-  <button id="prevMonth" class="ghost">上一月</button>
-  <h2 id="monthLabel"></h2>
-  <button id="nextMonth" class="ghost">下一月</button>
-</header>
-<div class="calendar" id="calendar"></div>
+  <header>
+    <button id="prevMonth" class="ghost">上一月</button>
+    <h2 id="monthLabel"></h2>
+    <button id="nextMonth" class="ghost">下一月</button>
+  </header>
+  <div class="calendar" id="calendar"></div>
 </div>
 
 <div id="modalBackdrop" class="modal-backdrop">
   <div class="modal">
     <h3 id="modalTitle">打卡明細</h3>
     <div id="modalBody" style="margin-top:8px"></div>
-    <div style="text-align:right;margin-top:12px"><button id="closeModal" class="ghost">關閉</button></div>
+    <div style="text-align:right;margin-top:12px">
+      <button id="closeModal" class="ghost">關閉</button>
+    </div>
   </div>
 </div>
 
@@ -68,7 +142,6 @@ function renderCalendar(){
   const month = currentDate.getMonth();
   monthLabel.textContent = `${year} 年 ${month+1} 月`;
 
-  const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month+1, 0);
 
   calendarEl.innerHTML = '';
@@ -76,26 +149,38 @@ function renderCalendar(){
   for(let d=1; d<=lastDay.getDate(); d++){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const record = myRecords.find(r=>r.reasons.some(reason=>reason.startsWith(dateStr)));
+
     const card = document.createElement('div');
     card.className = 'day-card';
-    card.innerHTML = `<div class="date">${d}</div>`;
 
-    if(record){
-      const span = document.createElement('span');
-      span.className = 'status abnormal';
-      span.textContent = '異常';
-      card.appendChild(span);
-      card.dataset.reasons = record.reasons.filter(r=>r.startsWith(dateStr)).join('\n');
-    } else {
-      const span = document.createElement('span');
-      span.className = 'status normal';
-      span.textContent = '正常';
-      card.appendChild(span);
+    // 判斷今天
+    const today = new Date();
+    if (
+      year === today.getFullYear() &&
+      month === today.getMonth() &&
+      d === today.getDate()
+    ) {
+      card.classList.add("today");
     }
 
+    // 日期
+    const dateEl = document.createElement('div');
+    dateEl.className = 'date';
+    dateEl.textContent = d;
+    card.appendChild(dateEl);
+
+    // 狀態
+    const span = document.createElement('span');
+    span.className = 'status ' + (record ? 'abnormal' : 'normal');
+    span.textContent = record ? '異常' : '正常';
+    card.appendChild(span);
+
+    // 點擊事件
     card.onclick = () => {
       modalTitle.textContent = `${dateStr} 打卡明細`;
-      modalBody.textContent = card.dataset.reasons || '無異常';
+      modalBody.textContent = record
+        ? record.reasons.filter(r=>r.startsWith(dateStr)).join('\\n')
+        : '無異常';
       modalBackdrop.style.display = 'flex';
     };
 
