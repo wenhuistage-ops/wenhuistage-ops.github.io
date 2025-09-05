@@ -45,6 +45,11 @@
       color:#374151;
       border: 1px solid #dbeafe;
     }
+    .warning {
+      background: #ef4444; /* 红色 */
+      color: #fff;
+      border: 1px solid #fca5a5;
+    }
     .row { display:flex; flex-direction: column; gap:12px; }
     .msg { margin-top: 16px; padding:12px; border-radius:12px; background:#f1f5f9; }
     .error { background:#fee2e2; color:#991b1b; }
@@ -59,13 +64,11 @@
 <body>
   <div class="container" id="normalPunchCard">
     <h1>文輝打卡系統</h1>
-
     <!-- 登入狀態 -->
     <div id="status" class="muted" style="display:flex; align-items:center; gap:8px;">
       <img id="profileImg" src="" alt="頭像" style="display:none; width:40px; height:40px; border-radius:50%;">
       <span id="userName">正在檢查登入狀態…</span>
     </div>
-
     <!-- 打卡功能 -->
     <div id="actions" class="row" style="display:none;">
       <button class="primary" id="btnIn">上班打卡</button>
@@ -89,7 +92,7 @@
   <!-- 新增補打卡卡片 -->
   <div class="container" id="adjustPunchCard" style="display:none;">
       <!-- 查看異常紀錄按鈕（預設隱藏） -->
-    <button id="btnViewAbnormal" style="display:none;">查看異常紀錄</button>
+    <button id="btnViewAbnormal" class="warning" style="display:none;">查看異常紀錄</button>
     <div id="loadingMsg" style="display:none;">
       <span>⏳ 處理中...</span>
     </div>
