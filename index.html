@@ -212,7 +212,20 @@ function ensureLogin() {
     });
   });
 }
+    window.addEventListener("DOMContentLoaded", () => {
+      const input = document.getElementById("adjustDateTime");
+      const now = new Date();
 
+      // 格式化成 datetime-local 支援格式：YYYY-MM-DDTHH:mm
+      const toLocal = (d) => d.toISOString().slice(0,16);
+
+      // 設定 max（現在時間）
+      input.max = toLocal(now);
+
+      // 設定 min（本月第一天 00:00）
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      input.min = toLocal(monthStart);
+    });
 /* ===== 登入流程 ===== */
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.top.location.search);
