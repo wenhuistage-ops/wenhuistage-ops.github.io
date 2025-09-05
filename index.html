@@ -216,14 +216,16 @@ function ensureLogin() {
       const input = document.getElementById("adjustDateTime");
       const now = new Date();
 
-      // 格式化成 datetime-local 支援格式：YYYY-MM-DDTHH:mm
-      const toLocal = (d) => d.toISOString().slice(0,16);
+      const toLocal = (d) => {
+        const pad = (n) => n.toString().padStart(2,'0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
 
-      // 設定 max（現在時間）
+      // max = 今天
       input.max = toLocal(now);
 
-      // 設定 min（本月第一天 00:00）
-      const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0, 0);
+      // min = 前一個月第一天 00:00
+      const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0);
       input.min = toLocal(monthStart);
     });
 /* ===== 登入流程 ===== */
