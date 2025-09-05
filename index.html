@@ -223,7 +223,7 @@ function ensureLogin() {
       input.max = toLocal(now);
 
       // 設定 min（本月第一天 00:00）
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0, 0);
       input.min = toLocal(monthStart);
     });
 /* ===== 登入流程 ===== */
