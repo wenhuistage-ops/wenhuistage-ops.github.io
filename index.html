@@ -92,7 +92,7 @@
   <!-- 新增補打卡卡片 -->
   <div class="container" id="adjustPunchCard" style="display:none;">
       <!-- 查看異常紀錄按鈕（預設隱藏） -->
-    <button class="warning" id="btnViewAbnormal" style="display:none;">⚠️ 查看異常紀錄 👀</button>
+    <button class="warning" id="btnViewAbnormal" style="display:block;">⚠️ 查看異常紀錄 👀</button>
     <div id="loadingMsg" style="display:none;">
       <span>⏳ 處理中...</span>
     </div>
@@ -163,7 +163,13 @@ function callApiAdjustPunch(type, datetime, cb) {
     const lng = 0;
 
     const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&datetime=${dateObj.toISOString()}&callback=handleAdjustResponse&note=${encodeURIComponent(navigator.userAgent)}`;
-    window.handleAdjustResponse = cb;
+    document.getElementById("loadingMsg").style.display = "block";
+    
+    window.handleResponse = (res) => {
+       // 關閉 loading
+       document.getElementById("loadingMsg").style.display = "none";
+       cb(res);
+     };
 
     const script = document.createElement("script");
     script.src = url;
