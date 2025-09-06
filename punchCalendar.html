@@ -70,6 +70,20 @@ button.ghost {
 }
 .status.normal { background:#16a34a; }   /* 綠 */
 .status.abnormal { background:#dc2626; } /* 紅 */
+
+.day-card .tag-label {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  color: #fff;
+  text-align: center;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.tag-label.虛 { background: #6366f1; }       /* 紫色，虛擬卡 */
+.tag-label.補 { background: #f97316; }       /* 橘色，補打卡 */
+
 .tags {
   position:absolute;
   top:4px;
@@ -191,7 +205,23 @@ function renderCalendar(){
         }
       });
     }
+    if(record){
+      let abnormal = false;
+      let tags = [];
 
+      const types = record.items.map(i=>i.type);
+      const hasOn = types.includes("上班");
+      const hasOff = types.includes("下班");
+
+      if(!hasOn || !hasOff) abnormal = true;
+
+      record.items.forEach(i=>{
+        if(i.source === "虛擬卡") tags.push("虛");
+        if(i.source === "補打卡" && !i.approved) {
+          abnormal = true;
+          tags.push("補(待審)");
+        }
+      });
     // 標籤
     // 標籤
     if(tags.length > 0){
@@ -201,10 +231,10 @@ function renderCalendar(){
       tagsContainer.style.marginBottom = '4px'; // 與狀態保持間距
 
       tags.forEach(t=>{
-        const tagEl = document.createElement('div');
-        tagEl.className = 'status';   // 直接使用 status 樣式
-        tagEl.textContent = t;
-        tagsContainer.appendChild(tagEl);
+          const tagEl = document.createElement('div');
+          tagEl.className = 'tag-label'; // 改用 tag-label
+          tagEl.textContent = t;
+          tagsContainer.appendChild(tagEl);
       });
 
       card.appendChild(tagsContainer);
