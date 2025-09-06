@@ -144,7 +144,7 @@ function fetchAttendanceDetails(year, month) {
       myRecords = res.records;
       renderCalendar();
     } else {
-      alert(res.msg||'讀取紀錄失敗');
+      alert(res.msg+userId+"測試"||'讀取紀錄失敗');
     }
   });
 }
