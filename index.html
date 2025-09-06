@@ -293,7 +293,26 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  
+  function validateAdjustTime() {
+    const input = document.getElementById("adjustDateTime");
+    const value = input.value;
+    if (!value) return false;
+
+    const selected = new Date(value);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    if (selected < monthStart) {
+      alert("⚠️ 不能選擇本月以前的時間");
+      return false;
+    }
+    if (selected > now) {
+      alert("⚠️ 不能選擇未來的時間");
+      return false;
+    }
+    return true;
+  }
+
   document.getElementById("btnIn").onclick = () => {
     showMessage("");
     doPunch("上班", (res, lat, lng) => {
@@ -319,6 +338,7 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // 綁定補打卡按鈕
     document.getElementById("btnAdjustIn").onclick = () => {
+        if (!validateAdjustTime()) return;
       const datetime = document.getElementById("adjustDateTime").value;
       if (!datetime) return showMessage("請選擇補打卡日期時間", "error", "adjustMessage");
       showMessage("", "ok", "adjustMessage");
@@ -332,6 +352,7 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     document.getElementById("btnAdjustOut").onclick = () => {
+        if (!validateAdjustTime()) return;
       const datetime = document.getElementById("adjustDateTime").value;
       if (!datetime) return showMessage("請選擇補打卡日期時間", "error", "adjustMessage");
       showMessage("", "ok", "adjustMessage");
