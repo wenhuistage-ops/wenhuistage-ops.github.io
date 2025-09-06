@@ -60,16 +60,18 @@ button.ghost {
 }
 .day-card.today { border: 2px solid #2563eb; }
 .day-card .date { font-weight:600; margin-bottom:4px; }
+
 .day-card .status {
-  font-size: 13px;         /* 跟日期字體接近 */
-  padding:4px 8px;          /* 調整大小 */
+  font-size: 13px;
+  padding:4px 8px;
   border-radius:12px;
   color:#fff;
   text-align:center;
-  display:inline-block;     /* 讓多個標籤可以並排 */
+  display:inline-block;
+  margin-top:2px;
 }
-.status.normal { background:#16a34a; }   /* 綠 */
-.status.abnormal { background:#dc2626; } /* 紅 */
+.status.normal { background:#16a34a; }
+.status.abnormal { background:#dc2626; }
 
 .day-card .tag-label {
   font-size: 13px;
@@ -79,26 +81,11 @@ button.ghost {
   text-align: center;
   display: inline-block;
   margin-right: 4px;
+  margin-bottom:2px;
 }
+.tag-label.虛 { background: #6366f1; } /* 紫色，虛擬卡 */
+.tag-label.補 { background: #f97316; } /* 橘色，補打卡 */
 
-.tag-label.虛 { background: #6366f1; }       /* 紫色，虛擬卡 */
-.tag-label.補 { background: #f97316; }       /* 橘色，補打卡 */
-
-.tags {
-  position:absolute;
-  top:4px;
-  right:4px;
-  display:flex;
-  gap:2px;
-  flex-wrap:wrap;
-}
-.tag {
-  font-size:10px;
-  padding:1px 4px;
-  border-radius:4px;
-  background:#e0e7ff;
-  color:#1e3a8a;
-}
 .modal-backdrop {
   position:fixed;
   inset:0;
@@ -147,7 +134,7 @@ const modalTitle = document.getElementById('modalTitle');
 const modalBody = document.getElementById('modalBody');
 
 let currentDate = new Date();
-let myRecords = []; // 後端回傳 getAttendanceDetails 的資料
+let myRecords = [];
 
 function fetchAttendanceDetails(year, month) {
   const userId = localStorage.getItem('sessionUserId');
@@ -158,7 +145,7 @@ function fetchAttendanceDetails(year, month) {
       myRecords = res.records;
       renderCalendar();
     } else {
-      alert(res.msg+userId+"測試"||'讀取紀錄失敗');
+      alert(res.msg || '讀取紀錄失敗');
     }
   });
 }
@@ -188,78 +175,63 @@ function renderCalendar(){
     dateEl.textContent = d;
     card.appendChild(dateEl);
 
-    // 狀態判斷
-    let abnormal = false;
-    let tags = [];
-    if(record){
-      const types = record.items.map(i=>i.type);
-      const hasOn = types.includes("上班");
-      const hasOff = types.includes("下班");
-
-      if(!hasOn || !hasOff) abnormal = true;
-      record.items.forEach(i=>{
-        if(i.source === "虛擬卡") tags.push("虛");
-        if(i.source === "補打卡" && !i.approved) {
-          abnormal = true;
-          tags.push("補(待審)");
-        }
-      });
-    }
     if(record){
       let abnormal = false;
-      let tags = [];
-
-      const types = record.items.map(i=>i.type);
-      const hasOn = types.includes("上班");
-      const hasOff = types.includes("下班");
-
-      if(!hasOn || !hasOff) abnormal = true;
-
-      record.items.forEach(i=>{
-        if(i.source === "虛擬卡") tags.push("虛");
-        if(i.source === "補打卡" && !i.approved) {
-          abnormal = true;
-          tags.push("補(待審)");
-        }
-      });
-    // 標籤
-    // 標籤
-    if(tags.length > 0){
       const tagsContainer = document.createElement('div');
       tagsContainer.style.display = 'flex';
       tagsContainer.style.gap = '4px';
-      tagsContainer.style.marginBottom = '4px'; // 與狀態保持間距
+      tagsContainer.style.flexWrap = 'wrap';
 
-      tags.forEach(t=>{
+      record.items.forEach(i=>{
+        if(i.source === "虛擬卡"){
           const tagEl = document.createElement('div');
-          tagEl.className = 'tag-label'; // 改用 tag-label
-          tagEl.textContent = t;
+          tagEl.className = 'tag-label 虛';
+          tagEl.textContent = '虛';
           tagsContainer.appendChild(tagEl);
+        }
+        if(i.source === "補打卡" && !i.approved){
+          abnormal = true;
+          const tagEl = document.createElement('div');
+          tagEl.className = 'tag-label 補';
+          tagEl.textContent = '補(待審)';
+          tagsContainer.appendChild(tagEl);
+        }
       });
 
-      card.appendChild(tagsContainer);
-    }
+      // 判斷是否缺上下班
+      const types = record.items.map(i=>i.type);
+      if(!types.includes("上班") || !types.includes("下班")){
+        abnormal = true;
+      }
 
-    // 狀態判斷
-    const span = document.createElement('div'); // 用 div 保持一致
-    span.className = 'status ' + (abnormal ? 'abnormal' : 'normal');
-    span.textContent = abnormal ? '異常' : '正常';
-    card.appendChild(span);
+      if(tagsContainer.childElementCount > 0){
+        card.appendChild(tagsContainer);
+      }
 
-    // 點擊顯示細節
-    card.onclick = () => {
-      modalTitle.textContent = `${dateStr} 打卡明細`;
-      if(record){
+      // 狀態
+      const statusEl = document.createElement('div');
+      statusEl.className = 'status ' + (abnormal ? 'abnormal' : 'normal');
+      statusEl.textContent = abnormal ? '異常' : '正常';
+      card.appendChild(statusEl);
+
+      // 點擊顯示明細
+      card.onclick = () => {
+        modalTitle.textContent = `${dateStr} 打卡明細`;
         modalBody.textContent = record.items.map(i=>{
           let status = i.source;
           if(i.source === "補打卡") status += i.approved ? "(已審核)" : "(待審)";
           return `${i.type} - ${new Date(i.datetime).toLocaleString()} ${status}`;
         }).join("\n");
-      } else {
+        modalBackdrop.style.display = 'flex';
+      };
+    } else {
+      // 沒有紀錄，不顯示標籤或狀態
+      card.onclick = () => {
+        modalTitle.textContent = `${dateStr} 打卡明細`;
         modalBody.textContent = "無紀錄";
-      }
-      modalBackdrop.style.display = 'flex';
-    };
+        modalBackdrop.style.display = 'flex';
+      };
+    }
 
     calendarEl.appendChild(card);
   }
