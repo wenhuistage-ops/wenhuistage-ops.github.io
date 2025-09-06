@@ -136,6 +136,7 @@ let myRecords = []; // 後端回傳 getAttendanceDetails 的資料
 
 function fetchAttendanceDetails(year, month) {
   const userId = localStorage.getItem('sessionUserId');
+  alert(userId||'使用者ＩＤ');
   const monthStr = `${year}-${String(month).padStart(2,'0')}`;
   const action = `getAttendanceDetails&month=${monthStr}&userId=${userId}`;
   callApi(action, res => {
