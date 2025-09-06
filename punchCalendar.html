@@ -61,11 +61,12 @@ button.ghost {
 .day-card.today { border: 2px solid #2563eb; }
 .day-card .date { font-weight:600; margin-bottom:4px; }
 .day-card .status {
-  font-size:12px;
-  padding:2px 6px;
-  border-radius:6px;
+  font-size: 13px;         /* 跟日期字體接近 */
+  padding:4px 8px;          /* 調整大小 */
+  border-radius:12px;
   color:#fff;
-  margin-top:auto;
+  text-align:center;
+  display:inline-block;     /* 讓多個標籤可以並排 */
 }
 .status.normal { background:#16a34a; }   /* 綠 */
 .status.abnormal { background:#dc2626; } /* 紅 */
@@ -136,7 +137,6 @@ let myRecords = []; // 後端回傳 getAttendanceDetails 的資料
 
 function fetchAttendanceDetails(year, month) {
   const userId = localStorage.getItem('sessionUserId');
-  alert(userId||'使用者ＩＤ');
   const monthStr = `${year}-${String(month).padStart(2,'0')}`;
   const action = `getAttendanceDetails&month=${monthStr}&userId=${userId}`;
   callApi(action, res => {
@@ -198,17 +198,28 @@ function renderCalendar(){
     card.appendChild(span);
 
     // 標籤
-    if(tags.length>0){
-      const tagsEl = document.createElement('div');
-      tagsEl.className = 'tags';
+    // 標籤
+    if(tags.length > 0){
+      const tagsContainer = document.createElement('div');
+      tagsContainer.style.display = 'flex';
+      tagsContainer.style.gap = '4px';
+      tagsContainer.style.marginBottom = '4px'; // 與狀態保持間距
+
       tags.forEach(t=>{
-        const tag = document.createElement('div');
-        tag.className = 'tag';
-        tag.textContent = t;
-        tagsEl.appendChild(tag);
+        const tagEl = document.createElement('div');
+        tagEl.className = 'status';   // 直接使用 status 樣式
+        tagEl.textContent = t;
+        tagsContainer.appendChild(tagEl);
       });
-      card.appendChild(tagsEl);
+
+      card.appendChild(tagsContainer);
     }
+
+    // 狀態判斷
+    const span = document.createElement('div'); // 用 div 保持一致
+    span.className = 'status ' + (abnormal ? 'abnormal' : 'normal');
+    span.textContent = abnormal ? '異常' : '正常';
+    card.appendChild(span);
 
     // 點擊顯示細節
     card.onclick = () => {
