@@ -192,11 +192,6 @@ function renderCalendar(){
       });
     }
 
-    const span = document.createElement('span');
-    span.className = 'status ' + (abnormal ? 'abnormal' : 'normal');
-    span.textContent = abnormal ? '異常' : '正常';
-    card.appendChild(span);
-
     // 標籤
     // 標籤
     if(tags.length > 0){
