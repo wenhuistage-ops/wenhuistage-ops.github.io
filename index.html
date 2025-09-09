@@ -112,19 +112,32 @@
 <script>
     let translations = {};
     let currentLang = localStorage.getItem("lang") || "zh-TW";
+    console.log("初始語言:", currentLang);
 
     // 載入語系檔
     async function loadTranslations(lang) {
-      const res = await fetch(`/i18n/${lang}.json`);
-      translations = await res.json();
-      currentLang = lang;
-      localStorage.setItem("lang", lang);
+      console.log("開始載入語系:", lang);
+      try {
+        const res = await fetch(`/i18n/${lang}.json`);
+        if (!res.ok) {
+          throw new Error(`HTTP 錯誤: ${res.status}`);
+        }
+        translations = await res.json();
+        currentLang = lang;
+        localStorage.setItem("lang", lang);
+        console.log("語系載入成功:", translations);
+      } catch (err) {
+        console.error("載入語系失敗:", err);
+      }
     }
 
     // 翻譯函式
     function t(code) {
-      return translations[code] || code;
+      const text = translations[code] || code;
+      console.log(`翻譯查詢: code='${code}' → '${text}'`);
+      return text;
     }
+
     
 const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec";
 
@@ -255,7 +268,6 @@ function callApiAdjustPunch(type, datetime, cb) {
     });
 /* ===== 登入流程 ===== */
 window.addEventListener('DOMContentLoaded', () => {
-    await loadTranslations(currentLang);  // ⬅️ 一定要先載入
   const params = new URLSearchParams(window.top.location.search);
   const otoken = params.get('code');
 
