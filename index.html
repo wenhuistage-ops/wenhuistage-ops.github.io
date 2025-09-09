@@ -116,7 +116,7 @@
     if (!currentLang) {
       // 取瀏覽器語言，例如 zh-TW, en-US
       const browserLang = navigator.language || navigator.userLanguage;
-
+      console.log("瀏覽器語言:", browserLang);
       // 簡單處理：只取前兩碼 (zh, en, ja...)
       if (browserLang.startsWith("zh")) {
           console.log("瀏覽器語言:", currentLang);
