@@ -110,6 +110,22 @@
   </div>
 </div>
 <script>
+    let translations = {};
+    let currentLang = localStorage.getItem("lang") || "zh-TW";
+
+    // 載入語系檔
+    async function loadTranslations(lang) {
+      const res = await fetch(`/i18n/${lang}.json`);
+      translations = await res.json();
+      currentLang = lang;
+      localStorage.setItem("lang", lang);
+    }
+
+    // 翻譯函式
+    function t(code) {
+      return translations[code] || code;
+    }
+    
 const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec";
 
 /* ===== 共用訊息顯示 ===== */
@@ -135,6 +151,8 @@ function callApi(action, cb, loadingId="loading") {
     document.getElementById(loadingId).style.display = "block";
     
     window.handleResponse = (res) => {
+        // 統一翻譯
+           res.msg = t(res.code);
        // 關閉 loading
        document.getElementById(loadingId).style.display = "none";
        cb(res);
