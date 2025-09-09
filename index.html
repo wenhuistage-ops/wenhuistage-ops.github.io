@@ -112,7 +112,7 @@
 <script>
     
     let currentLang = localStorage.getItem("lang");
-
+    console.log("現在語言:", currentLang);
     if (!currentLang) {
       // 取瀏覽器語言，例如 zh-TW, en-US
       const browserLang = navigator.language || navigator.userLanguage;
