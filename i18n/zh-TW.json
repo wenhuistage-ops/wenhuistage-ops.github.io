@@ -1,67 +1,21 @@
-{\rtf1\ansi\ansicpg950\cocoartf2822
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset136 PingFangTC-Regular;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\paperw15840\paperh24480\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+{
+  "WELCOME_BACK": "歡迎回來：{name}",
+  "PUNCH_SUCCESS": "{type} 打卡成功",
+  "ADJUST_PUNCH_SUCCESS": "{type} 補打卡成功",
 
-\f0\fs24 \cf0 \{\
-  "WELCOME_BACK": "
-\f1 \'c5\'77\'aa\'ef\'a6\'5e\'a8\'d3\'a1\'47
-\f0 \{name\}",\
-  "PUNCH_SUCCESS": "\{type\} 
-\f1 \'a5\'b4\'a5\'64\'a6\'a8\'a5\'5c
-\f0 ",\
-  "ADJUST_PUNCH_SUCCESS": "\{type\} 
-\f1 \'b8\'c9\'a5\'b4\'a5\'64\'a6\'a8\'a5\'5c
-\f0 ",\
-\
-  "ERR_INVALID_OR_USED_TOKEN": "
-\f1 \'b5\'4c\'ae\'c4\'a9\'ce\'a4\'77\'a8\'cf\'a5\'ce\'aa\'ba
-\f0  token",\
-  "ERR_MISSING_MONTH": "
-\f1 \'af\'ca\'a4\'d6
-\f0  month 
-\f1 \'b0\'d1\'bc\'c6
-\f0 ",\
-  "ERR_SESSION_INVALID": "Session 
-\f1 \'a4\'77\'a5\'a2\'ae\'c4
-\f0 ",\
-  "ERR_OUT_OF_RANGE": "
-\f1 \'a4\'a3\'a6\'62\'a4\'b9\'b3\'5c\'aa\'ba\'a5\'b4\'a5\'64\'a6\'61\'c2\'49\'bd\'64\'b3\'f2\'a4\'ba
-\f0 ",\
-  "ERR_SESSION_EXPIRED": "Session 
-\f1 \'a4\'77\'b9\'4c\'b4\'c11
-\f0 ",\
-  "ERR_SESSION_TOKEN": "
-\f1 \'b5\'4c\'ae\'c4\'aa\'ba
-\f0  sessionToken",\
-  "ERR_MISSING_DATE": "
-\f1 \'af\'ca\'a4\'d6\'a4\'eb\'a5\'f7
-\f0 ",\
-  "ERR_ACCOUNT_DISABLED": "
-\f1 \'a5\'bc\'b1\'d2\'a5\'ce\'a1\'49\'bd\'d0\'b3\'71\'aa\'be\'ba\'de\'b2\'7a\'ad\'fb\'a1\'49
-\f0 ",\
-  "ERR_NO_DATA": "
-\f1 \'a8\'53\'a6\'b3\'b8\'ea\'ae\'c6
-\f0 ",\
-  "ERR_EXCHANGE_TOKEN_FAIL": "
-\f1 \'a5\'e6\'b4\'ab
-\f0  access_token 
-\f1 \'a5\'a2\'b1\'d1
-\f0 ",\
-  "ERR_INVALID_ID_TOKEN": "id_token 
-\f1 \'ae\'e6\'a6\'a1\'bf\'f9\'bb\'7e
-\f0 ",\
-\
-  "ABNORMAL_MISSING_ALL": "\{date\} 
-\f1 \'af\'ca\'a5\'64\'a1\'5d\'a5\'fe\'a4\'e9\'a5\'bc\'a5\'b4\'a5\'64\'a1\'5e
-\f0 ",\
-  "ABNORMAL_MISSING_OUT": "\{date\} 
-\f1 \'af\'ca\'a4\'55\'af\'5a\'a5\'64
-\f0 ",\
-  "ABNORMAL_MISSING_IN": "\{date\} 
-\f1 \'af\'ca\'a4\'57\'af\'5a\'a5\'64
-\f0 "\
-\}\
+  "ERR_INVALID_OR_USED_TOKEN": "無效或已使用的 token",
+  "ERR_MISSING_MONTH": "缺少 month 參數",
+  "ERR_SESSION_INVALID": "Session 已失效",
+  "ERR_OUT_OF_RANGE": "不在允許的打卡地點範圍內",
+  "ERR_SESSION_EXPIRED": "Session 已過期",
+  "ERR_SESSION_TOKEN": "無效的 sessionToken",
+  "ERR_MISSING_DATE": "缺少月份",
+  "ERR_ACCOUNT_DISABLED": "未啟用！請通知管理員！",
+  "ERR_NO_DATA": "沒有資料",
+  "ERR_EXCHANGE_TOKEN_FAIL": "交換 access_token 失敗",
+  "ERR_INVALID_ID_TOKEN": "id_token 格式錯誤",
+
+  "ABNORMAL_MISSING_ALL": "{date} 缺卡（全日未打卡）",
+  "ABNORMAL_MISSING_OUT": "{date} 缺下班卡",
+  "ABNORMAL_MISSING_IN": "{date} 缺上班卡"
 }
