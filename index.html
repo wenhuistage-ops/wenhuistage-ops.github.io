@@ -212,6 +212,10 @@ function callApiAdjustPunch(type, datetime, cb) {
     document.body.appendChild(script);
 }
     function ensureLogin() {
+        console.log("當前語言:", currentLang);
+        // 先確保翻譯檔載入完成
+        await loadTranslations(currentLang);
+        console.log("translations 已載入:", translations);
       return new Promise((resolve) => {
         callApi("checkSession", (res) => {
           if (res.ok) {
