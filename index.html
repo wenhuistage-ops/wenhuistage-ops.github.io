@@ -212,10 +212,6 @@ function callApiAdjustPunch(type, datetime, cb) {
     document.body.appendChild(script);
 }
     function ensureLogin() {
-        console.log("當前語言:", currentLang);
-        // 先確保翻譯檔載入完成
-        await loadTranslations(currentLang);
-        console.log("translations 已載入:", translations);
       return new Promise((resolve) => {
         callApi("checkSession", (res) => {
           if (res.ok) {
@@ -271,7 +267,11 @@ function callApiAdjustPunch(type, datetime, cb) {
       }
     });
 /* ===== 登入流程 ===== */
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+    console.log("初始化語系…");
+    await loadTranslations(currentLang); // 先載入語系
+    console.log("translations 已載入", translations);
+    
   const params = new URLSearchParams(window.top.location.search);
   const otoken = params.get('code');
 
