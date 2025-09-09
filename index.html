@@ -156,6 +156,10 @@ function callApi(action, cb, loadingId="loading") {
        // 關閉 loading
        document.getElementById(loadingId).style.display = "none";
        cb(res);
+       // 清理 script，避免累積
+           if (script.parentNode) {
+             script.parentNode.removeChild(script);
+           }
      };
     
   const script = document.createElement("script");
@@ -195,41 +199,40 @@ function callApiAdjustPunch(type, datetime, cb) {
     document.body.appendChild(script);
 }
 /* ===== 檢查登入狀態 ===== */
-function ensureLogin() {
-  return new Promise((resolve) => {
-    callApi("checkSession", (res) => {
-      if (res.ok) {
-        document.getElementById("userName").textContent = "已登入：" + res.user.name;
-        localStorage.setItem("sessionUserId", res.user.userId);
-        let img = document.getElementById("profileImg");
-        img.src = res.user.picture || res.user.rate;
-        img.style.display = "inline-block";
-        document.getElementById("actions").style.display = "block";
+    function ensureLogin() {
+      return new Promise((resolve) => {
+        callApi("checkSession", (res) => {
+          if (res.ok) {
+            document.getElementById("userName").textContent = "已登入：" + res.user.name;
+            localStorage.setItem("sessionUserId", res.user.userId);
+            let img = document.getElementById("profileImg");
+            img.src = res.user.picture || res.user.rate;
+            img.style.display = "inline-block";
+            document.getElementById("actions").style.display = "block";
 
-        //檢查異常打卡
-        checkAbnormal();
-        // 顯示補打卡卡片
-       // document.getElementById("adjustPunchCard").style.display = "block";
-        resolve(true);
-      } else {
-       
-        if(res.error=="未啟用！請通知管理員！")
-        {
-            document.getElementById("status").textContent = "您的帳號未啟用！請通知管理員！";
-            showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
-        }
-        else
-        {
-            document.getElementById("status").textContent = "請重新登入更新認證";
-            document.getElementById("login").style.display = "block";
-            document.getElementById("btnLogin").textContent = "重新登入";
-            showMessage("❌ 檢查失敗：" + (res.error || "未知錯誤"), "error");
-        }
-        resolve(false);
-      }
-    });
-  });
-}
+            // 檢查異常打卡
+            checkAbnormal();
+            resolve(true);
+
+          } else {
+            // ✅ 使用代碼翻譯
+            const errorMsg = t(res.code || "UNKNOWN_ERROR");
+
+            if (res.code === "ACCOUNT_NOT_ENABLED") {
+              document.getElementById("status").textContent = errorMsg;
+              showMessage("❌ " + errorMsg, "error");
+            } else {
+              document.getElementById("status").textContent = t("PLEASE_RELOGIN");
+              document.getElementById("login").style.display = "block";
+              document.getElementById("btnLogin").textContent = t("BTN_RELOGIN");
+              showMessage("❌ " + errorMsg, "error");
+            }
+            resolve(false);
+          }
+        });
+      });
+    }
+
     window.addEventListener("DOMContentLoaded", () => {
       const input = document.getElementById("adjustDateTime");
       const now = new Date();
