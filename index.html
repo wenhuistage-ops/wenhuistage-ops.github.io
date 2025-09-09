@@ -110,6 +110,27 @@
   </div>
 </div>
 <script>
+    
+    let currentLang = localStorage.getItem("lang");
+
+    if (!currentLang) {
+      // 取瀏覽器語言，例如 zh-TW, en-US
+      const browserLang = navigator.language || navigator.userLanguage;
+
+      // 簡單處理：只取前兩碼 (zh, en, ja...)
+      if (browserLang.startsWith("zh")) {
+          console.log("瀏覽器語言:", currentLang);
+        currentLang = "zh-TW";
+      } else if (browserLang.startsWith("ja")) {
+        currentLang = "ja-JP";
+      } else {
+        currentLang = "en-US"; // 預設英文
+      }
+
+      // 記錄下來，之後就用 localStorage 優先
+      localStorage.setItem("lang", currentLang);
+    }
+    
     let translations = {};
     let currentLang = localStorage.getItem("lang") || "zh-TW";
     console.log("初始語言:", currentLang);
