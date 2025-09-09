@@ -198,7 +198,6 @@ function callApiAdjustPunch(type, datetime, cb) {
     script.onerror = () => showMessage("連線失敗", "error", "adjustMessage");
     document.body.appendChild(script);
 }
-/* ===== 檢查登入狀態 ===== */
     function ensureLogin() {
       return new Promise((resolve) => {
         callApi("checkSession", (res) => {
@@ -256,6 +255,7 @@ function callApiAdjustPunch(type, datetime, cb) {
     });
 /* ===== 登入流程 ===== */
 window.addEventListener('DOMContentLoaded', () => {
+    await loadTranslations(currentLang);  // ⬅️ 一定要先載入
   const params = new URLSearchParams(window.top.location.search);
   const otoken = params.get('code');
 
