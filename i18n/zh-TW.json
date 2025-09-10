@@ -3,7 +3,7 @@
   "PUNCH_SUCCESS": "✅{type}打卡成功",
   "ADJUST_PUNCH_SUCCESS": "✅{type} 補打卡成功",
   
-  "ERR_SESSION_INVALID": "Session 已失效",
+  "ERR_SESSION_INVALID": "🔄 登入憑證-已失效「請重新登入」",
   "ERR_SESSION_EXPIRED": "Session 已過期",
   "ERR_SESSION_TOKEN": "無效的 sessionToken",
   "MISSING_SESSION_TOKEN": "缺少 sessionToken",
@@ -27,4 +27,16 @@
   
   "BTN_RELOGIN": "重新登入",
   "PLEASE_RELOGIN": "請重新登入"
+  
+  "BTN_PUNCH_IN": "上班打卡",
+  "BTN_PUNCH_OUT": "下班打卡",
+  "BTN_LOGOUT": "登出",
+  "BTN_ADJUST_IN": "補上班打卡",
+  "BTN_ADJUST_OUT": "補下班打卡",
+  "BTN_VIEW_ABNORMAL": "⚠️ 查看異常紀錄 👀",
+  "LOADING": "⏳ 處理中...",
+  "INVALID_ADJUST_TIME": "⚠️ 選擇的時間不合法",
+  "SELECT_ADJUST_DATETIME": "請選擇補打卡日期時間",
+  "LOGIN_SUCCESS": "✅ 登入成功，已儲存 Token！"
+  
 }
