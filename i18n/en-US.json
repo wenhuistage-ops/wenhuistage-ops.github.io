@@ -1,25 +1,43 @@
 {
   "WELCOME_BACK": "Welcome back: {name}",
-  "PUNCH_SUCCESS": "{type} punch successful",
-  "ADJUST_PUNCH_SUCCESS": "{type} adjusted punch successful",
-
-  "ERR_INVALID_OR_USED_TOKEN": "Invalid or already used token",
-  "ERR_MISSING_MONTH": "Missing month parameter",
-  "ERR_SESSION_INVALID": "Session is invalid",
-  "ERR_OUT_OF_RANGE": "Not within the allowed punch location",
-  "ERR_SESSION_EXPIRED": "Session expired",
-  "ERR_SESSION_TOKEN": "Invalid session token",
-  "ERR_MISSING_DATE": "Missing date",
-  "ERR_ACCOUNT_DISABLED": "Account not enabled! Please contact admin.",
-  "ERR_NO_DATA": "No data",
-  "ERR_EXCHANGE_TOKEN_FAIL": "Failed to exchange access_token",
-  "ERR_INVALID_ID_TOKEN": "Invalid id_token format",
-
-  "ABNORMAL_MISSING_ALL": "{date} missing punch (whole day)",
-  "ABNORMAL_MISSING_OUT": "{date} missing check-out punch",
-  "ABNORMAL_MISSING_IN": "{date} missing check-in punch",
+  "PUNCH_SUCCESS": "✅ {type} punch successful",
+  "ADJUST_PUNCH_SUCCESS": "✅ {type} adjusted punch successful",
   
-  "BTN_RELOGIN": "Sign in again",
-  "PLEASE_RELOGIN": "Please sign in again"
-
+  "ERR_SESSION_INVALID": "🔄 Session token invalid, please log in again",
+  "ERR_SESSION_EXPIRED": "Session has expired",
+  "ERR_SESSION_TOKEN": "Invalid sessionToken",
+  "MISSING_SESSION_TOKEN": "Missing sessionToken",
+  "SESSION_SHEET_NOT_FOUND": "Session sheet not found",
+  
+  "ERR_INVALID_OR_USED_TOKEN": "Invalid or already used token",
+  "ERR_INVALID_ID_TOKEN": "id_token format invalid",
+  "ERR_EXCHANGE_TOKEN_FAIL": "Failed to exchange access_token",
+  
+  "ERR_MISSING_MONTH": "Missing month parameter",
+  "ERR_MISSING_DATE": "Missing date",
+  
+  "ERR_ACCOUNT_DISABLED": "Account not enabled! Please contact admin",
+  "ERR_NO_DATA": "No data found",
+  
+  "ERR_OUT_OF_RANGE": "❌ Punch failed! Not within allowed location",
+  
+  "ABNORMAL_MISSING_ALL": "{date} missing all punches",
+  "ABNORMAL_MISSING_OUT": "{date} missing clock-out",
+  "ABNORMAL_MISSING_IN": "{date} missing clock-in",
+  
+  "BTN_RELOGIN": "Relogin",
+  "PLEASE_RELOGIN": "Please log in again",
+  
+  "BTN_PUNCH_IN": "Clock In",
+  "BTN_PUNCH_OUT": "Clock Out",
+  "BTN_LOGOUT": "Logout",
+  "BTN_ADJUST_IN": "Adjust Clock-In",
+  "BTN_ADJUST_OUT": "Adjust Clock-Out",
+  "BTN_VIEW_ABNORMAL": "⚠️ View Abnormal Records 👀",
+  "LOADING": "⏳ Processing...",
+  "INVALID_ADJUST_TIME": "⚠️ Selected time is invalid",
+  "SELECT_ADJUST_DATETIME": "Please select a date and time for adjusted punch",
+  "LOGIN_SUCCESS": "✅ Login successful, token saved!",
+  "ERROR_GEOLOCATION": "⚠️ Unable to get location: {msg}",
+  "ERROR_LOGIN_FAILED": "❌ Login failed: {msg}"
 }
