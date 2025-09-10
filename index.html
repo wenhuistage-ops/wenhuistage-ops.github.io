@@ -318,11 +318,11 @@ window.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem("sessionToken", res.sToken);
         
         
-        showMessage("✅ 登入成功，已儲存 Token！");
+        showMessage(t("LOGIN_SUCCESS");
 
         ensureLogin();
       } else {
-        showMessage("❌ 登入失敗：" + (res.msg || "未知錯誤"), "error");
+        showMessage(t("ERROR_LOGIN_FAILED", {msg: res.msg || t("UNKNOWN_ERROR")}), "error");
 
         const container = document.getElementById("login");
         container.style.display = "block";
@@ -330,7 +330,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
         const btn = document.createElement("button");
         btn.id = "btnRelogin";
-        btn.textContent = "重新登入";
+        btn.textContent = t("BTN_RELOGIN");
         btn.className = "primary";
         btn.onclick = () => { window.location.href = "https://wenhuistage-ops.github.io/"; };
 
@@ -362,7 +362,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       const action = `punch&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(navigator.userAgent)}`;
       callApi(action, (res) => { if (cb) cb(res, lat, lng); });
     }, (err) => {
-      showMessage("⚠️ 無法取得定位：" + err.message, "error");
+      showMessage(t("ERROR_GEOLOCATION", {msg: err.message}), "error");
     });
   }
 
