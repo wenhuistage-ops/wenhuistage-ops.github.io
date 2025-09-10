@@ -57,7 +57,7 @@
    "load_failed": "讀取紀錄失敗",
    "year": "年",
    "month": "月",
-   "status_normal": "✅",
+   "status_normal": "✔️",
    "status_abnormal": "⚠️",
    "status_virtual": "虛",
    "status_repair": "補",
