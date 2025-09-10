@@ -152,12 +152,15 @@
     }
 
     // 翻譯函式
-    function t(code) {
-      const text = translations[code] || code;
+
+    function t(code, params = {}) {
+      let text = translations[code] || code;
       console.log(`翻譯查詢: code='${code}' → '${text}'`);
+      for (const key in params) {
+        text = text.replace(`{${key}}`, params[key]);
+      }
       return text;
     }
-
     
 const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec";
 
@@ -236,7 +239,7 @@ function callApiAdjustPunch(type, datetime, cb) {
         callApi("checkSession", (res) => {
           if (res.ok) {
             const Msg = t(res.code || "UNKNOWN_ERROR");
-            document.getElementById("userName").textContent = Msg;
+            document.getElementById("userName").textContent = "已登入：" + res.user.name;
             localStorage.setItem("sessionUserId", res.user.userId);
             let img = document.getElementById("profileImg");
             img.src = res.user.picture || res.user.rate;
