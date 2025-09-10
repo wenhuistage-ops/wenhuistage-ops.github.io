@@ -48,8 +48,21 @@
   "ERROR_GEOLOCATION": "⚠️ 無法取得定位：{msg}",
   "ERROR_LOGIN_FAILED": "❌ 登入失敗：{msg}",
   
-  "prev_month": "上一個月",
-  "next_month": "下一個月"
-  
+  "calendar_title": "我的打卡月曆",
+   "prev_month": "上一月",
+   "next_month": "下一月",
+   "home_page": "打卡頁",
+   "modal_detail_title": "打卡明細",
+   "close": "關閉",
+   "load_failed": "讀取紀錄失敗",
+   "year": "年",
+   "month": "月",
+   "status_normal": "正常",
+   "status_abnormal": "異常",
+   "status_virtual": "虛",
+   "status_repair": "補",
+   "repair_approved": "已審核",
+   "repair_pending": "待審",
+   "no_record": "無紀錄"
   
 }

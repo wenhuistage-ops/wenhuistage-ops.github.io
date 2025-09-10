@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>我的打卡月曆</title>
+<title id="pageTitle"></title>
 <style>
 body {
   font-family: ui-sans-serif, system-ui;
@@ -106,11 +106,11 @@ button.ghost {
 <body>
 <div class="container">
   <header>
-    <button id="prevMonth" class="ghost">上一月</button>
+    <button id="prevMonth" class="ghost"></button>
     <h2 id="monthLabel"></h2>
     <div style="display:flex; gap:8px;">
-      <button id="homePage" class="primary">打卡頁</button>
-      <button id="nextMonth" class="ghost">下一月</button>
+      <button id="homePage" class="primary"></button>
+      <button id="nextMonth" class="ghost"></button>
     </div>
   </header>
   <div class="calendar" id="calendar"></div>
@@ -118,29 +118,30 @@ button.ghost {
 
 <div id="modalBackdrop" class="modal-backdrop">
   <div class="modal">
-    <h3 id="modalTitle">打卡明細</h3>
+    <h3 id="modalTitle"></h3>
     <div id="modalBody" style="margin-top:8px; white-space:pre-line; font-size:14px;"></div>
     <div style="text-align:right;margin-top:12px">
-      <button id="closeModal" class="ghost">關閉</button>
+      <button id="closeModal" class="ghost"></button>
     </div>
   </div>
 </div>
 
-
 <script src="js/i18n.js"></script>
 
 <script>
-    
-    (async () => {
-      await loadTranslations(); // 載入目前語言的 JSON
+(async () => {
+  await loadTranslations(); // 載入目前語言的 JSON
 
-      // 修改頁面文字
-      document.title = t("calendar_title");
-      document.getElementById("prevMonth").textContent = t("prev_month");
-      document.getElementById("nextMonth").textContent = t("next_month");
-    })();
+  // 修改頁面文字
+  document.title = t("calendar_title");
+  document.getElementById("pageTitle").textContent = t("calendar_title");
+  document.getElementById("prevMonth").textContent = t("prev_month");
+  document.getElementById("nextMonth").textContent = t("next_month");
+  document.getElementById("homePage").textContent = t("home_page");
+  document.getElementById("modalTitle").textContent = t("modal_detail_title");
+  document.getElementById("closeModal").textContent = t("close");
+})();
 
-    
 const calendarEl = document.getElementById('calendar');
 const monthLabel = document.getElementById('monthLabel');
 const modalBackdrop = document.getElementById('modalBackdrop');
@@ -159,7 +160,7 @@ function fetchAttendanceDetails(year, month) {
       myRecords = res.records;
       renderCalendar();
     } else {
-      alert(res.msg || '讀取紀錄失敗');
+      alert(res.msg || t("load_failed"));
     }
   });
 }
@@ -167,7 +168,7 @@ function fetchAttendanceDetails(year, month) {
 function renderCalendar(){
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  monthLabel.textContent = `${year} 年 ${month+1} 月`;
+  monthLabel.textContent = `${year} ${t("year")} ${month+1} ${t("month")}`;
 
   const lastDay = new Date(year, month+1, 0);
   const today = new Date();
@@ -200,14 +201,14 @@ function renderCalendar(){
         if(i.source === "虛擬卡"){
           const tagEl = document.createElement('div');
           tagEl.className = 'tag-label 虛';
-          tagEl.textContent = '虛';
+          tagEl.textContent = t("status_virtual");
           tagsContainer.appendChild(tagEl);
         }
         if(i.source === "補打卡" && !i.approved){
           abnormal = true;
           const tagEl = document.createElement('div');
           tagEl.className = 'tag-label 補';
-          tagEl.textContent = '補(待審)';
+          tagEl.textContent = `${t("status_repair")}(${t("repair_pending")})`;
           tagsContainer.appendChild(tagEl);
         }
       });
@@ -225,15 +226,15 @@ function renderCalendar(){
       // 狀態
       const statusEl = document.createElement('div');
       statusEl.className = 'status ' + (abnormal ? 'abnormal' : 'normal');
-      statusEl.textContent = abnormal ? '異常' : '正常';
+      statusEl.textContent = abnormal ? t("status_abnormal") : t("status_normal");
       card.appendChild(statusEl);
 
       // 點擊顯示明細
       card.onclick = () => {
-        modalTitle.textContent = `${dateStr} 打卡明細`;
+        modalTitle.textContent = `${dateStr} ${t("modal_detail_title")}`;
         modalBody.textContent = record.items.map(i=>{
           let status = i.source;
-          if(i.source === "補打卡") status += i.approved ? "(已審核)" : "(待審)";
+          if(i.source === "補打卡") status += i.approved ? `(${t("repair_approved")})` : `(${t("repair_pending")})`;
           return `${i.type} - ${new Date(i.datetime).toLocaleString()} ${status}`;
         }).join("\n");
         modalBackdrop.style.display = 'flex';
@@ -241,8 +242,8 @@ function renderCalendar(){
     } else {
       // 沒有紀錄，不顯示標籤或狀態
       card.onclick = () => {
-        modalTitle.textContent = `${dateStr} 打卡明細`;
-        modalBody.textContent = "無紀錄";
+        modalTitle.textContent = `${dateStr} ${t("modal_detail_title")}`;
+        modalBody.textContent = t("no_record");
         modalBackdrop.style.display = 'flex';
       };
     }
