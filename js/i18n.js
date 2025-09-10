@@ -8,7 +8,14 @@ if (!currentLang) {
     currentLang = "zh-TW";
   } else if (browserLang.startsWith("ja")) {
     currentLang = "ja-JP";
-  } else {
+  }
+  else if (browserLang.startsWith("vi")) {
+    currentLang = "vi";
+  }
+  else if (browserLang.startsWith("id")) {
+    currentLang = "id";
+  }
+  else {
     currentLang = "en-US"; // 預設英文
   }
   localStorage.setItem("lang", currentLang);
