@@ -361,25 +361,25 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById("btnIn").onclick = () => {
     showMessage("");
     doPunch("上班", (res, lat, lng) => {
-      showMessage(
-        res.ok ? t(res.code,res.params || "UNKNOWN_ERROR")
-               : t(res.code,res.params || "UNKNOWN_ERROR"),
-        res.ok ? "ok" : "error"
-      );
+        // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
+        const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+
+        // 顯示訊息，根據 ok 狀態決定樣式
+        showMessage(msg, res.ok ? "ok" : "error");
     });
   };
 
   document.getElementById("btnOut").onclick = () => {
-    showMessage("");
+    showMessage(""); // 先清空訊息
+
     doPunch("下班", (res, lat, lng) => {
-      showMessage(
-        res.ok ? t(res.code,res.params || "UNKNOWN_ERROR")
-               : t(res.code,res.params || "UNKNOWN_ERROR"),
-        res.ok ? "ok" : "error"
-      );
+      // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
+      const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+
+      // 顯示訊息，根據 ok 狀態決定樣式
+      showMessage(msg, res.ok ? "ok" : "error");
     });
   };
-});
     function validateAdjustTime() {
       const input = document.getElementById("adjustDateTime");
       const value = input.value;
