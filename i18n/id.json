@@ -57,7 +57,7 @@
   "load_failed": "Gagal memuat data",
   "year": "Tahun",
   "month": "Bulan",
-  "status_normal": "OK",
+  "status_normal": "✅",
   "status_abnormal": "⚠️",
   "status_virtual": "Virtual",
   "status_repair": "Disesuaikan",

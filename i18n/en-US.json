@@ -57,7 +57,7 @@
   "load_failed": "Failed to load records",
   "year": "Year",
   "month": "Month",
-  "status_normal": "OK",ㄋ
+  "status_normal": "✅",
   "status_abnormal": "⚠️",
   "status_virtual": "Virtual",
   "status_repair": "Adjusted",
