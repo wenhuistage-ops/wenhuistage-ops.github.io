@@ -1,29 +1,67 @@
-{\rtf1\ansi\ansicpg950\cocoartf2822
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\paperw15840\paperh24480\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-
-\f0\fs24 \cf0 \{\
-  "WELCOME_BACK": "Selamat datang kembali: \{name\}",\
-  "PUNCH_SUCCESS": "\{type\} absen berhasil",\
-  "ADJUST_PUNCH_SUCCESS": "\{type\} absen koreksi berhasil",\
-\
-  "ERR_INVALID_OR_USED_TOKEN": "Token tidak valid atau sudah digunakan",\
-  "ERR_MISSING_MONTH": "Parameter bulan hilang",\
-  "ERR_SESSION_INVALID": "Sesi tidak valid",\
-  "ERR_OUT_OF_RANGE": "Tidak berada dalam lokasi absen yang diizinkan",\
-  "ERR_SESSION_EXPIRED": "Sesi telah kedaluwarsa",\
-  "ERR_SESSION_TOKEN": "Token sesi tidak valid",\
-  "ERR_MISSING_DATE": "Tanggal hilang",\
-  "ERR_ACCOUNT_DISABLED": "Akun tidak aktif! Hubungi admin.",\
-  "ERR_NO_DATA": "Tidak ada data",\
-  "ERR_EXCHANGE_TOKEN_FAIL": "Gagal menukar access_token",\
-  "ERR_INVALID_ID_TOKEN": "Format id_token tidak valid",\
-\
-  "ABNORMAL_MISSING_ALL": "\{date\} tidak ada absen (sehari penuh)",\
-  "ABNORMAL_MISSING_OUT": "\{date\} tidak ada absen keluar",\
-  "ABNORMAL_MISSING_IN": "\{date\} tidak ada absen masuk"\
-\}\
+{
+  "APP_TITLE": "Sistem Absensi Wenhui",
+  "CHECKING_LOGIN": "Memeriksa login…",
+  "FOOTER_NOTICE": "※ Status login disimpan di browser. Ganti perangkat atau hapus data perlu login ulang.",
+  
+  "ADJUST_PUNCH_TITLE": "Sesuaikan Absensi",
+  "ADJUST_PUNCH_DATETIME_LABEL": "Pilih tanggal dan waktu untuk penyesuaian:",
+    
+  "WELCOME_BACK": "Selamat datang kembali, {name}",
+  "PUNCH_SUCCESS": "✅ Absensi {type} berhasil",
+  "ADJUST_PUNCH_SUCCESS": "✅ Penyesuaian absensi {type} berhasil",
+  
+  "ERR_SESSION_INVALID": "🔄 Login kadaluarsa. Silakan login lagi",
+  "ERR_SESSION_EXPIRED": "Sesi telah kadaluarsa",
+  "ERR_SESSION_TOKEN": "Session token tidak valid",
+  "MISSING_SESSION_TOKEN": "Session token hilang",
+  "SESSION_SHEET_NOT_FOUND": "Sheet session tidak ditemukan",
+  
+  "ERR_INVALID_OR_USED_TOKEN": "Token tidak valid atau sudah digunakan",
+  "ERR_INVALID_ID_TOKEN": "Format id_token tidak valid",
+  "ERR_EXCHANGE_TOKEN_FAIL": "Gagal menukar access token",
+  
+  "ERR_MISSING_MONTH": "Parameter bulan hilang",
+  "ERR_MISSING_DATE": "Tanggal hilang",
+  
+  "ERR_ACCOUNT_DISABLED": "Akun belum aktif! Hubungi admin.",
+  "ERR_NO_DATA": "Tidak ada data",
+  
+  "ERR_OUT_OF_RANGE": "❌ Absensi gagal! Di luar lokasi yang diizinkan",
+  
+  "ABNORMAL_MISSING_ALL": "{date} tidak ada absensi sama sekali",
+  "ABNORMAL_MISSING_OUT": "{date} tidak ada absensi pulang",
+  "ABNORMAL_MISSING_IN": "{date} tidak ada absensi masuk",
+  
+  "BTN_RELOGIN": "Login lagi",
+  "PLEASE_RELOGIN": "Silakan login lagi",
+  
+  "BTN_PUNCH_IN": "Masuk Kerja",
+  "BTN_PUNCH_OUT": "Pulang Kerja",
+  "BTN_LOGOUT": "Logout",
+  "BTN_ADJUST_IN": "Sesuaikan Masuk",
+  "BTN_ADJUST_OUT": "Sesuaikan Pulang",
+  "BTN_VIEW_ABNORMAL": "⚠️ Lihat catatan abnormal",
+  "LOADING": "⏳ Memproses…",
+  "INVALID_ADJUST_TIME": "⚠️ Waktu yang dipilih tidak valid",
+  "SELECT_ADJUST_DATETIME": "Silakan pilih tanggal dan waktu",
+  "LOGIN_SUCCESS": "✅ Login berhasil! Token tersimpan.",
+  "ERROR_GEOLOCATION": "⚠️ Gagal mendapatkan lokasi: {msg}",
+  "ERROR_LOGIN_FAILED": "❌ Login gagal: {msg}",
+  
+  "calendar_title": "Kalender Absensi",
+  "prev_month": "Bulan Sebelumnya",
+  "next_month": "Bulan Berikut",
+  "home_page": "Halaman Absensi",
+  "modal_detail_title": "Detail Absensi",
+  "close": "Tutup",
+  "load_failed": "Gagal memuat data",
+  "year": "Tahun",
+  "month": "Bulan",
+  "status_normal": "Normal",
+  "status_abnormal": "Abnormal",
+  "status_virtual": "Virtual",
+  "status_repair": "Disesuaikan",
+  "repair_approved": "Disetujui",
+  "repair_pending": "Menunggu",
+  "no_record": "Tidak ada catatan"
 }

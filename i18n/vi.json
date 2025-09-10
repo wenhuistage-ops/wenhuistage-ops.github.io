@@ -1,29 +1,67 @@
-{\rtf1\ansi\ansicpg950\cocoartf2822
-\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
-{\colortbl;\red255\green255\blue255;}
-{\*\expandedcolortbl;;}
-\paperw15840\paperh24480\margl1440\margr1440\vieww11520\viewh8400\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
-
-\f0\fs24 \cf0 \{\
-  "WELCOME_BACK": "Ch\'e0o m\uc0\u7915 ng tr\u7903  l\u7841 i: \{name\}",\
-  "PUNCH_SUCCESS": "\{type\} ch\uc0\u7845 m c\'f4ng th\'e0nh c\'f4ng",\
-  "ADJUST_PUNCH_SUCCESS": "\{type\} ch\uc0\u7845 m c\'f4ng b\u7893  sung th\'e0nh c\'f4ng",\
-\
-  "ERR_INVALID_OR_USED_TOKEN": "Token kh\'f4ng h\uc0\u7907 p l\u7879  ho\u7863 c \u273 \'e3 \u273 \u432 \u7907 c s\u7917  d\u7909 ng",\
-  "ERR_MISSING_MONTH": "Thi\uc0\u7871 u tham s\u7889  th\'e1ng",\
-  "ERR_SESSION_INVALID": "Phi\'ean kh\'f4ng h\uc0\u7907 p l\u7879 ",\
-  "ERR_OUT_OF_RANGE": "Kh\'f4ng n\uc0\u7857 m trong khu v\u7921 c ch\u7845 m c\'f4ng cho ph\'e9p",\
-  "ERR_SESSION_EXPIRED": "Phi\'ean \uc0\u273 \'e3 h\u7871 t h\u7841 n",\
-  "ERR_SESSION_TOKEN": "Token phi\'ean kh\'f4ng h\uc0\u7907 p l\u7879 ",\
-  "ERR_MISSING_DATE": "Thi\uc0\u7871 u ng\'e0y",\
-  "ERR_ACCOUNT_DISABLED": "T\'e0i kho\uc0\u7843 n ch\u432 a \u273 \u432 \u7907 c k\'edch ho\u7841 t! Vui l\'f2ng li\'ean h\u7879  qu\u7843 n tr\u7883  vi\'ean.",\
-  "ERR_NO_DATA": "Kh\'f4ng c\'f3 d\uc0\u7919  li\u7879 u",\
-  "ERR_EXCHANGE_TOKEN_FAIL": "Kh\'f4ng th\uc0\u7875  trao \u273 \u7893 i access_token",\
-  "ERR_INVALID_ID_TOKEN": "\uc0\u272 \u7883 nh d\u7841 ng id_token kh\'f4ng h\u7907 p l\u7879 ",\
-\
-  "ABNORMAL_MISSING_ALL": "\{date\} thi\uc0\u7871 u ch\u7845 m c\'f4ng (c\u7843  ng\'e0y)",\
-  "ABNORMAL_MISSING_OUT": "\{date\} thi\uc0\u7871 u ch\u7845 m c\'f4ng ra",\
-  "ABNORMAL_MISSING_IN": "\{date\} thi\uc0\u7871 u ch\u7845 m c\'f4ng v\'e0o"\
-\}\
+{
+  "APP_TITLE": "Hệ Thống Chấm Công Wenhui",
+  "CHECKING_LOGIN": "Đang kiểm tra đăng nhập…",
+  "FOOTER_NOTICE": "※ Trạng thái đăng nhập được lưu trên trình duyệt. Thay đổi thiết bị hoặc xóa dữ liệu cần đăng nhập lại.",
+  
+  "ADJUST_PUNCH_TITLE": "Điều Chỉnh Chấm Công",
+  "ADJUST_PUNCH_DATETIME_LABEL": "Chọn ngày và giờ để điều chỉnh:",
+    
+  "WELCOME_BACK": "Chào mừng trở lại, {name}",
+  "PUNCH_SUCCESS": "✅ Chấm công {type} thành công",
+  "ADJUST_PUNCH_SUCCESS": "✅ Điều chỉnh chấm công {type} thành công",
+  
+  "ERR_SESSION_INVALID": "🔄 Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại",
+  "ERR_SESSION_EXPIRED": "Phiên đăng nhập đã hết hạn",
+  "ERR_SESSION_TOKEN": "Session token không hợp lệ",
+  "MISSING_SESSION_TOKEN": "Thiếu session token",
+  "SESSION_SHEET_NOT_FOUND": "Không tìm thấy bảng Session",
+  
+  "ERR_INVALID_OR_USED_TOKEN": "Token không hợp lệ hoặc đã sử dụng",
+  "ERR_INVALID_ID_TOKEN": "id_token không hợp lệ",
+  "ERR_EXCHANGE_TOKEN_FAIL": "Không thể đổi access token",
+  
+  "ERR_MISSING_MONTH": "Thiếu tham số tháng",
+  "ERR_MISSING_DATE": "Thiếu ngày",
+  
+  "ERR_ACCOUNT_DISABLED": "Tài khoản chưa kích hoạt! Liên hệ quản trị viên.",
+  "ERR_NO_DATA": "Không có dữ liệu",
+  
+  "ERR_OUT_OF_RANGE": "❌ Chấm công thất bại! Ngoài vùng cho phép",
+  
+  "ABNORMAL_MISSING_ALL": "{date} thiếu toàn bộ chấm công",
+  "ABNORMAL_MISSING_OUT": "{date} thiếu giờ tan ca",
+  "ABNORMAL_MISSING_IN": "{date} thiếu giờ vào ca",
+  
+  "BTN_RELOGIN": "Đăng nhập lại",
+  "PLEASE_RELOGIN": "Vui lòng đăng nhập lại",
+  
+  "BTN_PUNCH_IN": "Vào ca",
+  "BTN_PUNCH_OUT": "Tan ca",
+  "BTN_LOGOUT": "Đăng xuất",
+  "BTN_ADJUST_IN": "Điều chỉnh vào ca",
+  "BTN_ADJUST_OUT": "Điều chỉnh tan ca",
+  "BTN_VIEW_ABNORMAL": "⚠️ Xem ghi chú bất thường",
+  "LOADING": "⏳ Đang xử lý…",
+  "INVALID_ADJUST_TIME": "⚠️ Thời gian chọn không hợp lệ",
+  "SELECT_ADJUST_DATETIME": "Vui lòng chọn ngày và giờ",
+  "LOGIN_SUCCESS": "✅ Đăng nhập thành công! Token đã lưu.",
+  "ERROR_GEOLOCATION": "⚠️ Không thể lấy vị trí: {msg}",
+  "ERROR_LOGIN_FAILED": "❌ Đăng nhập thất bại: {msg}",
+  
+  "calendar_title": "Lịch Chấm Công",
+  "prev_month": "Tháng Trước",
+  "next_month": "Tháng Sau",
+  "home_page": "Trang Chấm Công",
+  "modal_detail_title": "Chi Tiết Chấm Công",
+  "close": "Đóng",
+  "load_failed": "Tải dữ liệu thất bại",
+  "year": "Năm",
+  "month": "Tháng",
+  "status_normal": "Bình Thường",
+  "status_abnormal": "Bất Thường",
+  "status_virtual": "Ảo",
+  "status_repair": "Điều Chỉnh",
+  "repair_approved": "Đã Duyệt",
+  "repair_pending": "Chờ Duyệt",
+  "no_record": "Không có ghi chú"
 }
