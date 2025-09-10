@@ -407,7 +407,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       showMessage("", "ok", "adjustMessage");
       callApiAdjustPunch("上班", datetime, (res) => {
         showMessage(
-          res.ok ? `✅ 上班補打卡成功` : `❌ 上班補打卡失敗：${res.error || ''}`,
+          res.ok ? t(res.code,res.params || "UNKNOWN_ERROR") : `❌ 上班補打卡失敗：${res.error || ''}`,
           res.ok ? "ok" : "error",
           "adjustMessage"
         );
@@ -421,7 +421,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       showMessage("", "ok", "adjustMessage");
       callApiAdjustPunch("下班", datetime, (res) => {
         showMessage(
-          res.ok ? `✅ 下班補打卡成功` : `❌ 下班補打卡失敗：${res.error || ''}`,
+          res.ok ? t(res.code,res.params || "UNKNOWN_ERROR") : `❌ 下班補打卡失敗：${res.error || ''}`,
           res.ok ? "ok" : "error",
           "adjustMessage"
         );
