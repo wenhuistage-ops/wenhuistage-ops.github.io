@@ -5,235 +5,465 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>文輝打卡系統</title>
   <style>
-    body { font-family: ui-sans-serif, system-ui; margin:0; background:#f0f2f5; display:flex; justify-content:center; align-items:center; min-height:100vh; font-size:16px;}
-    .container { width:100%; max-width:400px; margin:16px; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,0.1); background:#fff; padding:24px; box-sizing:border-box;}
-    h1 { font-size:clamp(18px, 4vw, 30px); margin:0 0 16px;}
-    .muted { color:#666; font-size:14px; margin:8px 0 16px;}
-    button { padding:12px 16px; border-radius:12px; margin-bottom:10px; border:0; cursor:pointer; font-size:16px; width:100%;}
-    .primary { background: linear-gradient(90deg,#4f46e5,#2563eb); color:#fff;}
-    .ghost { background:#eef2ff; color:#374151; border:1px solid #dbeafe;}
-    .warning { background:#ef4444; color:#fff; border:1px solid #fca5a5;}
+    body {
+      font-family: ui-sans-serif, system-ui;
+      margin: 0;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      align-items: center;
+      min-height: 100vh;
+      font-size: 16px;
+    }
+    .container {
+      width: 100%;
+      max-width: 400px;
+      margin: 16px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      background: #fff;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    h1 { font-size: clamp(18px, 4vw, 30px); margin: 0 0 16px; }
+    .muted { color:#666; font-size: 14px; margin: 8px 0 16px; }
+    button {
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      border:0;
+      cursor:pointer;
+      font-size:16px;
+      width: 100%;
+    }
+    .primary {
+      background: linear-gradient(90deg, #4f46e5, #2563eb);
+      color:#fff;
+    }
+    .ghost {
+      background:#eef2ff;
+      color:#374151;
+      border: 1px solid #dbeafe;
+    }
+      .warning {
+        background: #ef4444; /* 紅色 */
+        color: #fff;
+        border: 1px solid #fca5a5;
+      }
     .row { display:flex; flex-direction: column; gap:12px; }
-    .msg { margin-top:16px; padding:12px; border-radius:12px; background:#f1f5f9;}
-    .error { background:#fee2e2; color:#991b1b;}
-    .ok { background:#dcfce7; color:#065f46;}
-    .foot { margin-top:20px; font-size:12px; color:#777; text-align:center;}
-    @media (max-width:480px){ .container{ margin:12px; padding:16px; } }
+    .msg { margin-top: 16px; padding:12px; border-radius:12px; background:#f1f5f9; }
+    .error { background:#fee2e2; color:#991b1b; }
+    .ok    { background:#dcfce7; color:#065f46; }
+    .foot { margin-top: 20px; font-size: 12px; color:#777; text-align:center;}
+    @media (max-width: 480px) {
+      .container { margin: 12px; padding: 16px; }
+    }
   </style>
 </head>
-<body>
 <div class="cardsContainer" style="display:flex; flex-direction:column; gap:8px; align-items:center;">
-
-  <!-- 正常打卡卡片 -->
+<body>
   <div class="container" id="normalPunchCard">
     <h1>文輝打卡系統</h1>
+    <!-- 登入狀態 -->
     <div id="status" class="muted" style="display:flex; align-items:center; gap:8px;">
       <img id="profileImg" src="" alt="頭像" style="display:none; width:40px; height:40px; border-radius:50%;">
       <span id="userName">正在檢查登入狀態…</span>
     </div>
+    <!-- 打卡功能 -->
     <div id="actions" class="row" style="display:none;">
-      <button class="primary" id="btnIn"></button>
-      <button class="ghost" id="btnOut"></button>
-      <button id="btnLogout"></button>
+      <button class="primary" id="btnIn">上班打卡</button>
+      <button class="ghost" id="btnOut">下班打卡</button>
+      <button id="btnLogout" style="margin-left:auto;">登出</button>
     </div>
+
+    <!-- 登入區塊 -->
     <div id="login" style="display:none;">
-      <button class="primary" id="btnLogin"></button>
+      <button class="primary" id="btnLogin">使用 LINE 登入</button>
     </div>
-    <div id="loading" style="display:none; text-align:center; margin:10px;"></div>
+    <!-- 加載中的圖示 -->
+    <div id="loading" style="display:none; text-align:center; margin:10px;">
+      <span>⏳ 處理中...</span>
+    </div>
+    <!-- 訊息顯示 -->
     <div id="message" class="msg" style="display:none;"></div>
     <div class="foot">※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。</div>
   </div>
-
-  <!-- 補打卡卡片 -->
+  
+  <!-- 新增補打卡卡片 -->
   <div class="container" id="adjustPunchCard" style="display:none;">
-    <button class="warning" id="btnViewAbnormal"></button>
-    <div id="loadingMsg" style="display:none; text-align:center; margin:10px;"></div>
+      <!-- 查看異常紀錄按鈕（預設隱藏） -->
+    <button class="warning" id="btnViewAbnormal" style="display:block;">⚠️ 查看異常紀錄 👀</button>
+    <div id="loadingMsg" style="display:none; text-align:center; margin:10px;">
+      <span>⏳ 處理中...</span>
+    </div>
     <div id="adjustMessage" class="msg" style="display:none;"></div>
     <h1>補打卡</h1>
     <div class="row">
       <label>補打卡日期與時間：
-        <input id="adjustDateTime" type="datetime-local" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
+          <input id="adjustDateTime" type="datetime-local" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
       </label>
-      <button class="ghost" id="btnAdjustIn"></button>
-      <button class="ghost" id="btnAdjustOut"></button>
+      <button class="ghost" id="btnAdjustIn">補上班打卡</button>
+      <button class="ghost" id="btnAdjustOut">補下班打卡</button>
     </div>
+
+   
   </div>
-
 </div>
-
 <script>
-let currentLang = localStorage.getItem("lang") || "zh-TW";
-let translations = {};
+    
+    let currentLang = localStorage.getItem("lang");
+    console.log("現在語言:", currentLang);
+    if (true) {
+      // 取瀏覽器語言，例如 zh-TW, en-US
+      const browserLang = navigator.language || navigator.userLanguage;
+      console.log("瀏覽器語言:", browserLang);
+      // 簡單處理：只取前兩碼 (zh, en, ja...)
+      if (browserLang.startsWith("zh")) {
+          console.log("瀏覽器語言:", currentLang);
+        currentLang = "zh-TW";
+      } else if (browserLang.startsWith("ja")) {
+        currentLang = "ja-JP";
+      } else {
+        currentLang = "en-US"; // 預設英文
+      }
 
-// 載入語系
-async function loadTranslations(lang){
-  try{
-    const res = await fetch(`/i18n/${lang}.json`);
-    translations = await res.json();
-    currentLang = lang;
-    localStorage.setItem("lang", lang);
-  } catch(e){ console.error("載入語系失敗", e); }
-}
+      // 記錄下來，之後就用 localStorage 優先
+      localStorage.setItem("lang", currentLang);
+    }
+    
+    let translations = {};
+    console.log("初始語言:", currentLang);
 
-// 翻譯函式
-function t(code, params = {}){
-  let text = translations[code] || code;
-  for(const key in params){ text = text.replace(`{${key}}`, params[key]); }
-  return text;
-}
+    // 載入語系檔
+    async function loadTranslations(lang) {
+      console.log("開始載入語系:", lang);
+      try {
+        const res = await fetch(`/i18n/${lang}.json`);
+        if (!res.ok) {
+          throw new Error(`HTTP 錯誤: ${res.status}`);
+        }
+        translations = await res.json();
+        currentLang = lang;
+        localStorage.setItem("lang", lang);
+        console.log("語系載入成功:", translations);
+      } catch (err) {
+        console.error("載入語系失敗:", err);
+      }
+    }
 
+    // 翻譯函式
+
+    function t(code, params = {}) {
+      let text = translations[code] || code;
+      console.log(`翻譯查詢: code='${code}' → '${text}'`);
+      for (const key in params) {
+          console.log(`參數: params='${params}'`);
+        text = text.replace(`{${key}}`, params[key]);
+      }
+      return text;
+    }
+    
 const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec";
 
-// 訊息顯示
-function showMessage(text,type="ok",msgId="message"){
+/* ===== 共用訊息顯示 ===== */
+function showMessage(text, type="ok", msgId="message") {
   const el = document.getElementById(msgId);
-  if(!text){ el.textContent=""; el.style.display="none"; return; }
+  if (!text) {
+    el.textContent = "";
+    el.style.display = "none";
+    return;
+  }
   el.textContent = text;
   el.className = "msg " + type;
   el.style.display = "block";
 }
 
-// JSONP 呼叫
-function callApi(action, cb, loadingId="loading"){
+/* ===== JSONP 呼叫 ===== */
+function callApi(action, cb, loadingId="loading") {
   const token = localStorage.getItem("sessionToken");
   const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
-  document.getElementById(loadingId).style.display = "block";
-
-  window.handleResponse = (res)=>{
-    document.getElementById(loadingId).style.display = "none";
-    cb(res);
-  };
-
+  //window.handleResponse = cb;
+  
+    // 顯示指定 loading
+    document.getElementById(loadingId).style.display = "block";
+    
+    window.handleResponse = (res) => {
+        // 統一翻譯
+        console.log("API 回傳：", res);
+           res.msg = t(res.code);
+       // 關閉 loading
+       document.getElementById(loadingId).style.display = "none";
+       cb(res);
+       // 清理 script，避免累積
+           if (script.parentNode) {
+             script.parentNode.removeChild(script);
+           }
+     };
+    
   const script = document.createElement("script");
   script.src = url;
-  script.onerror = ()=>showMessage(t("UNKNOWN_ERROR"),"error",loadingId);
+  script.onerror = () => showMessage("連線失敗","error");
   document.body.appendChild(script);
 }
 
-// 補打卡
-function callApiAdjustPunch(type, datetime, cb){
-  const token = localStorage.getItem("sessionToken");
-  const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=0&lng=0&datetime=${new Date(datetime).toISOString()}&callback=handleAdjustResponse&note=${encodeURIComponent(navigator.userAgent)}`;
-  document.getElementById("loadingMsg").style.display = "block";
-  window.handleAdjustResponse = (res)=>{
-    document.getElementById("loadingMsg").style.display="none";
-    cb(res);
-  };
+/* ===== 交換一次性 token ===== */
+function exchangeToken(action, otoken, cb) {
+  const url = `${API_URL}?action=${action}&otoken=${otoken}&callback=handleExchange`;
+  window.handleExchange = cb;
   const script = document.createElement("script");
-  script.src=url;
-  script.onerror=()=>showMessage(t("UNKNOWN_ERROR"),"error","adjustMessage");
+  script.src = url;
+  script.onerror = () => showMessage("連線失敗","error");
   document.body.appendChild(script);
 }
+/* ===== 補打卡 ===== */
+function callApiAdjustPunch(type, datetime, cb) {
+    const token = localStorage.getItem("sessionToken");
+    const dateObj = new Date(datetime);
+    const lat = 0; // 補打卡不檢查 GPS
+    const lng = 0;
 
-// 登入檢查
-function ensureLogin(){
-  return new Promise(resolve=>{
-    callApi("checkSession",(res)=>{
-      if(res.ok){
-        document.getElementById("userName").textContent=t(res.code,res.params||{});
-        localStorage.setItem("sessionUserId",res.user.userId);
-        let img=document.getElementById("profileImg");
-        img.src=res.user.picture||res.user.rate;
-        img.style.display="inline-block";
-        document.getElementById("actions").style.display="block";
-        checkAbnormal();
-        resolve(true);
-      } else {
-        const errorMsg = t(res.code || "UNKNOWN_ERROR");
-        if(res.code==="ACCOUNT_NOT_ENABLED"){
-          document.getElementById("status").textContent=errorMsg;
-          showMessage(errorMsg,"error");
-        } else {
-          document.getElementById("status").textContent=t("PLEASE_RELOGIN");
-          document.getElementById("login").style.display="block";
-          document.getElementById("btnLogin").textContent=t("BTN_RELOGIN");
-          showMessage(errorMsg,"error");
-        }
-        resolve(false);
+    const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&datetime=${dateObj.toISOString()}&callback=handleAdjustResponse&note=${encodeURIComponent(navigator.userAgent)}`;
+    document.getElementById("loadingMsg").style.display = "block";
+    
+    window.handleAdjustResponse = (res) => {
+       // 關閉 loading
+       document.getElementById("loadingMsg").style.display = "none";
+       cb(res);
+     };
+
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = () => showMessage("連線失敗", "error", "adjustMessage");
+    document.body.appendChild(script);
+}
+    function ensureLogin() {
+      return new Promise((resolve) => {
+        callApi("checkSession", (res) => {
+          if (res.ok) {
+            const Msg = t(res.code,res.params || "UNKNOWN_ERROR");
+            document.getElementById("userName").textContent = Msg;
+            localStorage.setItem("sessionUserId", res.user.userId);
+            let img = document.getElementById("profileImg");
+            img.src = res.user.picture || res.user.rate;
+            img.style.display = "inline-block";
+            document.getElementById("actions").style.display = "block";
+
+            // 檢查異常打卡
+            checkAbnormal();
+            resolve(true);
+
+          } else {
+            // ✅ 使用代碼翻譯
+            const errorMsg = t(res.code || "UNKNOWN_ERROR");
+
+            if (res.code === "ACCOUNT_NOT_ENABLED") {
+              document.getElementById("status").textContent = errorMsg;
+              showMessage("❌ " + errorMsg, "error");
+            } else {
+              document.getElementById("status").textContent = t("PLEASE_RELOGIN");
+              document.getElementById("login").style.display = "block";
+              document.getElementById("btnLogin").textContent = t("BTN_RELOGIN");
+              showMessage("❌ " + errorMsg, "error");
+            }
+            resolve(false);
+          }
+        });
+      });
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const input = document.getElementById("adjustDateTime");
+      const now = new Date();
+
+      const toLocal = (d) => {
+        const pad = (n) => n.toString().padStart(2,'0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
+
+      // max = 今天
+      input.max = toLocal(now);
+
+      // min = 前一個月第一天 00:00
+      const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0);
+      input.min = toLocal(monthStart);
+
+      // 可選：如果 input 預設值超出範圍，自動設為 max
+      if (new Date(input.value) > now || !input.value) {
+        input.value = toLocal(now);
       }
     });
-  });
-}
+/* ===== 登入流程 ===== */
+window.addEventListener('DOMContentLoaded', async () => {
+    console.log("初始化語系…");
+    await loadTranslations(currentLang); // 先載入語系
+    // 初始化按鈕文字
+    document.getElementById("btnLogin").textContent = t("BTN_RELOGIN");
+    document.getElementById("btnIn").textContent = t("BTN_PUNCH_IN");
+    document.getElementById("btnOut").textContent = t("BTN_PUNCH_OUT");
+    document.getElementById("btnLogout").textContent = t("BTN_LOGOUT");
+    document.getElementById("btnAdjustIn").textContent = t("BTN_ADJUST_IN");
+    document.getElementById("btnAdjustOut").textContent = t("BTN_ADJUST_OUT");
+    document.getElementById("btnViewAbnormal").textContent = t("BTN_VIEW_ABNORMAL");
+    document.getElementById("loading").textContent = t("LOADING");
+    document.getElementById("loadingMsg").textContent = t("LOADING");
+    
+  const params = new URLSearchParams(window.top.location.search);
+  const otoken = params.get('code');
 
-// 綁定 DOM
-window.addEventListener("DOMContentLoaded", async ()=>{
-  await loadTranslations(currentLang);
+  if (otoken) {
+    // 剛登入完，交換 token
+    exchangeToken("getProfile", otoken, (res) => {
+      if (res.ok && res.sToken) {
+        localStorage.setItem("sessionToken", res.sToken);
+        
+        
+        showMessage("✅ 登入成功，已儲存 Token！");
 
-  document.getElementById("btnLogin").textContent=t("BTN_RELOGIN");
-  document.getElementById("btnIn").textContent=t("BTN_PUNCH_IN");
-  document.getElementById("btnOut").textContent=t("BTN_PUNCH_OUT");
-  document.getElementById("btnLogout").textContent=t("BTN_LOGOUT");
-  document.getElementById("btnAdjustIn").textContent=t("BTN_ADJUST_IN");
-  document.getElementById("btnAdjustOut").textContent=t("BTN_ADJUST_OUT");
-  document.getElementById("btnViewAbnormal").textContent=t("BTN_VIEW_ABNORMAL");
-  document.getElementById("loading").textContent=t("LOADING");
-  document.getElementById("loadingMsg").textContent=t("LOADING");
+        ensureLogin();
+      } else {
+        showMessage("❌ 登入失敗：" + (res.msg || "未知錯誤"), "error");
 
-  ensureLogin();
+        const container = document.getElementById("login");
+        container.style.display = "block";
+        container.innerHTML = ""; // 清空原本內容
 
-  document.getElementById("btnLogin").onclick=()=>callApi("getLoginUrl",(res)=>{if(res.url) window.location.href=res.url;});
-  document.getElementById("btnLogout").onclick=()=>{localStorage.removeItem("sessionToken"); window.location.href="/index.html";};
+        const btn = document.createElement("button");
+        btn.id = "btnRelogin";
+        btn.textContent = "重新登入";
+        btn.className = "primary";
+        btn.onclick = () => { window.location.href = "https://wenhuistage-ops.github.io/"; };
 
-  function doPunch(type,cb){
-    navigator.geolocation.getCurrentPosition(pos=>{
-      callApi(`punch&type=${encodeURIComponent(type)}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}&note=${encodeURIComponent(navigator.userAgent)}`,res=>cb(res,pos.coords.latitude,pos.coords.longitude));
-    },err=>showMessage("⚠️ "+err.message,"error"));
+        container.appendChild(btn);
+      }
+    });
+  } else {
+    // 沒有 otoken → 檢查登入狀態
+    ensureLogin();
   }
 
-  document.getElementById("btnIn").onclick=()=>{
-    showMessage("");
-    doPunch("上班",(res)=>showMessage(t(res.code||"UNKNOWN_ERROR",res.params||{}),res.ok?"ok":"error"));
-  };
-  document.getElementById("btnOut").onclick=()=>{
-    showMessage("");
-    doPunch("下班",(res)=>showMessage(t(res.code||"UNKNOWN_ERROR",res.params||{}),res.ok?"ok":"error"));
+  /* ===== 綁定按鈕 ===== */
+  document.getElementById("btnLogin").onclick = () => {
+    callApi("getLoginUrl", (res) => {
+      if (res.url) window.location.href = res.url;
+    });
   };
 
-  function validateAdjustTime(){
-    const input=document.getElementById("adjustDateTime");
-    const selected=new Date(input.value), now=new Date();
-    const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
-    if(selected<monthStart){ alert(t("INVALID_ADJUST_TIME")); return false; }
-    if(selected>now){ alert(t("INVALID_ADJUST_TIME")); return false; }
-    return true;
+  document.getElementById("btnLogout").onclick = () => {
+    localStorage.removeItem("sessionToken");
+    //location.reload();
+    window.location.href = "/index.html"
+  };
+
+  function doPunch(type, cb) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const action = `punch&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(navigator.userAgent)}`;
+      callApi(action, (res) => { if (cb) cb(res, lat, lng); });
+    }, (err) => {
+      showMessage("⚠️ 無法取得定位：" + err.message, "error");
+    });
   }
 
-  document.getElementById("btnAdjustIn").onclick=()=>{
-    if(!validateAdjustTime()) return;
-    const datetime=document.getElementById("adjustDateTime").value;
-    if(!datetime) return showMessage(t("SELECT_ADJUST_DATETIME"),"error","adjustMessage");
-    showMessage("", "ok","adjustMessage");
-    callApiAdjustPunch("上班",datetime,res=>showMessage(t(res.code||"UNKNOWN_ERROR",res.params||{}),res.ok?"ok":"error","adjustMessage"));
-  };
-  document.getElementById("btnAdjustOut").onclick=()=>{
-    if(!validateAdjustTime()) return;
-    const datetime=document.getElementById("adjustDateTime").value;
-    if(!datetime) return showMessage(t("SELECT_ADJUST_DATETIME"),"error","adjustMessage");
-    showMessage("", "ok","adjustMessage");
-    callApiAdjustPunch("下班",datetime,res=>showMessage(t(res.code||"UNKNOWN_ERROR",res.params||{}),res.ok?"ok":"error","adjustMessage"));
+
+
+  document.getElementById("btnIn").onclick = () => {
+    showMessage("");
+    doPunch("上班", (res, lat, lng) => {
+        // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
+        const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+
+        // 顯示訊息，根據 ok 狀態決定樣式
+        showMessage(msg, res.ok ? "ok" : "error");
+    });
   };
 
+  document.getElementById("btnOut").onclick = () => {
+    showMessage(""); // 先清空訊息
+
+    doPunch("下班", (res, lat, lng) => {
+      // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
+      const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+
+      // 顯示訊息，根據 ok 狀態決定樣式
+      showMessage(msg, res.ok ? "ok" : "error");
+    });
+  };
 });
+    function validateAdjustTime() {
+      const input = document.getElementById("adjustDateTime");
+      const value = input.value;
+      if (!value) return false;
 
-// 檢查異常打卡
-function checkAbnormal(){
-  const now=new Date();
-  const month=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
-  const userId=localStorage.getItem("sessionUserId");
-  document.getElementById("loadingMsg").style.display="block";
-  callApi(`getAbnormalRecords&month=${month}&userId=${userId}`,(res)=>{
-    document.getElementById("loadingMsg").style.display="none";
-    if(res.ok){
-      const hasAbnormal=res.records.some(r=>r.abnormal);
-      const btn=document.getElementById("btnViewAbnormal");
-      const di=document.getElementById("adjustPunchCard");
-      if(hasAbnormal){
-        di.style.display="block";
-        btn.onclick=()=>window.location.href=`punchCalendar.html?type=abnormal&month=${month}&userId=${userId}`;
-      } else { btn.style.display="none"; }
+      const selected = new Date(value);
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      if (selected < monthStart) {
+        alert("⚠️ 不能選擇本月以前的時間");
+        return false;
+      }
+      if (selected > now) {
+        alert("⚠️ 不能選擇未來的時間");
+        return false;
+      }
+      return true;
     }
-  },"loadingMsg");
-}
+    // 綁定補打卡按鈕
+    document.getElementById("btnAdjustIn").onclick = () => {
+        if (!validateAdjustTime()) return;
+      const datetime = document.getElementById("adjustDateTime").value;
+      if (!datetime) return showMessage("請選擇補打卡日期時間", "error", "adjustMessage");
+      showMessage("", "ok", "adjustMessage");
+      callApiAdjustPunch("上班", datetime, (res) => {
+          // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
+          const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+
+          // 顯示訊息，根據 ok 狀態決定樣式
+          showMessage(msg, res.ok ? "ok" : "error","adjustMessage");
+      });
+    };
+
+    document.getElementById("btnAdjustOut").onclick = () => {
+        if (!validateAdjustTime()) return;
+      const datetime = document.getElementById("adjustDateTime").value;
+      if (!datetime) return showMessage("請選擇補打卡日期時間", "error", "adjustMessage");
+      showMessage("", "ok", "adjustMessage");
+      callApiAdjustPunch("下班", datetime, (res) => {
+          // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
+          const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+
+          // 顯示訊息，根據 ok 狀態決定樣式
+          showMessage(msg, res.ok ? "ok" : "error","adjustMessage");
+      });
+    };
+
+    //檢查本月打卡異常
+    function checkAbnormal() {
+      const now = new Date();
+      const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
+      const userId = localStorage.getItem("sessionUserId");
+
+      document.getElementById("loadingMsg").style.display = "block";
+      callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
+        if (res.ok) {
+          const hasAbnormal = res.records.some(r => r.abnormal);
+          const btn = document.getElementById("btnViewAbnormal");
+          const di = document.getElementById("adjustPunchCard");
+          
+          if (hasAbnormal) {
+            di.style.display = "block";
+            btn.onclick = () => {
+              window.location.href = `punchCalendar.html?type=abnormal&month=${month}&userId=${userId}`;
+            };
+          } else {
+            btn.style.display = "none";
+          }
+        }
+      }, "loadingMsg");
+    }
+
 </script>
 </body>
 </html>
