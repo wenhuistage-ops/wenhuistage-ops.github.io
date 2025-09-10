@@ -98,15 +98,14 @@
       <span>⏳ 處理中...</span>
     </div>
     <div id="adjustMessage" class="msg" style="display:none;"></div>
-    <h1 id="ADJUST_PUNCH_TITLE"></h1>
+    <h1 id="adjustPunchTitle"></h1>
     <div class="row">
-      <labelid="ADJUST_PUNCH_DATETIME_LABEL">
+      <labelid="adjustPunchDateTimeLabel">
           <input id="adjustDateTime" type="datetime-local" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
       </label>
       <button class="ghost" id="btnAdjustIn">補上班打卡</button>
       <button class="ghost" id="btnAdjustOut">補下班打卡</button>
     </div>
-
    
   </div>
 </div>
@@ -302,6 +301,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById("appTitle").textContent = t("APP_TITLE");
     document.getElementById("userName").textContent = t("CHECKING_LOGIN");
     document.getElementById("footerNotice").textContent = t("FOOTER_NOTICE");
+    
+    
+    document.getElementById("adjustPunchTitle").textContent = t("ADJUST_PUNCH_TITLE");
+    document.getElementById("adjustPunchDateTimeLabel").textContent = t("ADJUST_PUNCH_DATETIME_LABEL");
     // 初始化按鈕文字
     document.getElementById("btnLogin").textContent = t("BTN_RELOGIN");
     document.getElementById("btnIn").textContent = t("BTN_PUNCH_IN");
