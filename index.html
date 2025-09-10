@@ -363,7 +363,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     doPunch("上班", (res, lat, lng) => {
       showMessage(
         res.ok ? t(res.code,res.params || "UNKNOWN_ERROR")
-               : `❌ 上班打卡失敗：${res.error || ''}`,
+               : t(res.code,res.params || "UNKNOWN_ERROR"),
         res.ok ? "ok" : "error"
       );
     });
@@ -374,7 +374,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     doPunch("下班", (res, lat, lng) => {
       showMessage(
         res.ok ? t(res.code,res.params || "UNKNOWN_ERROR")
-               : `❌ 下班打卡失敗：${res.error || ''}`,
+               : t(res.code,res.params || "UNKNOWN_ERROR"),
         res.ok ? "ok" : "error"
       );
     });

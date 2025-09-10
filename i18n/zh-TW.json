@@ -19,7 +19,7 @@
   "ERR_ACCOUNT_DISABLED": "帳號未啟用！請通知管理員！",
   "ERR_NO_DATA": "沒有資料",
   
-  "ERR_OUT_OF_RANGE": "不在允許的打卡地點範圍內",
+  "ERR_OUT_OF_RANGE": "❌ 打卡失敗！ 不在允許的打卡地點範圍內",
   
   "ABNORMAL_MISSING_ALL": "{date} 缺卡（全日未打卡）",
   "ABNORMAL_MISSING_OUT": "{date} 缺下班卡",
