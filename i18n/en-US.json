@@ -2,6 +2,9 @@
   "APP_TITLE": "WenHui Punch System",
   "CHECKING_LOGIN": "Checking login status…",
   "FOOTER_NOTICE": "※ Login status is saved in your browser (localStorage). If you switch devices or clear data, you need to log in again.",
+  
+  "ADJUST_PUNCH_TITLE": "Adjust Punch",
+  "ADJUST_PUNCH_DATETIME_LABEL": "Select to adjust the punch date and time:",
     
   "WELCOME_BACK": "Welcome back: {name}",
   "PUNCH_SUCCESS": "✅ {type} punch successful",

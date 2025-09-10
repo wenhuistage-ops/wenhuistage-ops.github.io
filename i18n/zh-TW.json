@@ -2,6 +2,9 @@
   "APP_TITLE": "文輝打卡系統",
   "CHECKING_LOGIN": "正在檢查登入狀態…",
   "FOOTER_NOTICE": "※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。",
+  
+  "ADJUST_PUNCH_TITLE": "補打卡",
+  "ADJUST_PUNCH_DATETIME_LABEL": "選擇補打卡日期與時間：",
     
   "WELCOME_BACK": "歡迎回來：{name}",
   "PUNCH_SUCCESS": "✅{type}打卡成功",
