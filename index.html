@@ -239,7 +239,7 @@ function callApiAdjustPunch(type, datetime, cb) {
         callApi("checkSession", (res) => {
           if (res.ok) {
             const Msg = t(res.code || "UNKNOWN_ERROR");
-            document.getElementById("userName").textContent = "已登入：" + res.user.name;
+            document.getElementById("userName").textContent = Msg;
             localStorage.setItem("sessionUserId", res.user.userId);
             let img = document.getElementById("profileImg");
             img.src = res.user.picture || res.user.rate;
