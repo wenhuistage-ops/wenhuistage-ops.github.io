@@ -17,8 +17,8 @@
 
   "ABNORMAL_MISSING_ALL": "{date} 缺卡（全日未打卡）",
   "ABNORMAL_MISSING_OUT": "{date} 缺下班卡",
-  "ABNORMAL_MISSING_IN": "{date} 缺上班卡"
+  "ABNORMAL_MISSING_IN": "{date} 缺上班卡",
   
-  "BTN_RELOGIN":"重新登入"
+  "BTN_RELOGIN":"重新登入",
   "PLEASE_RELOGIN":"請重新登入"
 }
