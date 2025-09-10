@@ -126,7 +126,21 @@ button.ghost {
   </div>
 </div>
 
+
+<script src="js/i18n.js"></script>
+
 <script>
+    
+    (async () => {
+      await loadTranslations(); // 載入目前語言的 JSON
+
+      // 修改頁面文字
+      document.title = t("calendar_title");
+      document.getElementById("prevMonth").textContent = t("prev_month");
+      document.getElementById("nextMonth").textContent = t("next_month");
+    })();
+
+    
 const calendarEl = document.getElementById('calendar');
 const monthLabel = document.getElementById('monthLabel');
 const modalBackdrop = document.getElementById('modalBackdrop');
