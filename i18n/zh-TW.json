@@ -1,24 +1,40 @@
 {
+  /* ====== ✅ 成功訊息 ====== */
   "WELCOME_BACK": "歡迎回來：{name}",
   "PUNCH_SUCCESS": "✅{type}打卡成功",
-  "ADJUST_PUNCH_SUCCESS": "{type} 補打卡成功",
+  "ADJUST_PUNCH_SUCCESS": "✅{type} 補打卡成功",
 
-  "ERR_INVALID_OR_USED_TOKEN": "無效或已使用的 token",
-  "ERR_MISSING_MONTH": "缺少 month 參數",
+  /* ====== ❌ 錯誤訊息 ====== */
+
+  // ---- Session 相關 ----
   "ERR_SESSION_INVALID": "Session 已失效",
-  "ERR_OUT_OF_RANGE": "不在允許的打卡地點範圍內",
   "ERR_SESSION_EXPIRED": "Session 已過期",
   "ERR_SESSION_TOKEN": "無效的 sessionToken",
-  "ERR_MISSING_DATE": "缺少月份",
-  "ERR_ACCOUNT_DISABLED": "未啟用！請通知管理員！",
-  "ERR_NO_DATA": "沒有資料",
-  "ERR_EXCHANGE_TOKEN_FAIL": "交換 access_token 失敗",
-  "ERR_INVALID_ID_TOKEN": "id_token 格式錯誤",
+  "MISSING_SESSION_TOKEN": "缺少 sessionToken",
+  "SESSION_SHEET_NOT_FOUND": "找不到 Session 工作表",
 
+  // ---- Token 相關 ----
+  "ERR_INVALID_OR_USED_TOKEN": "無效或已使用的 token",
+  "ERR_INVALID_ID_TOKEN": "id_token 格式錯誤",
+  "ERR_EXCHANGE_TOKEN_FAIL": "交換 access_token 失敗",
+
+  // ---- 參數缺失 ----
+  "ERR_MISSING_MONTH": "缺少 month 參數",
+  "ERR_MISSING_DATE": "缺少月份",
+
+  // ---- 帳號/資料問題 ----
+  "ERR_ACCOUNT_DISABLED": "帳號未啟用！請通知管理員！",
+  "ERR_NO_DATA": "沒有資料",
+
+  // ---- 位置限制 ----
+  "ERR_OUT_OF_RANGE": "不在允許的打卡地點範圍內",
+
+  /* ====== ⚠️ 異常提醒 ====== */
   "ABNORMAL_MISSING_ALL": "{date} 缺卡（全日未打卡）",
   "ABNORMAL_MISSING_OUT": "{date} 缺下班卡",
   "ABNORMAL_MISSING_IN": "{date} 缺上班卡",
-  
-  "BTN_RELOGIN":"重新登入",
-  "PLEASE_RELOGIN":"請重新登入"
+
+  /* ====== 🖥️ 介面文字 ====== */
+  "BTN_RELOGIN": "重新登入",
+  "PLEASE_RELOGIN": "請重新登入"
 }
