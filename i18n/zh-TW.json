@@ -1,6 +1,6 @@
 {
   "WELCOME_BACK": "歡迎回來：{name}",
-  "PUNCH_SUCCESS": "{type} 打卡成功",
+  "PUNCH_SUCCESS": "✅打卡成功",
   "ADJUST_PUNCH_SUCCESS": "{type} 補打卡成功",
 
   "ERR_INVALID_OR_USED_TOKEN": "無效或已使用的 token",

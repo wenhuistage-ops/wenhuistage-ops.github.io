@@ -362,7 +362,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     showMessage("");
     doPunch("上班", (res, lat, lng) => {
       showMessage(
-        res.ok ? `✅ 上班打卡成功 (${lat.toFixed(5)}, ${lng.toFixed(5)})`
+        res.ok ? t(res.code,res.params || "UNKNOWN_ERROR")
                : `❌ 上班打卡失敗：${res.error || ''}`,
         res.ok ? "ok" : "error"
       );
