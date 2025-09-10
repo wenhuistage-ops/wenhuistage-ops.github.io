@@ -17,7 +17,7 @@
 
   "ABNORMAL_MISSING_ALL": "{date} missing punch (whole day)",
   "ABNORMAL_MISSING_OUT": "{date} missing check-out punch",
-  "ABNORMAL_MISSING_IN": "{date} missing check-in punch"
+  "ABNORMAL_MISSING_IN": "{date} missing check-in punch",
   
   "BTN_RELOGIN": "Sign in again",
   "PLEASE_RELOGIN": "Please sign in again"
