@@ -64,11 +64,11 @@
 <div class="cardsContainer" style="display:flex; flex-direction:column; gap:8px; align-items:center;">
 <body>
   <div class="container" id="normalPunchCard">
-    <h1>文輝打卡系統</h1>
+      <h1 id="appTitle"></h1>
     <!-- 登入狀態 -->
     <div id="status" class="muted" style="display:flex; align-items:center; gap:8px;">
       <img id="profileImg" src="" alt="頭像" style="display:none; width:40px; height:40px; border-radius:50%;">
-      <span id="userName">正在檢查登入狀態…</span>
+          <span id="userName"></span>
     </div>
     <!-- 打卡功能 -->
     <div id="actions" class="row" style="display:none;">
@@ -87,7 +87,7 @@
     </div>
     <!-- 訊息顯示 -->
     <div id="message" class="msg" style="display:none;"></div>
-    <div class="foot">※ 登入狀態保存在你的瀏覽器（localStorage）。若換裝置或清除資料需重新登入。</div>
+    <div class="foot" id="footerNotice"></div>
   </div>
   
   <!-- 新增補打卡卡片 -->
@@ -297,6 +297,11 @@ function callApiAdjustPunch(type, datetime, cb) {
 window.addEventListener('DOMContentLoaded', async () => {
     console.log("初始化語系…");
     await loadTranslations(currentLang); // 先載入語系
+    
+    // 自動替換文字
+    document.getElementById("appTitle").textContent = t("APP_TITLE");
+    document.getElementById("userName").textContent = t("CHECKING_LOGIN");
+    document.getElementById("footerNotice").textContent = t("FOOTER_NOTICE");
     // 初始化按鈕文字
     document.getElementById("btnLogin").textContent = t("BTN_RELOGIN");
     document.getElementById("btnIn").textContent = t("BTN_PUNCH_IN");
