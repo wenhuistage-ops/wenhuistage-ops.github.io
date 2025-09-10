@@ -189,6 +189,7 @@ function callApi(action, cb, loadingId="loading") {
     
     window.handleResponse = (res) => {
         // 統一翻譯
+        console.log("API 回傳：", res);
            res.msg = t(res.code);
        // 關閉 loading
        document.getElementById(loadingId).style.display = "none";
