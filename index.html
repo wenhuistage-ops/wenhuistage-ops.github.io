@@ -298,9 +298,9 @@ function callApiAdjustPunch(type, datetime, cb) {
       const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0);
       input.min = toLocal(monthStart);
 
-      // 可選：如果 input 預設值超出範圍，自動設為 max
-      if (new Date(input.value) > now || !input.value) {
-        input.value = toLocal(now);
+      // 如果 input.value 不存在 或 超過 max，就把 value 設成 max（昨天）
+      if (!input.value || new Date(input.value) > new Date(input.max)) {
+        input.value = input.max;
       }
     });
 /* ===== 登入流程 ===== */
