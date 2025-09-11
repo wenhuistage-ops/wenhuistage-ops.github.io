@@ -51,6 +51,27 @@
         color: #fff;
         border: 1px solid #fca5a5;
       }
+      .form-group {
+        width: 100%;
+        margin-bottom: 12px;
+      }
+
+      .form-label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+        color: #333;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        font-size: 16px;
+        box-sizing: border-box; /* 防止超出容器 */
+        display: block;
+      }
     .row { display:flex; flex-direction: column; gap:12px; }
     .msg { margin-top: 16px; padding:12px; border-radius:12px; background:#f1f5f9; }
     .error { background:#fee2e2; color:#991b1b; }
@@ -100,8 +121,15 @@
     <div id="adjustMessage" class="msg" style="display:none;"></div>
     <h1 id="adjustPunchTitle"></h1>
     <div class="row">
-        <label id="adjustPunchDateTimeLabel">選擇日期時間：</label>
-        <input id="adjustDateTime" type="datetime-local" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ddd;">
+        <div class="form-group">
+          <label id="adjustPunchDateTimeLabel" for="adjustDateTime">
+            選擇日期時間：
+          </label>
+          <input
+            id="adjustDateTime"
+            type="datetime-local"
+            class="form-input">
+        </div>
 
       <button class="ghost" id="btnAdjustIn">補上班打卡</button>
       <button class="ghost" id="btnAdjustOut">補下班打卡</button>
