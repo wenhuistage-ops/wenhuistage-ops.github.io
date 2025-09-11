@@ -63,5 +63,7 @@
   "status_repair": "Disesuaikan",
   "repair_approved": "Disetujui",
   "repair_pending": "Menunggu",
-  "no_record": "Tidak ada catatan"
+  "no_record": "Tidak ada catatan",
+  "ERR_BEFORE_MONTH_START": "⚠️ Anda tidak dapat memilih tanggal sebelum bulan ini",
+  "ERR_AFTER_YESTERDAY": "⚠️ Anda tidak dapat memilih tanggal setelah kemarin"
 }

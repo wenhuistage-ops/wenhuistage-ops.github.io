@@ -63,6 +63,8 @@
    "status_repair": "補",
    "repair_approved": "已審核",
    "repair_pending": "待審",
-   "no_record": "無紀錄"
+   "no_record": "無紀錄",
+   "ERR_BEFORE_MONTH_START": "⚠️ 不能選擇本月以前的時間",
+     "ERR_AFTER_YESTERDAY": "⚠️ 不能選擇昨天以後的時間"
   
 }

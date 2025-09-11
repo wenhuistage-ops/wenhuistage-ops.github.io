@@ -63,5 +63,7 @@
   "status_repair": "Điều Chỉnh",
   "repair_approved": "Đã Duyệt",
   "repair_pending": "Chờ Duyệt",
-  "no_record": "Không có ghi chú"
+  "no_record": "Không có ghi chú",
+  "ERR_BEFORE_MONTH_START": "⚠️ Bạn không thể chọn ngày trước tháng này",
+  "ERR_AFTER_YESTERDAY": "⚠️ Bạn không thể chọn ngày sau hôm qua"
 }

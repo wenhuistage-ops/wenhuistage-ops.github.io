@@ -63,5 +63,7 @@
   "status_repair": "Adjusted",
   "repair_approved": "Approved",
   "repair_pending": "Pending",
-  "no_record": "No records"
+  "no_record": "No records",
+  "ERR_BEFORE_MONTH_START": "⚠️ You cannot select a date before this month",
+   "ERR_AFTER_YESTERDAY": "⚠️ You cannot select a date after yesterday"
 }

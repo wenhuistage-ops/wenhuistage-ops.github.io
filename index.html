@@ -445,14 +445,16 @@ window.addEventListener('DOMContentLoaded', async () => {
 
       const selected = new Date(value);
       const now = new Date();
+      let yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
       if (selected < monthStart) {
-        alert("⚠️ 不能選擇本月以前的時間");
+        alert(t("ERR_BEFORE_MONTH_START"));
         return false;
       }
-      if (selected > now) {
-        alert("⚠️ 不能選擇未來的時間");
+      if (selected > yesterday) {
+        alert(t("ERR_AFTER_YESTERDAY"));
         return false;
       }
       return true;
