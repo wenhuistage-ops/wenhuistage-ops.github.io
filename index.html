@@ -288,8 +288,11 @@ function callApiAdjustPunch(type, datetime, cb) {
       };
 
       // max = 昨天
+      let yesterday = new Date();
       console.log(yesterday.getDate());
-      input.max = toLocal(yesterday.getDate());
+      yesterday.setDate(yesterday.getDate() - 1);
+      input.max = toLocal(yesterday);
+      console.log(yesterday.getDate());
 
       // min = 前一個月第一天 00:00
       const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0);
