@@ -287,8 +287,9 @@ function callApiAdjustPunch(type, datetime, cb) {
         return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
       };
 
-      // max = 今天
-      input.max = toLocal(now);
+      // max = 昨天
+      console.log(yesterday.getDate());
+      input.max = toLocal(yesterday.getDate());
 
       // min = 前一個月第一天 00:00
       const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0);
