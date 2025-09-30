@@ -1,10 +1,10 @@
 {
   "_comment": "＿＿＿＿＿以下是前端的翻譯＿＿＿＿",
-  "APP_TITLE": "零點考勤系統",
+  "APP_TITLE": "文輝考勤系統",
   "WELCOME_BACK": "歡迎回來！",
   "BTN_LOGOUT": "登出",
   "CHECKING_LOGIN": "正在檢查登入狀態…",
-  "SUBTITLE_LOGIN": "歡迎使用零點考勤系統",
+  "SUBTITLE_LOGIN": "歡迎使用文輝考勤系統",
   "BTN_LOGOIN": "使用LINE登入",
   "USER_NAME_LABEL": "使用者名稱",
   "PUNCH_IN_LABEL": "上班打卡",
