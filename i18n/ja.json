@@ -138,6 +138,6 @@
   "STATUS_PUNCH_IN_MISSING": "出勤打刻なし",
   "STATUS_REPAIR_PENDING": "打刻修正（承認待ち）",
   "STATUS_REPAIR_APPROVED": "打刻修正済み",
-  "TYPE_PUNCH_IN": "出勤",
-  "TYPE_PUNCH_OUT": "退勤"
+  "PUNCH_IN": "出勤",
+  "PUNCH_OUT": "退勤"
 }

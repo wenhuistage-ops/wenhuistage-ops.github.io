@@ -138,6 +138,6 @@
   "STATUS_PUNCH_IN_MISSING": "Thiếu chấm công vào",
   "STATUS_REPAIR_PENDING": "Chấm công bổ sung (Đang chờ duyệt)",
   "STATUS_REPAIR_APPROVED": "Chấm công bổ sung đã duyệt",
-  "TYPE_PUNCH_IN": "Chấm công vào",
-  "TYPE_PUNCH_OUT": "Chấm công ra"
+  "PUNCH_IN": "Chấm công vào",
+  "PUNCH_OUT": "Chấm công ra"
 }

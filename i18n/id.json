@@ -138,6 +138,6 @@
   "STATUS_PUNCH_IN_MISSING": "Tidak absen masuk",
   "STATUS_REPAIR_PENDING": "Absen susulan (Tertunda)",
   "STATUS_REPAIR_APPROVED": "Absen susulan disetujui",
-  "TYPE_PUNCH_IN": "Absen Masuk",
-  "TYPE_PUNCH_OUT": "Absen Keluar"
+  "PUNCH_IN": "Absen Masuk",
+  "PUNCH_OUT": "Absen Keluar"
 }

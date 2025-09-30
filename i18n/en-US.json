@@ -138,6 +138,6 @@
   "STATUS_PUNCH_IN_MISSING": "Missed Punch In",
   "STATUS_REPAIR_PENDING": "Make-up Punch (Pending)",
   "STATUS_REPAIR_APPROVED": "Make-up Punch Approved",
-  "TYPE_PUNCH_IN": "Punch In",
-  "TYPE_PUNCH_OUT": "Punch Out"
+  "PUNCH_IN": "Punch In",
+  "PUNCH_OUT": "Punch Out"
 }
