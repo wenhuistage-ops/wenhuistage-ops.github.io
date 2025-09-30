@@ -12,7 +12,7 @@ let userId = localStorage.getItem("sessionUserId");
 // 載入語系檔
 async function loadTranslations(lang) {
     try {
-        const res = await fetch(`https://0rigind1865-bit.github.io/Attendance-System/i18n/${lang}.json`);
+        const res = await fetch(`https://wenhuistage-ops.github.io//i18n/${lang}.json`);
         if (!res.ok) {
             throw new Error(`HTTP 錯誤: ${res.status}`);
         }
@@ -874,7 +874,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     logoutBtn.onclick = () => {
         localStorage.removeItem("sessionToken");
-        window.location.href = "/Attendance-System"
+        window.location.href = "index"
     };
     
     /* ===== 打卡功能 ===== */
