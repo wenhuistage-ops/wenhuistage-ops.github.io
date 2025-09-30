@@ -131,6 +131,11 @@ async function ensureLogin() {
                 const res = await callApifetch("checkSession");
                 res.msg = t(res.code);
                 if (res.ok) {
+                    if(res.user.dept==="管理員")
+                    {
+                        console.log(res.user.dept);
+                        document.getElementById('tab-admin-btn').style.display = 'block';
+                    }
                     document.getElementById("user-name").textContent = res.user.name;
                     document.getElementById("profile-img").src = res.user.picture || res.user.rate;
                     
