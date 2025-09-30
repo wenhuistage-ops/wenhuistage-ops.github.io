@@ -1,518 +1,207 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-  <link rel="icon" href="/favicon.ico" type="image/x-icon">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>文輝打卡系統</title>
-  <style>
-    body {
-      font-family: ui-sans-serif, system-ui;
-      margin: 0;
-      background: #f0f2f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      align-items: center;
-      min-height: 100vh;
-      font-size: 16px;
-    }
-    .container {
-      width: 100%;
-      max-width: 400px;
-      margin: 16px;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      background: #fff;
-      padding: 24px;
-      box-sizing: border-box;
-    }
-    h1 { font-size: clamp(18px, 4vw, 30px); margin: 0 0 16px; }
-    .muted { color:#666; font-size: 14px; margin: 8px 0 16px; }
-    button {
-      padding: 12px 16px;
-      border-radius: 12px;
-      margin-bottom: 10px;
-      border:0;
-      cursor:pointer;
-      font-size:16px;
-      width: 100%;
-    }
-    .primary {
-      background: linear-gradient(90deg, #4f46e5, #2563eb);
-      color:#fff;
-    }
-    .ghost {
-      background:#eef2ff;
-      color:#374151;
-      border: 1px solid #dbeafe;
-    }
-      .warning {
-        background: #ef4444; /* 紅色 */
-        color: #fff;
-        border: 1px solid #fca5a5;
-      }
-      .form-group {
-        width: 100%;
-        margin-bottom: 12px;
-      }
+    <head>
+        <link rel="icon" href="/Attendance-System/0rigin.png" type="image/x-icon">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <title data-i18n="APP_TITLE">APP_TITLE</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                    <link rel="stylesheet" href="style.css">
+                        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+                            integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+                            crossorigin=""/>
+                            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+                                integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+                                crossorigin=""></script>
+                    </head>
+    <body class="flex items-center justify-center min-h-screen p-4">
+        <div id="app-container" class="w-full max-w-md mx-auto">
+            <!-- User Profile & Header -->
+            <header id="user-header" class="flex items-center justify-between p-4 mb-6 card fade-in" style="display: none;">
+                <div class="flex items-center space-x-3">
+                    <img id="profile-img" src="https://placehold.co/40x40/e0e0e0/757575?text=U" alt="頭像" class="w-10 h-10 rounded-full">
+                        <div>
+                            <p id="user-name" class="font-semibold text-gray-800">使用者名稱</p>
+                            <p id="welcome-mes" data-i18n="WELCOME_BACK" class="text-xs text-gray-500">歡迎回來！</p>
+                        </div>
+                </div>
+                <select id="language-switcher" class="text-sm font-medium text-gray-600 rounded-md p-1">
+                            <option value="zh-TW">繁體中文</option>
+                            <option value="en-US">English</option>
+                            <option value="id">Bahasa Indonesia</option>
+                            <option value="vi">Tiếng Việt</option>
+                            <option value="ja">日本語</option>
+                            </select>
+                <button id="logout-btn" data-i18n="BTN_LOGOUT" class="text-sm font-medium text-gray-600 hover:text-indigo-600">登出</button>
+            </header>
+            
+            <!-- Login Section -->
+            <section id="login-section" class="text-center p-8 card fade-in">
+                <img src="/Attendance-System/0rigin.png" alt="打卡系統橫幅圖" class="main-image">
+                    <h1 id="appTitle" data-i18n="SUBTITLE_LOGIN" class="text-2xl font-bold text-gray-800 mb-2">歡迎零點考勤系統</h1>
+                    <p class="text-gray-600 mb-6" data-i18n="LOGIN_INFO" id="status">請點擊登入以繼續。</p>
+                    <div id="login" class="space-y-4">
+                        <button id="login-btn" data-i18n="BTN_LOGOIN" class="w-full py-3 px-4 rounded-lg font-bold btn-primary" style="display: none;">使用LINE登入</button>
+                    </div>
+            </section>
+            
+            <!-- Main App Content -->
+            <div id="main-app" class="fade-in" style="display: none;">
+                <!-- Tab Navigation -->
+                <div class="flex justify-center space-x-2 mb-6">
+                    <button id="tab-dashboard-btn" data-i18n="TAB_DASHBOARD" class="py-2 px-4 rounded-full font-bold text-sm text-white bg-indigo-600">儀表板</button>
+                    <button id="tab-monthly-btn" data-i18n="TAB_MONTHLY" class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">月份檢視</button>
+                    <button id="tab-location-btn" data-i18n="TAB_LOCATION" class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">定位</button>
+                    <button id="tab-admin-btn" data-i18n="TAB_ADMIN" class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">管理員</button>
+                </div>
+                
+                <!-- Dashboard View -->
+                <main id="dashboard-view" class="space-y-6">
+                    <div class="card p-6">
+                        <h2 data-i18n="PUNCH_SECTION_TITLE" class="text-xl font-bold text-gray-800 mb-1">打卡專區</h2>
+                        <p  data-i18n="PUNCH_SECTION_DESCRIPTION" lass="text-gray-500 mb-4">請點擊下方按鈕進行上班或下班打卡。</p>
+                        <div id="punch-actions" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <button id="punch-in-btn" data-i18n="PUNCH_IN_LABEL"
+                                class="w-full py-3 px-4 rounded-lg font-bold btn-primary">上班打卡</button>
+                            <button id="punch-out-btn" data-i18n="PUNCH_OUT_LABEL" class="w-full py-3 px-4 rounded-lg font-bold btn-secondary">下班打卡</button>
+                        </div>
+                    </div>
+                    
+                    <div id="abnormal-records-section" class="card p-6" style="display: none;">
+                        <h2 data-i18n="ABNORMAL_RECORDS_TITLE" class="text-xl font-bold text-gray-800 mb-1">考勤紀錄</h2>
+                        <p data-i18n="ABNORMAL_RECORDS_DESCRIPTION" class="text-gray-500 mb-4">系統會自動偵測本月異常紀錄，您可以在此進行補打卡。</p>
+                        <div id="abnormal-records-container">
+                            <div id="records-loading" data-i18n="RECORDS_LOADING" class="text-center text-gray-500 py-4">正在載入紀錄...</div>
+                            <div id="records-empty" class="text-center text-green-600 bg-green-50 p-4 rounded-lg" style="display: none;">
+                                <p data-i18n="RECORDS_EMPTY_TITLE" class="font-semibold">太棒了！</p>
+                                <p data-i18n="RECORDS_EMPTY_MESSAGE"  >本月目前沒有任何異常紀錄。</p>
+                            </div>
+                            <ul id="abnormal-list" class="space-y-3"></ul>
+                        </div>
+                        <div id="adjustment-form-container" class="mt-4"></div>
+                    </div>
+                </main>
+                
+                <!-- Monthly View -->
+                <section id="monthly-view" class="space-y-6" style="display: none;">
+                    <div class="card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <button id="prev-month" class="text-gray-600 p-2 rounded-full hover:bg-gray-100">◄</button>
+                            <h3 id="month-title" class="font-bold text-xl text-gray-800"></h3>
+                            <button id="next-month" class="text-gray-600 p-2 rounded-full hover:bg-gray-100">►</button>
+                        </div>
+                        <div class="grid grid-cols-7 text-center text-sm font-semibold text-gray-500 mb-2">
+                            <span data-i18n="WEEK_SUNDAY" >日</span>
+                            <span data-i18n="WEEK_MONDAY" >一</span>
+                            <span data-i18n="WEEK_TUESDAY" >二</span>
+                            <span data-i18n="WEEK_WEDNESDAY" >三</span>
+                            <span data-i18n="WEEK_THURSDAY" >四</span>
+                            <span data-i18n="WEEK_FRIDAY" >五</span>
+                            <span data-i18n="WEEK_SATURDAY" >六</span>
+                        </div>
+                        <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
+                    </div>
+                    
+                    <div id="daily-records-card" class="card p-6" style="display: none;">
+                        <h4 id="daily-records-title" class="text-xl font-bold text-gray-800 mb-2"></h4>
+                        <ul id="daily-records-list" class="space-y-3"></ul>
+                        <div id="daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" class="text-center text-gray-500 py-4" style="display: none;">
+                            該日沒有打卡紀錄。
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Location View -->
+                <section id="location-view" class="space-y-6" style="display: none;">
+                    <div class="card p-6">
+                        <h2 data-i18n="CURRENT_LOCATION_TITLE" class="text-xl font-bold text-gray-800 mb-1">當前位置</h2>
+                        <p data-i18n="CURRENT_LOCATION_DESCRIPTION" class="text-gray-500 mb-4">系統將透過 GPS 偵測您的位置。</p>
 
-      .form-label {
-        display: block;
-        margin-bottom: 6px;
-        font-size: 14px;
-        color: #333;
-      }
-
-      .form-input {
-        width: 100%;
-        padding: 10px;
-        border-radius: 8px;
-        border: 1px solid #ddd;
-        font-size: 16px;
-        box-sizing: border-box; /* 防止超出容器 */
-        display: block;
-      }
-    .row { display:flex; flex-direction: column; gap:12px; }
-    .msg { margin-top: 16px; padding:12px; border-radius:12px; background:#f1f5f9; }
-    .error { background:#fee2e2; color:#991b1b; }
-    .ok    { background:#dcfce7; color:#065f46; }
-    .foot { margin-top: 20px; font-size: 12px; color:#777; text-align:center;}
-    @media (max-width: 480px) {
-      .container { margin: 12px; padding: 16px; }
-    }
-  </style>
-</head>
-<div class="cardsContainer" style="display:flex; flex-direction:column; gap:1px; align-items:center;">
-<body>
-  <div class="container" id="normalPunchCard">
-      <h1 id="appTitle"></h1>
-    <!-- 登入狀態 -->
-    <div id="status" class="muted" style="display:flex; align-items:center; gap:8px;">
-      <img id="profileImg" src="" alt="頭像" style="display:none; width:40px; height:40px; border-radius:50%;">
-          <span id="userName"></span>
-    </div>
-    <!-- 打卡功能 -->
-    <div id="actions" class="row" style="display:none;">
-      <button class="primary" id="btnIn">上班打卡</button>
-      <button class="ghost" id="btnOut">下班打卡</button>
-      <button id="btnLogout" style="margin-left:auto;">登出</button>
-    </div>
-
-    <!-- 登入區塊 -->
-    <div id="login" style="display:none;">
-      <button class="primary" id="btnLogin">使用 LINE 登入</button>
-    </div>
-    <!-- 加載中的圖示 -->
-    <div id="loading" style="display:none; text-align:center; margin:10px;">
-      <span>⏳ 處理中...</span>
-    </div>
-    <!-- 訊息顯示 -->
-    <div id="message" class="msg" style="display:none;"></div>
-    <div class="foot" id="footerNotice"></div>
-  </div>
-  
-  <!-- 新增補打卡卡片 -->
-  <div class="container" id="adjustPunchCard" style="display:none;">
-      <!-- 查看異常紀錄按鈕（預設隱藏） -->
-    <button class="warning" id="btnViewAbnormal" style="display:block;">⚠️ 查看異常紀錄 👀</button>
-    <div id="loadingMsg" style="display:none; text-align:center; margin:10px;">
-      <span>⏳ 處理中...</span>
-    </div>
-    <div id="adjustMessage" class="msg" style="display:none;"></div>
-    <h1 id="adjustPunchTitle"></h1>
-    <div class="row">
-        <div class="form-group">
-          <label id="adjustPunchDateTimeLabel" for="adjustDateTime">
-            選擇日期時間：
-          </label>
-          <input
-            id="adjustDateTime"
-            type="datetime-local"
-            class="form-input">
+                        <div id="map-container" class="w-full h-64 rounded-lg mb-4 bg-gray-200 flex items-center justify-center text-gray-500">
+                            <div id="map-loading-text">
+                              <span data-i18n="MAP_LOADING">正在載入地圖...</span>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <p class="text-sm text-gray-600">
+                            <strong data-i18n="LOCATION_STATUS_LABEL">狀態：</strong>
+                            <span id="location-status" ata-i18n="LOCATION_STATUS_PENDING">未偵測</span>
+                            </p>
+                            <p  dclass="text-sm text-gray-600">
+                            <strong data-i18n="COORDINATES_LABEL">經緯度：</strong>
+                            <span id="location-coords" data-i18n="COORDINATES_UNKNOWN">未知</span>
+                            </p>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Admin View -->
+                <section id="admin-view" class="space-y-6" style="display: none;">
+                    <div class="card p-6">
+                        <h2 data-i18n="PENDING_REQUESTS_TITLE" class="text-xl font-bold text-gray-800 mb-1">待審核請求</h2>
+                        <p data-i18n="PENDING_REQUESTS_DESCRIPTION" class="text-gray-500 mb-4">請處理員工提出的補打卡或虛擬卡請求。</p>
+                        <div id="pending-requests-container">
+                            <div id="requests-loading" data-i18n="REQUESTS_LOADING" class="text-center text-gray-500 py-4">正在載入請求...</div>
+                            <div id="requests-empty" class="text-center text-green-600 bg-green-50 p-4 rounded-lg" style="display: none;">
+                                <p data-i18n="REQUESTS_EMPTY_TITLE" class="font-semibold">太棒了！</p>
+                                <p
+                                data-i18n="REQUESTS_EMPTY_MESSAGE">目前沒有任何待審核的請求。</p>
+                            </div>
+                            <ul id="pending-requests-list" class="space-y-3"></ul>
+                        </div>
+                    </div>
+                    <div class="card p-6 mt-6">
+                        <h2 data-i18n="ADD_LOCATION_TITLE" class="text-xl font-bold text-gray-800 mb-2">新增打卡地點</h2>
+                        <p data-i18n="ADD_LOCATION_DESCRIPTION" class="text-gray-500 mb-4">輸入地點名稱，並使用您的當前位置作為經緯度。</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label data-i18n="LOCATION_NAME_LABEL" for="location-name" class="block text-sm font-medium text-gray-700">地點名稱</label>
+                                <input type="text" id="location-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label data-i18n="COORDINATES_LAT_LNG_LABEL" class="block text-sm font-medium text-gray-700">經緯度 (Latitude / Longitude)</label>
+                                <div class="mt-1 flex space-x-2">
+                                    <input type="text" id="location-lat" placeholder="緯度" readonly class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm">
+                                        <input type="text" id="location-lng" placeholder="經度" readonly class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm">
+                                </div>
+                            </div>
+                            <button data-i18n="GET_LOCATION_BTN" id="get-location-btn" class="w-full py-2 px-4 rounded-lg font-bold btn-secondary">取得當前位置</button>
+                            <button data-i18n="ADD_LOCATION_BTN" id="add-location-btn" class="w-full py-2 px-4 rounded-lg font-bold btn-primary" disabled>新增地點</button>
+                        </div>
+                    </div>
+                    <div class="card p-6 mt-6">
+                        <h2 data-i18n="API_TEST_TITLE" class="text-xl font-bold text-gray-800 mb-2">API 測試區</h2>
+                        <p data-i18n="API_TEST_DESCRIPTION" class="text-gray-500 mb-4">點擊下方按鈕以測試新的 API 功能。</p>
+                        <div>
+                            <button data-i18n="API_TEST_BTN" id="test-api-btn" class="w-full py-2 px-4 rounded-lg font-bold btn-primary">測試 API</button>
+                        </div>
+                    </div>
+         
+                </section>
+            </div>
+            <footer class="mt-8 text-center text-sm text-gray-500">
+                <p>
+                    <span data-i18n="APP_TITLE">零點考勤系統</span> v1.0 |
+                    <span class="text-gray-400">
+                        <span data-i18n="FOOTER_CREDITS_PREFIX">由</span>
+                        <a href="https://github.com/0rigind1865-bit" class="hover:underline">0J</a>
+                        <span data-i18n="FOOTER_CREDITS_SUFFIX">製作</span> |
+                        <a data-i18n="FOOTER_SPONSOR" href="https://buymeacoffee.com/0rigind186u" class="hover:underline">點此贊助此專案</a>
+                    </span>
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                    <span data-i18n="FOOTER_OPEN_SOURCE">這是一個開源專案，歡迎貢獻。</span>
+                </p>
+            </footer>
         </div>
-
-      <button class="ghost" id="btnAdjustIn">補上班打卡</button>
-      <button class="ghost" id="btnAdjustOut">補下班打卡</button>
-    </div>
-   
-  </div>
-</div>
-<script>
-    
-    let currentLang = localStorage.getItem("lang");
-    console.log("現在語言:", currentLang);
-    if (true) {
-      // 取瀏覽器語言，例如 zh-TW, en-US
-      const browserLang = navigator.language || navigator.userLanguage;
-      console.log("瀏覽器語言:", browserLang);
-      // 簡單處理：只取前兩碼 (zh, en, ja...)
-      if (browserLang.startsWith("zh")) {
-          console.log("瀏覽器語言:", currentLang);
-        currentLang = "zh-TW";
-      } else if (browserLang.startsWith("ja")) {
-        currentLang = "ja-JP";
-      }
-      else if (browserLang.startsWith("vi")) {
-        currentLang = "vi";
-      }
-      else if (browserLang.startsWith("id")) {
-        currentLang = "id";
-      }
-      else {
-        currentLang = "en-US"; // 預設英文
-      }
-
-      // 記錄下來，之後就用 localStorage 優先
-      localStorage.setItem("lang", currentLang);
-    }
-    
-    let translations = {};
-    console.log("初始語言:", currentLang);
-
-    // 載入語系檔
-    async function loadTranslations(lang) {
-      console.log("開始載入語系:", lang);
-      try {
-        const res = await fetch(`/i18n/${lang}.json`);
-        if (!res.ok) {
-          throw new Error(`HTTP 錯誤: ${res.status}`);
-        }
-        translations = await res.json();
-        currentLang = lang;
-        localStorage.setItem("lang", lang);
-        console.log("語系載入成功:", translations);
-      } catch (err) {
-        console.error("載入語系失敗:", err);
-      }
-    }
-
-    // 翻譯函式
-
-    function t(code, params = {}) {
-      let text = translations[code] || code;
-      console.log(`翻譯查詢: code='${code}' → '${text}'`);
-      for (const key in params) {
-          console.log(`參數: params='${params}'`);
-        text = text.replace(`{${key}}`, params[key]);
-      }
-      return text;
-    }
-    
-const API_URL = "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec";
-
-/* ===== 共用訊息顯示 ===== */
-function showMessage(text, type="ok", msgId="message") {
-  const el = document.getElementById(msgId);
-  if (!text) {
-    el.textContent = "";
-    el.style.display = "none";
-    return;
-  }
-  el.textContent = text;
-  el.className = "msg " + type;
-  el.style.display = "block";
-}
-
-/* ===== JSONP 呼叫 ===== */
-function callApi(action, cb, loadingId="loading") {
-  const token = localStorage.getItem("sessionToken");
-  const url = `${API_URL}?action=${action}&token=${token}&callback=handleResponse`;
-  //window.handleResponse = cb;
-  
-    // 顯示指定 loading
-    document.getElementById(loadingId).style.display = "block";
-    
-    window.handleResponse = (res) => {
-        // 統一翻譯
-        console.log("API 回傳：", res);
-           res.msg = t(res.code);
-       // 關閉 loading
-       document.getElementById(loadingId).style.display = "none";
-       cb(res);
-       // 清理 script，避免累積
-           if (script.parentNode) {
-             script.parentNode.removeChild(script);
-           }
-     };
-    
-  const script = document.createElement("script");
-  script.src = url;
-  script.onerror = () => showMessage("連線失敗","error");
-  document.body.appendChild(script);
-}
-
-/* ===== 交換一次性 token ===== */
-function exchangeToken(action, otoken, cb) {
-  const url = `${API_URL}?action=${action}&otoken=${otoken}&callback=handleExchange`;
-  window.handleExchange = cb;
-  const script = document.createElement("script");
-  script.src = url;
-  script.onerror = () => showMessage("連線失敗","error");
-  document.body.appendChild(script);
-}
-/* ===== 補打卡 ===== */
-function callApiAdjustPunch(type, datetime, cb) {
-    const token = localStorage.getItem("sessionToken");
-    const dateObj = new Date(datetime);
-    const lat = 0; // 補打卡不檢查 GPS
-    const lng = 0;
-
-    const url = `${API_URL}?action=adjustPunch&token=${token}&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&datetime=${dateObj.toISOString()}&callback=handleAdjustResponse&note=${encodeURIComponent(navigator.userAgent)}`;
-    document.getElementById("loadingMsg").style.display = "block";
-    
-    window.handleAdjustResponse = (res) => {
-       // 關閉 loading
-       document.getElementById("loadingMsg").style.display = "none";
-       cb(res);
-     };
-
-    const script = document.createElement("script");
-    script.src = url;
-    script.onerror = () => showMessage("連線失敗", "error", "adjustMessage");
-    document.body.appendChild(script);
-}
-    function ensureLogin() {
-      return new Promise((resolve) => {
-        callApi("checkSession", (res) => {
-          if (res.ok) {
-            const Msg = t(res.code,res.params || "UNKNOWN_ERROR");
-            document.getElementById("userName").textContent = Msg;
-            localStorage.setItem("sessionUserId", res.user.userId);
-            let img = document.getElementById("profileImg");
-            img.src = res.user.picture || res.user.rate;
-            img.style.display = "inline-block";
-            document.getElementById("actions").style.display = "block";
-
-            // 檢查異常打卡
-            checkAbnormal();
-            resolve(true);
-
-          } else {
-            // ✅ 使用代碼翻譯
-            const errorMsg = t(res.code || "UNKNOWN_ERROR");
-
-            if (res.code === "ACCOUNT_NOT_ENABLED") {
-              document.getElementById("status").textContent = errorMsg;
-              showMessage("❌ " + errorMsg, "error");
-            } else {
-              document.getElementById("status").textContent = t("PLEASE_RELOGIN");
-              document.getElementById("login").style.display = "block";
-              document.getElementById("btnLogin").textContent = t("BTN_RELOGIN");
-              showMessage("❌ " + errorMsg, "error");
-            }
-            resolve(false);
-          }
-        });
-      });
-    }
-
-    window.addEventListener("DOMContentLoaded", () => {
-      const input = document.getElementById("adjustDateTime");
-      const now = new Date();
-
-      const toLocal = (d) => {
-        const pad = (n) => n.toString().padStart(2,'0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      };
-
-      // max = 昨天
-      let yesterday = new Date();
-      console.log(yesterday.getDate());
-      yesterday.setDate(yesterday.getDate() - 1);
-      input.max = toLocal(yesterday);
-      console.log(yesterday.getDate());
-
-      // min = 前一個月第一天 00:00
-      const monthStart = new Date(now.getFullYear(), now.getMonth()-1, 1, 0, 0);
-      input.min = toLocal(monthStart);
-
-      // 如果 input.value 不存在 或 超過 max，就把 value 設成 max（昨天）
-      if (!input.value || new Date(input.value) > new Date(input.max)) {
-        input.value = input.max;
-      }
-    });
-/* ===== 登入流程 ===== */
-window.addEventListener('DOMContentLoaded', async () => {
-    console.log("初始化語系…");
-    await loadTranslations(currentLang); // 先載入語系
-    
-    // 自動替換文字
-    document.getElementById("appTitle").textContent = t("APP_TITLE");
-    document.getElementById("userName").textContent = t("CHECKING_LOGIN");
-    document.getElementById("footerNotice").textContent = t("FOOTER_NOTICE");
-    
-    
-    document.getElementById("adjustPunchTitle").textContent = t("ADJUST_PUNCH_TITLE");
-    document.getElementById("adjustPunchDateTimeLabel").textContent = t("ADJUST_PUNCH_DATETIME_LABEL");
-    // 初始化按鈕文字
-    document.getElementById("btnLogin").textContent = t("BTN_RELOGIN");
-    document.getElementById("btnIn").textContent = t("BTN_PUNCH_IN");
-    document.getElementById("btnOut").textContent = t("BTN_PUNCH_OUT");
-    document.getElementById("btnLogout").textContent = t("BTN_LOGOUT");
-    document.getElementById("btnAdjustIn").textContent = t("BTN_ADJUST_IN");
-    document.getElementById("btnAdjustOut").textContent = t("BTN_ADJUST_OUT");
-    document.getElementById("btnViewAbnormal").textContent = t("BTN_VIEW_ABNORMAL");
-    document.getElementById("loading").textContent = t("LOADING");
-    document.getElementById("loadingMsg").textContent = t("LOADING");
-    
-  const params = new URLSearchParams(window.top.location.search);
-  const otoken = params.get('code');
-
-  if (otoken) {
-    // 剛登入完，交換 token
-    exchangeToken("getProfile", otoken, (res) => {
-      if (res.ok && res.sToken) {
-        localStorage.setItem("sessionToken", res.sToken);
+        <!-- 作者資訊區塊 -->
         
+        <!-- Notification -->
+        <div id="notification" class="notification">
+            <p id="notification-message"></p>
+        </div>
         
-        showMessage(t("LOGIN_SUCCESS"));
-
-        ensureLogin();
-      } else {
-        showMessage(t("ERROR_LOGIN_FAILED", {msg: res.msg || t("UNKNOWN_ERROR")}), "error");
-
-        const container = document.getElementById("login");
-        container.style.display = "block";
-        container.innerHTML = ""; // 清空原本內容
-
-        const btn = document.createElement("button");
-        btn.id = "btnRelogin";
-        btn.textContent = t("BTN_RELOGIN");
-        btn.className = "primary";
-        btn.onclick = () => { window.location.href = "https://wenhuistage-ops.github.io/"; };
-
-        container.appendChild(btn);
-      }
-    });
-  } else {
-    // 沒有 otoken → 檢查登入狀態
-    ensureLogin();
-  }
-
-  /* ===== 綁定按鈕 ===== */
-  document.getElementById("btnLogin").onclick = () => {
-    callApi("getLoginUrl", (res) => {
-      if (res.url) window.location.href = res.url;
-    });
-  };
-
-  document.getElementById("btnLogout").onclick = () => {
-    localStorage.removeItem("sessionToken");
-    //location.reload();
-    window.location.href = "/index.html"
-  };
-
-  function doPunch(type, cb) {
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      const action = `punch&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(navigator.userAgent)}`;
-      callApi(action, (res) => { if (cb) cb(res, lat, lng); });
-    }, (err) => {
-      showMessage(t("ERROR_GEOLOCATION", {msg: err.message}), "error");
-    });
-  }
-
-
-
-  document.getElementById("btnIn").onclick = () => {
-    showMessage("");
-    doPunch("上班", (res, lat, lng) => {
-        // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
-        const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
-
-        // 顯示訊息，根據 ok 狀態決定樣式
-        showMessage(msg, res.ok ? "ok" : "error");
-    });
-  };
-
-  document.getElementById("btnOut").onclick = () => {
-    showMessage(""); // 先清空訊息
-
-    doPunch("下班", (res, lat, lng) => {
-      // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
-      const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
-
-      // 顯示訊息，根據 ok 狀態決定樣式
-      showMessage(msg, res.ok ? "ok" : "error");
-    });
-  };
-});
-    function validateAdjustTime() {
-      const input = document.getElementById("adjustDateTime");
-      const value = input.value;
-      if (!value) return false;
-
-      const selected = new Date(value);
-      const now = new Date();
-      let yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-      if (selected < monthStart) {
-        alert(t("ERR_BEFORE_MONTH_START"));
-        return false;
-      }
-      if (selected > yesterday) {
-        alert(t("ERR_AFTER_YESTERDAY"));
-        return false;
-      }
-      return true;
-    }
-    // 綁定補打卡按鈕
-    document.getElementById("btnAdjustIn").onclick = () => {
-        if (!validateAdjustTime()) return;
-      const datetime = document.getElementById("adjustDateTime").value;
-      if (!datetime) return showMessage("請選擇補打卡日期時間", "error", "adjustMessage");
-      showMessage("", "ok", "adjustMessage");
-      callApiAdjustPunch("上班", datetime, (res) => {
-          // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
-          const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
-
-          // 顯示訊息，根據 ok 狀態決定樣式
-          showMessage(msg, res.ok ? "ok" : "error","adjustMessage");
-      });
-    };
-
-    document.getElementById("btnAdjustOut").onclick = () => {
-        if (!validateAdjustTime()) return;
-      const datetime = document.getElementById("adjustDateTime").value;
-      if (!datetime) return showMessage("請選擇補打卡日期時間", "error", "adjustMessage");
-      showMessage("", "ok", "adjustMessage");
-      callApiAdjustPunch("下班", datetime, (res) => {
-          // 取得訊息文字，若 res.code 或 translations 缺失，給預設訊息
-          const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
-
-          // 顯示訊息，根據 ok 狀態決定樣式
-          showMessage(msg, res.ok ? "ok" : "error","adjustMessage");
-      });
-    };
-
-    //檢查本月打卡異常
-    function checkAbnormal() {
-      const now = new Date();
-      const month = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0");
-      const userId = localStorage.getItem("sessionUserId");
-
-      document.getElementById("loadingMsg").style.display = "block";
-      callApi(`getAbnormalRecords&month=${month}&userId=${userId}`, (res) => {
-        if (res.ok) {
-          const hasAbnormal = res.records.some(r => r.abnormal);
-          const btn = document.getElementById("btnViewAbnormal");
-          const di = document.getElementById("adjustPunchCard");
-          
-          if (hasAbnormal) {
-            di.style.display = "block";
-            btn.onclick = () => {
-              window.location.href = `punchCalendar.html?type=abnormal&month=${month}&userId=${userId}`;
-            };
-          } else {
-            btn.style.display = "none";
-          }
-        }
-      }, "loadingMsg");
-    }
-
-</script>
-</body>
+        <script src="config.js"></script>
+        <script src="script.js"></script>
+    </body>
 </html>
