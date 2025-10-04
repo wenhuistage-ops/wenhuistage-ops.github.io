@@ -27,7 +27,7 @@ async function loadTranslations(lang) {
 // 翻譯函式
 function t(code, params = {}) {
     let text = translations[code] || code;
-    
+
     // 檢查並替換參數中的變數
     for (const key in params) {
         // 在替換之前，先翻譯參數的值
@@ -35,7 +35,7 @@ function t(code, params = {}) {
         if (paramValue in translations) {
             paramValue = translations[paramValue];
         }
-        
+
         text = text.replace(`{${key}}`, paramValue);
     }
     return text;
@@ -52,7 +52,7 @@ function renderTranslations(container = document) {
     elementsToTranslate.forEach(element => {
         const key = element.getAttribute('data-i18n');
         const translatedText = t(key);
-        
+
         // 檢查翻譯結果是否為空字串，或是否回傳了原始鍵值
         if (translatedText !== key) {
             if (element.tagName === 'INPUT') {
@@ -68,12 +68,12 @@ function renderTranslations(container = document) {
     dynamicElements.forEach(element => {
         const key = element.getAttribute('data-i18n-key');
         if (key) {
-             const translatedText = t(key);
-             
-             // 只有當翻譯結果不是原始鍵值時才進行更新
-             if (translatedText !== key) {
-                 element.textContent = translatedText;
-             }
+            const translatedText = t(key);
+
+            // 只有當翻譯結果不是原始鍵值時才進行更新
+            if (translatedText !== key) {
+                element.textContent = translatedText;
+            }
         }
     });
 }
@@ -88,20 +88,20 @@ function renderTranslations(container = document) {
 async function callApifetch(action, loadingId = "loading") {
     const token = localStorage.getItem("sessionToken");
     const url = `${API_CONFIG.apiUrl}?action=${action}&token=${token}`;
-    
+
     // 顯示指定的 loading 元素
     const loadingEl = document.getElementById(loadingId);
     if (loadingEl) loadingEl.style.display = "block";
-    
+
     try {
         // 使用 fetch API 發送請求
         const response = await fetch(url);
-        
+
         // 檢查 HTTP 狀態碼
         if (!response.ok) {
             throw new Error(`HTTP 錯誤: ${response.status}`);
         }
-        
+
         // 解析 JSON 回應
         const data = await response.json();
         return data;
@@ -145,21 +145,20 @@ async function ensureLogin() {
                 const res = await callApifetch("checkSession");
                 res.msg = t(res.code);
                 if (res.ok) {
-                    if(res.user.dept==="管理員")
-                    {
+                    if (res.user.dept === "管理員") {
                         console.log(res.user.dept);
                         document.getElementById('tab-admin-btn').style.display = 'block';
                     }
                     document.getElementById("user-name").textContent = res.user.name;
                     document.getElementById("profile-img").src = res.user.picture || res.user.rate;
-                    
+
                     localStorage.setItem("sessionUserId", res.user.userId);
                     showNotification(t("LOGIN_SUCCESS"));
-                    
+
                     document.getElementById('login-section').style.display = 'none';
                     document.getElementById('user-header').style.display = 'flex';
                     document.getElementById('main-app').style.display = 'block';
-                    
+
                     // 檢查異常打卡
                     checkAbnormal();
                     resolve(true);
@@ -195,10 +194,10 @@ async function checkAbnormal() {
     const now = new Date();
     const month = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     const userId = localStorage.getItem("sessionUserId");
-    
+
     const recordsLoading = document.getElementById("records-loading");
     recordsLoading.style.display = 'block';
-    
+
     try {
         const res = await callApifetch(`getAbnormalRecords&month=${month}&userId=${userId}`);
         recordsLoading.style.display = 'none';
@@ -206,7 +205,7 @@ async function checkAbnormal() {
             const abnormalRecordsSection = document.getElementById("abnormal-records-section");
             const abnormalList = document.getElementById("abnormal-list");
             const recordsEmpty = document.getElementById("records-empty");
-            
+
             if (res.records.length > 0) {
                 abnormalRecordsSection.style.display = 'block';
                 recordsEmpty.style.display = 'none';
@@ -232,7 +231,7 @@ async function checkAbnormal() {
                     abnormalList.appendChild(li);
                     renderTranslations(li);
                 });
-                
+
             } else {
                 abnormalRecordsSection.style.display = 'block';
                 recordsEmpty.style.display = 'block';
@@ -255,10 +254,10 @@ async function renderCalendar(date) {
     const year = date.getFullYear();
     const month = date.getMonth();
     const today = new Date();
-    
+
     // 生成 monthKey
     const monthkey = currentMonthDate.getFullYear() + "-" + String(currentMonthDate.getMonth() + 1).padStart(2, "0");
-    
+
     // 檢查快取中是否已有該月份資料
     if (monthDataCache[monthkey]) {
         // 如果有，直接從快取讀取資料並渲染
@@ -274,10 +273,10 @@ async function renderCalendar(date) {
             if (res.ok) {
                 // 將資料存入快取
                 monthDataCache[monthkey] = res.records;
-                
+
                 // 收到資料後，清空載入訊息
                 calendarGrid.innerHTML = '';
-                
+
                 // 從快取取得本月資料
                 const records = monthDataCache[monthkey] || [];
                 renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
@@ -297,20 +296,20 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     calendarGrid.innerHTML = '';
     monthTitle.textContent = t("MONTH_YEAR_TEMPLATE", {
         year: year,
-        month: month+1
+        month: month + 1
     });
-    
+
     // 取得該月第一天是星期幾
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+
     // 填補月初的空白格子
     for (let i = 0; i < firstDayOfMonth; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'day-cell';
         calendarGrid.appendChild(emptyCell);
     }
-    
+
     // 根據資料渲染每一天的顏色
     for (let i = 1; i <= daysInMonth; i++) {
         const dayCell = document.createElement('div');
@@ -318,9 +317,9 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         dayCell.textContent = i;
         let dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
         let dateClass = 'normal-day';
-        
+
         const todayRecords = records.filter(r => r.date === dateKey);
-        
+
         if (todayRecords.length > 0) {
             const reason = todayRecords[0].reason;
             switch (reason) {
@@ -346,7 +345,7 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
                     break;
             }
         }
-        
+
         const isToday = (year === today.getFullYear() && month === today.getMonth() && i === today.getDate());
         if (isToday) {
             dayCell.classList.add('today');
@@ -356,7 +355,7 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         } else {
             dayCell.classList.add(dateClass);
         }
-        
+
         dayCell.classList.add('day-cell');
         dayCell.dataset.date = dateKey;
         dayCell.dataset.records = JSON.stringify(todayRecords); // 儲存當天資料
@@ -371,19 +370,19 @@ async function renderDailyRecords(dateKey) {
     const dailyRecordsList = document.getElementById('daily-records-list');
     const dailyRecordsEmpty = document.getElementById('daily-records-empty');
     const recordsLoading = document.getElementById("records-loading");
-    
+
     dailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", {
         dateKey: dateKey
     });
-    
+
     dailyRecordsList.innerHTML = '';
     dailyRecordsEmpty.style.display = 'none';
     recordsLoading.style.display = 'block';
-    
+
     const dateObject = new Date(dateKey);
     const month = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
     const userId = localStorage.getItem("sessionUserId");
-    
+
     // 檢查快取
     if (monthDataCache[month]) {
         renderRecords(monthDataCache[month]);
@@ -405,11 +404,11 @@ async function renderDailyRecords(dateKey) {
             console.error(err);
         }
     }
-    
+
     function renderRecords(records) {
         // 從該月份的所有紀錄中，過濾出所選日期的紀錄
-        const dailyRecords = records.filter(record =>{
-            
+        const dailyRecords = records.filter(record => {
+
             return record.date === dateKey
         });
         if (dailyRecords.length > 0) {
@@ -420,14 +419,14 @@ async function renderDailyRecords(dateKey) {
                 const recordHtml = records.record.map(r => {
                     // 根據 r.type 的值來選擇正確的翻譯鍵值
                     const typeKey = r.type === '上班' ? 'PUNCH_IN' : 'PUNCH_OUT';
-                    
+
                     return `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">${r.location}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
                     `;
                 }).join("");
-                
+
                 li.innerHTML = `
     ${recordHtml}
     <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -438,7 +437,7 @@ async function renderDailyRecords(dateKey) {
                 dailyRecordsList.appendChild(li);
                 renderTranslations(li);
             });
-            
+
         } else {
             dailyRecordsEmpty.style.display = 'block';
         }
@@ -447,7 +446,7 @@ async function renderDailyRecords(dateKey) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    
+
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const punchInBtn = document.getElementById('punch-in-btn');
@@ -464,9 +463,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const locationLatInput = document.getElementById('location-lat');
     const locationLngInput = document.getElementById('location-lng');
     const addLocationBtn = document.getElementById('add-location-btn');
-    
+
     let pendingRequests = []; // 新增：用於快取待審核的請求
-    
+
     // 全域變數，用於儲存地圖實例
     let mapInstance = null;
     let mapLoadingText = null;
@@ -479,7 +478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 全域變數，用於儲存地點標記和圓形
     let locationMarkers = L.layerGroup();
     let locationCircles = L.layerGroup();
-    
+
     /**
      * 取得並渲染所有待審核的請求。
      */
@@ -487,17 +486,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const loadingEl = document.getElementById('requests-loading');
         const emptyEl = document.getElementById('requests-empty');
         const listEl = document.getElementById('pending-requests-list');
-        
+
         loadingEl.style.display = 'block';
         emptyEl.style.display = 'none';
         listEl.innerHTML = '';
-        
+
         try {
             const res = await callApifetch("getReviewRequest");
-            
+
             if (res.ok && Array.isArray(res.reviewRequest)) {
                 pendingRequests = res.reviewRequest; // 快取所有請求
-                
+
                 if (pendingRequests.length === 0) {
                     emptyEl.style.display = 'block';
                 } else {
@@ -515,7 +514,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadingEl.style.display = 'none';
         }
     }
-    
+
     /**
      * 根據資料渲染待審核列表。
      * @param {Array<Object>} requests - 請求資料陣列。
@@ -523,44 +522,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderReviewRequests(requests) {
         const listEl = document.getElementById('pending-requests-list');
         listEl.innerHTML = '';
-        
+
         requests.forEach((req, index) => {
             // ... (省略 li.innerHTML 內容，維持不變) ...
             const li = document.createElement('li');
             li.className = 'p-4 bg-gray-50 rounded-lg shadow-sm flex flex-col space-y-2 dark:bg-gray-700';
             li.innerHTML = `
-  <div class="flex flex-col space-y-1">
-        
-        <div class="flex items-center justify-between w-full"> 
-            <p class="text-sm font-semibold text-gray-800 dark:text-white">${req.name} - ${req.remark}</p>
-            <span class="text-xs text-gray-500">${req.applicationPeriod}</span>
-        </div>
+                <div class="flex flex-col space-y-1">
 
-        <p 
-            data-i18n-key="${req.type}" 
-            class="text-sm text-indigo-600 dark:text-indigo-400 font-medium text-left">
-        </p> 
-
-    </div>
-    
-    <div class="flex justify-end space-x-2 mt-2">
-        <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
-        <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
-    </div>
+                        <div class="flex items-center justify-between w-full">
+                            <p class="text-sm font-semibold text-gray-800 dark:text-white">${req.name} - ${req.remark}</p>
+                            <span class="text-xs text-gray-500">${req.applicationPeriod}</span>
+                        </div>
+                    </div>
+                    
+                <div class="flex items-center justify-between w-full mt-2">
+                    <p 
+                        data-i18n-key="${req.type}" 
+                        class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+                    </p> 
+                    
+                    <div class="flex space-x-2"> 
+                        <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
+                        <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
+                    </div>
+                </div>
             `;
             listEl.appendChild(li);
             renderTranslations(li);
         });
-        
+
         listEl.querySelectorAll('.approve-btn').forEach(button => {
             button.addEventListener('click', (e) => handleReviewAction(e.currentTarget, e.currentTarget.dataset.index, 'approve'));
         });
-        
+
         listEl.querySelectorAll('.reject-btn').forEach(button => {
             button.addEventListener('click', (e) => handleReviewAction(e.currentTarget, e.currentTarget.dataset.index, 'reject'));
         });
     }
-    
+
     /**
      * 處理審核動作（核准或拒絕）。
      * @param {HTMLElement} button - 被點擊的按鈕元素。 ✨ 新增此參數
@@ -577,33 +577,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         const recordId = request.id;
         const endpoint = action === 'approve' ? 'approveReview' : 'rejectReview';
         const loadingText = t('LOADING') || '處理中...';
-        
+
         // A. 進入處理中狀態
         generalButtonState(button, 'processing', loadingText);
-        
+
         try {
             const res = await callApifetch(`${endpoint}&id=${recordId}`);
-            
+
             if (res.ok) {
                 const translationKey = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
                 showNotification(t(translationKey), "success");
-                
+
                 // 由於成功後列表會被重新整理，這裡可以不立即恢復按鈕狀態
                 // 但是為了保險起見，我們仍然在 finally 中恢復。
-                
+
                 // 延遲執行，讓按鈕的禁用狀態能被看到
                 await new Promise(resolve => setTimeout(resolve, 500));
-                
+
                 // 列表重新整理會渲染新按鈕，覆蓋舊的按鈕
                 fetchAndRenderReviewRequests();
             } else {
                 showNotification(t('REVIEW_FAILED', { msg: res.msg }), "error");
             }
-            
+
         } catch (err) {
             showNotification(t("REVIEW_NETWORK_ERROR"), "error");
             console.error(err);
-            
+
         } finally {
             // B. 無論成功或失敗，都需要將按鈕恢復到可點擊狀態
             // 只有在列表沒有被重新整理時，這個恢復才有意義
@@ -616,17 +616,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function fetchAndRenderLocationsOnMap() {
         try {
             const res = await callApifetch("getLocations");
-            
+
             // 清除舊的地點標記和圓形
             locationMarkers.clearLayers();
             locationCircles.clearLayers();
-            
+
             if (res.ok && Array.isArray(res.locations)) {
                 // 遍歷所有地點並在地圖上放置標記和圓形
                 res.locations.forEach(loc => {
                     // 如果沒有容許誤差，則預設為 50 公尺
                     const punchInRadius = loc.scope || 50;
-                    
+
                     // 加入圓形範圍
                     const locationCircle = L.circle([loc.lat, loc.lng], {
                         color: 'red',
@@ -637,11 +637,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     locationCircle.bindPopup(`<b>${loc.name}</b><br>可打卡範圍：${punchInRadius}公尺`);
                     locationCircles.addLayer(locationCircle);
                 });
-                
+
                 // 將所有地點標記和圓形一次性加到地圖上
                 locationMarkers.addTo(mapInstance);
                 locationCircles.addTo(mapInstance);
-                
+
                 console.log("地點標記和範圍已成功載入地圖。");
             } else {
                 showNotification("取得地點清單失敗：" + res.msg, "error");
@@ -653,7 +653,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     // 初始化地圖並取得使用者位置
-    function initLocationMap(forceReload = false){
+    function initLocationMap(forceReload = false) {
         const mapContainer = document.getElementById('map-container');
         const statusEl = document.getElementById('location-status');
         const coordsEl = document.getElementById('location-coords');
@@ -669,84 +669,84 @@ document.addEventListener('DOMContentLoaded', async () => {
                 mapInstance.invalidateSize();
                 return;
             }
-            
+
             // 如果被要求強制重新載入，則先徹底銷毀舊的地圖實例
             mapInstance.remove();
             mapInstance = null;
         }
-        
-        
+
+
         // 顯示載入中的文字
         mapLoadingText.style.display = 'block'; // 或 'block'，根據你的樣式決定
-        
+
         // 建立地圖
         mapInstance = L.map('map-container', {
             center: [25.0330, 121.5654], // 預設中心點為台北市
             zoom: 13
         });
-        
+
         // 加入 OpenStreetMap 圖層
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(mapInstance);
-        
+
         // 讓地圖在完成載入後隱藏載入中的文字
         mapInstance.whenReady(() => {
             mapLoadingText.style.display = 'none';
             // 確保地圖的尺寸正確
             mapInstance.invalidateSize();
         });
-        
+
         // 顯示載入狀態
         //mapContainer.innerHTML = t("MAP_LOADING");
         statusEl.textContent = t('DETECTING_LOCATION');
         coordsEl.textContent = t('UNKNOWN_LOCATION');
-        
+
         // 取得使用者地理位置
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
-                                                     (position) => {
-                                                         const { latitude, longitude } = position.coords;
-                                                         currentCoords = [latitude, longitude];
-                                                         
-                                                         // 更新狀態顯示
-                                                         statusEl.textContent = t('DETECTION_SUCCESS');
-                                                         coordsEl.textContent = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-                                                         
-                                                         // 設定地圖視圖
-                                                         mapInstance.setView(currentCoords, 18);
-                                                         
-                                                         // 在地圖上放置標記
-                                                         if (marker) mapInstance.removeLayer(marker);
-                                                         marker = L.marker(currentCoords).addTo(mapInstance)
-                                                         .bindPopup(t('CURRENT_LOCATION'))
-                                                         .openPopup();
-                                                         
-                                                         
-                                                     },
-                                                     (error) => {
-                                                         // 處理定位失敗
-                                                         statusEl.textContent = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
-                                                         console.error("Geolocation failed:", error);
-                                                         
-                                                         let message;
-                                                         switch(error.code) {
-                                                             case error.PERMISSION_DENIED:
-                                                                 message = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
-                                                                 break;
-                                                             case error.POSITION_UNAVAILABLE:
-                                                                 message = t('ERROR_GEOLOCATION_UNAVAILABLE');
-                                                                 break;
-                                                             case error.TIMEOUT:
-                                                                 message = t('ERROR_GEOLOCATION_TIMEOUT');
-                                                                 break;
-                                                             case error.UNKNOWN_ERROR:
-                                                                 message = t('ERROR_GEOLOCATION_UNKNOWN');
-                                                                 break;
-                                                         }
-                                                         showNotification(`定位失敗：${message}`, "error");
-                                                     }
-                                                     );
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    currentCoords = [latitude, longitude];
+
+                    // 更新狀態顯示
+                    statusEl.textContent = t('DETECTION_SUCCESS');
+                    coordsEl.textContent = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+                    // 設定地圖視圖
+                    mapInstance.setView(currentCoords, 18);
+
+                    // 在地圖上放置標記
+                    if (marker) mapInstance.removeLayer(marker);
+                    marker = L.marker(currentCoords).addTo(mapInstance)
+                        .bindPopup(t('CURRENT_LOCATION'))
+                        .openPopup();
+
+
+                },
+                (error) => {
+                    // 處理定位失敗
+                    statusEl.textContent = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
+                    console.error("Geolocation failed:", error);
+
+                    let message;
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            message = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            message = t('ERROR_GEOLOCATION_UNAVAILABLE');
+                            break;
+                        case error.TIMEOUT:
+                            message = t('ERROR_GEOLOCATION_TIMEOUT');
+                            break;
+                        case error.UNKNOWN_ERROR:
+                            message = t('ERROR_GEOLOCATION_UNKNOWN');
+                            break;
+                    }
+                    showNotification(`定位失敗：${message}`, "error");
+                }
+            );
             // 成功取得使用者位置後，載入所有打卡地點
             fetchAndRenderLocationsOnMap();
         } else {
@@ -754,17 +754,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             statusEl.textContent = '不支援定位';
         }
     }
-    
-    
+
+
     // 處理 API 測試按鈕事件
     document.getElementById('test-api-btn').addEventListener('click', async () => {
         // 這裡替換成您想要測試的 API action 名稱
         const testAction = "testEndpoint";
-        
+
         try {
             // 使用 await 等待 API 呼叫完成並取得回應
             const res = await callApifetch(testAction);
-            
+
             // 檢查 API 回應中的 'ok' 屬性
             if (res && res.ok) {
                 showNotification("API 測試成功！回應：" + JSON.stringify(res), "success");
@@ -778,16 +778,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             showNotification("API 呼叫失敗，請檢查網路連線或後端服務。", "error");
         }
     });
-    
+
     getLocationBtn.addEventListener('click', () => {
         if (!navigator.geolocation) {
             showNotification(t("ERROR_GEOLOCATION", { msg: t('ERROR_BROWSER_NOT_SUPPORTED') }), "error");
             return;
         }
-        
+
         getLocationBtn.textContent = '取得中...';
         getLocationBtn.disabled = true;
-        
+
         navigator.geolocation.getCurrentPosition((pos) => {
             locationLatInput.value = pos.coords.latitude;
             locationLngInput.value = pos.coords.longitude;
@@ -805,12 +805,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const name = document.getElementById('location-name').value;
         const lat = document.getElementById('location-lat').value;
         const lng = document.getElementById('location-lng').value;
-        
+
         if (!name || !lat || !lng) {
             showNotification("請填寫所有欄位並取得位置", "error");
             return;
         }
-        
+
         try {
             const res = await callApifetch(`addLocation&name=${encodeURIComponent(name)}&lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
             if (res.ok) {
@@ -834,31 +834,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     const switchTab = (tabId) => {
         const tabs = ['dashboard-view', 'monthly-view', 'location-view', 'admin-view'];
         const btns = ['tab-dashboard-btn', 'tab-monthly-btn', 'tab-location-btn', 'tab-admin-btn'];
-        
+
         // 1. 移除舊的 active 類別和 CSS 屬性
         tabs.forEach(id => {
             const tabElement = document.getElementById(id);
             tabElement.style.display = 'none'; // 隱藏內容
             tabElement.classList.remove('active'); // 移除 active 類別
         });
-        
+
         // 2. 移除按鈕的選中狀態
         btns.forEach(id => {
             const btnElement = document.getElementById(id);
             btnElement.classList.replace('bg-indigo-600', 'bg-gray-200');
             btnElement.classList.replace('text-white', 'text-gray-600');
         });
-        
+
         // 3. 顯示新頁籤並新增 active 類別
         const newTabElement = document.getElementById(tabId);
         newTabElement.style.display = 'block'; // 顯示內容
         newTabElement.classList.add('active'); // 新增 active 類別
-        
+
         // 4. 設定新頁籤按鈕的選中狀態
         const newBtnElement = document.getElementById(`tab-${tabId.replace('-view', '-btn')}`);
         newBtnElement.classList.replace('bg-gray-200', 'bg-indigo-600');
         newBtnElement.classList.replace('text-gray-600', 'text-white');
-        
+
         // 5. 根據頁籤 ID 執行特定動作
         if (tabId === 'monthly-view') {
             renderCalendar(currentMonthDate);
@@ -868,10 +868,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             fetchAndRenderReviewRequests();
         }
     };
-    
+
     // 語系初始化
     let currentLang = localStorage.getItem("lang"); // 先從 localStorage 讀取上次的設定
-    
+
     // 如果 localStorage 沒有紀錄，才根據瀏覽器設定判斷
     if (!currentLang) {
         const browserLang = navigator.language || navigator.userLanguage;
@@ -892,12 +892,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 將最終確定的語言存入 localStorage 並載入翻譯
     localStorage.setItem("lang", currentLang);
     await loadTranslations(currentLang);
-    
-    
-    
+
+
+
     const params = new URLSearchParams(window.location.search);
     const otoken = params.get('code');
-    
+
     if (otoken) {
         try {
             const res = await callApifetch(`getProfile&otoken=${otoken}`);
@@ -916,23 +916,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         ensureLogin();
     }
-    
+
     // 綁定按鈕事件
     loginBtn.onclick = async () => {
         const res = await callApifetch("getLoginUrl");
         if (res.url) window.location.href = res.url;
     };
-    
+
     logoutBtn.onclick = () => {
         localStorage.removeItem("sessionToken");
         window.location.href = ""
     };
-    
+
     /* ===== 打卡功能 ===== */
     function punchButtonState(buttonId, state) {
         const button = document.getElementById(buttonId);
         if (!button) return;
-        
+
         if (state === 'processing') {
             button.disabled = true;
             button.textContent = t('LOADING');
@@ -951,10 +951,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (state === 'processing') {
             // --- 進入處理中狀態 ---
-            
+
             // 1. 儲存原始文本 (用於恢復)
             button.dataset.originalText = button.textContent;
-            
+
             // 2. 儲存原始類別 (用於恢復樣式)
             // 這是為了在恢復時移除我們為了禁用而添加的類別
             button.dataset.loadingClasses = 'opacity-50 cursor-not-allowed';
@@ -962,16 +962,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 3. 禁用並設置處理中文字
             button.disabled = true;
             button.textContent = loadingText; // 使用傳入的 loadingText
-            
+
             // 4. 添加視覺反饋 (禁用時的樣式)
             button.classList.add(...loadingClasses.split(' '));
-            
+
             // 可選：移除 hover 效果，防止滑鼠移動時顏色變化
             // 假設您的按鈕有 hover:opacity-100 之類的類別，這裡需要調整
-            
+
         } else {
             // --- 恢復到原始狀態 ---
-            
+
             // 1. 移除視覺反饋
             if (button.dataset.loadingClasses) {
                 button.classList.remove(...button.dataset.loadingClasses.split(' '));
@@ -979,7 +979,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 2. 恢復禁用狀態
             button.disabled = false;
-            
+
             // 3. 恢復原始文本
             if (button.dataset.originalText) {
                 button.textContent = button.dataset.originalText;
@@ -989,7 +989,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     async function doPunch(type) {
         const punchButtonId = type === '上班' ? 'punch-in-btn' : 'punch-out-btn';
-        
+
         // ✨ 修正點 1: 獲取按鈕元素
         const button = document.getElementById(punchButtonId);
         const loadingText = t('LOADING') || '處理中...';
@@ -999,48 +999,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // A. 進入處理中狀態
         generalButtonState(button, 'processing', loadingText);
-        
+
         if (!navigator.geolocation) {
             showNotification(t("ERROR_GEOLOCATION", { msg: "您的瀏覽器不支援地理位置功能。" }), "error");
-            
+
             // B. 退出點 1: 不支援定位，恢復按鈕狀態
             generalButtonState(button, 'idle');
             return;
         }
-        
+
         // C. 處理地理位置的異步回呼
         navigator.geolocation.getCurrentPosition(async (pos) => {
             // --- 定位成功：執行 API 請求 ---
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             const action = `punch&type=${encodeURIComponent(type)}&lat=${lat}&lng=${lng}&note=${encodeURIComponent(navigator.userAgent)}`;
-            
+
             try {
                 const res = await callApifetch(action);
                 const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
                 showNotification(msg, res.ok ? "success" : "error");
-                
+
                 // D. 退出點 2: API 成功，恢復按鈕狀態
                 generalButtonState(button, 'idle');
             } catch (err) {
                 console.error(err);
-                
+
                 // E. 退出點 3: API 失敗，恢復按鈕狀態
                 generalButtonState(button, 'idle');
             }
-            
+
         }, (err) => {
             // --- 定位失敗：處理權限錯誤等 ---
             showNotification(t("ERROR_GEOLOCATION", { msg: err.message }), "error");
-            
+
             // F. 退出點 4: 定位回呼失敗，恢復按鈕狀態
             generalButtonState(button, 'idle');
         });
     }
-    
+
     punchInBtn.addEventListener('click', () => doPunch("上班"));
     punchOutBtn.addEventListener('click', () => doPunch("下班"));
-    
+
     // 處理補打卡表單
     abnormalList.addEventListener('click', (e) => {
         if (e.target.classList.contains('adjust-btn')) {
@@ -1075,7 +1075,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             adjustDateTimeInput.value = `${date}T${defaultTime}`;
         }
     });
-    
+
     function validateAdjustTime(value) {
         const selected = new Date(value);
         const now = new Date();
@@ -1093,15 +1093,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         return true;
     }
-    
+
     adjustmentFormContainer.addEventListener('click', async (e) => {
-        
+
         // 修正 1：在這裡使用 e.target.closest() 來尋找按鈕
         const button = e.target.closest('.submit-adjust-btn'); // 確保 selector 前面有 '.'
 
         // 只有在點擊到按鈕時才繼續執行
         if (button) {
-            const  loadingText = t('LOADING') || '處理中...';
+            const loadingText = t('LOADING') || '處理中...';
 
             const datetime = document.getElementById("adjustDateTime").value;
             const type = button.dataset.type; // 應該從找到的 button 元素上讀取 data-type
@@ -1114,13 +1114,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 步驟 A: 進入處理中狀態
             generalButtonState(button, 'processing', loadingText);
-            
+
             // ------------------ API 邏輯 ------------------
             const dateObj = new Date(datetime);
             const lat = 0;
             const lng = 0;
             const action = `adjustPunch&type=${type === 'in' ? "上班" : "下班"}&lat=${lat}&lng=${lng}&datetime=${dateObj.toISOString()}&note=${encodeURIComponent(navigator.userAgent)}`;
-            
+
             try {
                 const res = await callApifetch(action, "loadingMsg");
                 const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
@@ -1134,13 +1134,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (err) {
                 console.error(err);
                 showNotification(t('NETWORK_ERROR') || '網絡錯誤', 'error');
-                
+
             } finally {
                 // 修正 3：操作完成後，必須在 finally 區塊恢復按鈕狀態
                 // **只有在沒有成功清空表單時才恢復按鈕**
                 // 因為成功時您已經清空了 adjustmentFormContainer.innerHTML = '';
                 // 如果成功時，按鈕已經消失，則不需要復原。
-                
+
                 // 判斷：如果容器沒有清空 (即請求失敗或有錯誤)，則恢復按鈕。
                 if (adjustmentFormContainer.innerHTML !== '') {
                     generalButtonState(button, 'idle');
@@ -1148,25 +1148,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     });
-    
+
     // 頁面切換事件
     tabDashboardBtn.addEventListener('click', () => switchTab('dashboard-view'));
-    
+
     tabLocationBtn.addEventListener('click', () => switchTab('location-view'));
     tabMonthlyBtn.addEventListener('click', () => switchTab('monthly-view'));
     tabAdminBtn.addEventListener('click', async () => {
-        
+
         // 獲取按鈕元素和處理中文字
         const button = tabAdminBtn; // tabAdminBtn 變數本身就是按鈕元素
         const loadingText = t('CHECKING') || '檢查中...'; // 可以使用更貼切的翻譯
 
         // A. 進入處理中狀態
         generalButtonState(button, 'processing', loadingText);
-        
+
         try {
             // 呼叫 API 檢查 Session 和權限
             const res = await callApifetch("checkSession");
-            
+
             // 檢查回傳的結果和權限
             if (res.ok && res.user && res.user.dept === "管理員") {
                 // 如果 Session 有效且是管理員，執行頁籤切換
@@ -1175,12 +1175,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 如果權限不足或 Session 無效，給予錯誤提示
                 showNotification(t("ERR_NO_PERMISSION"), "error");
             }
-            
+
         } catch (err) {
             // 處理網路錯誤或 API 呼叫失敗
             console.error(err);
             showNotification(t("NETWORK_ERROR") || '網絡錯誤', "error");
-            
+
         } finally {
             // B. 無論 API 成功、失敗或網路錯誤，都要恢復按鈕狀態
             generalButtonState(button, 'idle');
@@ -1191,7 +1191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentMonthDate.setMonth(currentMonthDate.getMonth() - 1);
         renderCalendar(currentMonthDate);
     });
-    
+
     document.getElementById('next-month').addEventListener('click', () => {
         currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
         renderCalendar(currentMonthDate);
