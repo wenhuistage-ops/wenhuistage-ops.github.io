@@ -915,7 +915,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     logoutBtn.onclick = () => {
         localStorage.removeItem("sessionToken");
-        window.location.href = "/Attendance-System"
+        window.location.href = ""
     };
     
     /* ===== 打卡功能 ===== */
