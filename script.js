@@ -534,6 +534,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span class="text-xs text-gray-500 ">${req.applicationPeriod}</span>
                 </div>
                 <div class="flex justify-end space-x-2">
+                    <p ata-i18n="PUNCH_IN" class="text-sm font-semibold text-gray-800 dark:text-white">${req.type}</p>
                     <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
                     <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
                 </div>
