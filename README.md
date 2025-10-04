@@ -2,7 +2,7 @@
 
 ## 簡介
 這是一個基於 **LINE Login** 和 **Google Apps Script** 開發的簡易打卡系統。使用者可以透過 LINE 帳號登入，並使用手機 GPS 進行「上班」和「下班」打卡。打卡紀錄會即時儲存在 Google 試算表中，方便管理與查詢。
-
+由0J開發原github:https://github.com/0rigind1865-bit/Attendance-System
 ---
 
 ## 主要功能
