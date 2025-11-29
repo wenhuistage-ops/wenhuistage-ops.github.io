@@ -113,7 +113,7 @@
   "BTN_VIEW_ABNORMAL": "⚠️ 異常な記録を確認 👀",
   "INVALID_ADJUST_TIME": "⚠️ 選択した時間が無効です",
   "SELECT_ADJUST_DATETIME": "修正打刻の日付と時間を選択してください",
-  "LOGIN_SUCCESS": "✅ ログイン成功！",
+  "LOGIN_SUCCESS": "✅ ログイン成功、トークンを保存しました！",
   "ERROR_GEOLOCATION": "⚠️ 位置情報を取得できませんでした：{msg}",
   "ERROR_LOGIN_FAILED": "❌ ログイン失敗：{msg}",
   "calendar_title": "マイ勤怠カレンダー",
