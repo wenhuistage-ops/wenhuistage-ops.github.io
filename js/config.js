@@ -21,7 +21,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
 const API_CONFIG = {
   // 正式環境的 API URL
-  apiUrl: "hhttps://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec",
+  apiUrl: "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec",
   // 新增回呼網址
   redirectUrl: "https://wenhuistage-ops.github.io/"
   // 你也可以在這裡加入其他設定，例如：
