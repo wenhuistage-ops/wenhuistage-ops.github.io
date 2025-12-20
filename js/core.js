@@ -23,7 +23,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // ===================================
 async function loadTranslations(lang) {
     try {
-        const res = await fetch(`https://0rigind1865-bit.github.io/Attendance-System/i18n/${lang}.json`);
+        const res = await fetch(`https://0rigind1865-bit.github.io/i18n/${lang}.json`);
         if (!res.ok) {
             throw new Error(`HTTP 錯誤: ${res.status}`);
         }

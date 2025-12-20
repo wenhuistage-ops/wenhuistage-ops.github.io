@@ -180,7 +180,7 @@ function bindEvents() {
         localStorage.removeItem("sessionToken");
         localStorage.removeItem("isAdmin"); // 清除管理員狀態
         localStorage.removeItem("sessionUserId"); // 清除用戶ID
-        window.location.href = "/Attendance-System"
+        window.location.href = "/indesx.html"; // 重定向到首頁
     };
 
     // === 核心業務：打卡事件 (呼叫 punch.js 中的 doPunch) ===
