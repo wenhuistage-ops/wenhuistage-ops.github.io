@@ -156,6 +156,7 @@ async function checkAbnormal() {
                 abnormalList.innerHTML = '';
                 res.records.forEach(record => {
                     // ... (渲染邏輯不變) ...
+                    console.log("Abnormal Record:", record.reason); // 調試輸出
                     const li = document.createElement('li');
                     li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
                     li.innerHTML = `
@@ -163,7 +164,7 @@ async function checkAbnormal() {
                             <p class="font-medium text-gray-800 dark:text-white">${record.date}</p>
                             <p class="text-sm text-red-600 dark:text-red-400"
                                data-i18n-dynamic="true"
-                               data-i18n-key="${record.reason}">
+                               data-i18n-key="${record.reason}"> 1
                            </p>
                         </div>
                         <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.date}" data-reason="${record.reason}" 

@@ -23,7 +23,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // ===================================
 
 // 渲染日曆的函式
-async function renderCalendar(date) {
+async function renderCalendar(date, isrefresh = false) {
     const monthTitle = document.getElementById('month-title');
     const calendarGrid = document.getElementById('calendar-grid');
     const year = date.getFullYear();
@@ -34,7 +34,7 @@ async function renderCalendar(date) {
     const monthkey = currentMonthDate.getFullYear() + "-" + String(currentMonthDate.getMonth() + 1).padStart(2, "0");
 
     // 檢查快取中是否已有該月份資料
-    if (monthDataCache[monthkey]) {
+    if (monthDataCache[monthkey] && !isrefresh) {
         // 如果有，直接從快取讀取資料並渲染
         const records = monthDataCache[monthkey];
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
@@ -113,10 +113,18 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         let dateClass = 'normal-day';
 
         const todayRecords = records.filter(r => r.date === dateKey);
+        // 初始化假日判斷，預設為 false
+        let isHoliday = false;
 
-        // ... (日曆顏色和資料集設定邏輯不變) ...
         if (todayRecords.length > 0) {
-            const reason = todayRecords[0].reason;
+            const record = todayRecords[0];
+            const reason = record.reason;
+
+            // 🌟 新增：取得假日狀態 🌟
+            // 假設 isHoliday 來自 checkAttendance1 處理後的 dailyStatus 結構
+            isHoliday = record.isHoliday || false;
+
+            // 設定背景顏色 (根據打卡狀態)
             switch (reason) {
                 case "STATUS_PUNCH_IN_MISSING":
                     dateClass = 'abnormal-day';
@@ -139,6 +147,10 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
                     }
                     break;
             }
+        }
+        if (isHoliday) {
+            // 由於是假日，將日期文字設為紅色 (需在 CSS 中定義 .holiday-text)
+            dayCell.classList.add('holiday-text');
         }
 
         const isToday = (year === today.getFullYear() && month === today.getMonth() && i === today.getDate());
@@ -334,8 +346,8 @@ async function renderDailyRecords(dateKey) {
 
 // UI切換邏輯
 const switchTab = (tabId) => {
-    const tabs = ['dashboard-view', 'monthly-view', 'location-view', 'admin-view'];
-    const btns = ['tab-dashboard-btn', 'tab-monthly-btn', 'tab-location-btn', 'tab-admin-btn'];
+    const tabs = ['dashboard-view', 'monthly-view', 'location-view', 'Form-view', 'admin-view'];
+    const btns = ['tab-dashboard-btn', 'tab-monthly-btn', 'tab-location-btn', 'tab-Form-btn', 'tab-admin-btn'];
 
     // 1. 移除舊的 active 類別和 CSS 屬性
     tabs.forEach(id => {
@@ -364,7 +376,7 @@ const switchTab = (tabId) => {
     // 5. 根據頁籤 ID 執行特定動作
     if (tabId === 'monthly-view') {
         renderCalendar(currentMonthDate);
-    } else if (tabId === 'location-view') {
+    } else if (tabId === 'location-view' || tabId === 'dashboard-view') {
         initLocationMap(); // <-- 這行保持不變
     } else if (tabId === 'admin-view') {
         fetchAndRenderReviewRequests();
