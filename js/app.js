@@ -274,7 +274,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 處理 otoken 換取 sessionToken 的流程
         document.getElementById("status").textContent = t("VERIFYING_AUTH");
         try {
-            const res = await callApifetch({ action: 'getProfile', otoken: otoken });
+            console.log(currentLang);
+            const res = await callApifetch({ action: 'getProfile', otoken: otoken, languag: currentLang });
             if (res.ok && res.sToken) {
                 localStorage.setItem("sessionToken", res.sToken);
                 history.replaceState({}, '', window.location.pathname);
