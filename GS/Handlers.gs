@@ -99,8 +99,7 @@ function handleGetCalendarSummary(params) {
   const { month, userId } = params;
   if (!month) return { ok: false, code: "ERR_MISSING_MONTH" };
   
-  const records = getAttendanceRecords(month, userId);
-  const summary = checkAttendanceCalendar(records);
+  const summary = getCachedAttendanceSummary(month, userId);
   
   return { ok: true, records: { dailyStatus: summary } };
 }

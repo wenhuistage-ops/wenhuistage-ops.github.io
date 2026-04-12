@@ -38,6 +38,7 @@ async function renderCalendar(date, isrefresh = false) {
         // 如果有，直接從快取讀取資料並渲染
         const records = monthDataCache[monthkey];
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
+        recordMonthNavigation(date);
 
         // 🚀 即使快取命中，也異步預加載相鄰月份
         preloadAdjacentMonths(date);
@@ -49,13 +50,13 @@ async function renderCalendar(date, isrefresh = false) {
         try {
             //const res = await callApifetch(`getAttendanceDetails&month=${monthkey}&userId=${userId}`);
             const res = await callApifetch({
-                action: 'getAttendanceDetails',
+                action: 'getCalendarSummary',
                 month: monthkey,
                 userId: userId
             })
             if (res.ok) {
                 // 將資料存入快取
-                monthDataCache[monthkey] = res.records.dailyStatus;
+                cacheMonthData(monthkey, res.records.dailyStatus);
 
                 // 收到資料後，清空載入訊息
                 calendarGrid.innerHTML = '';
@@ -63,6 +64,7 @@ async function renderCalendar(date, isrefresh = false) {
                 // 從快取取得本月資料
                 const records = monthDataCache[monthkey] || [];
                 renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
+                recordMonthNavigation(date);
 
                 // 🚀 異步預加載相鄰月份（非阻塞）
                 preloadAdjacentMonths(date);
@@ -92,51 +94,90 @@ async function preloadAdjacentMonths(currentDate) {
         const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
 
         // 生成月份鍵值
-        const prevKey = prevMonth.getFullYear() + "-" + String(prevMonth.getMonth() + 1).padStart(2, "0");
-        const nextKey = nextMonth.getFullYear() + "-" + String(nextMonth.getMonth() + 1).padStart(2, "0");
+        const prevKey = formatMonthKey(prevMonth);
+        const nextKey = formatMonthKey(nextMonth);
+        const predictedKeys = getPredictedMonthKeys(currentDate);
+        const uniqueKeys = [prevKey, nextKey, ...predictedKeys].filter((key, idx, arr) => key && arr.indexOf(key) === idx);
 
-        // 如果快取中不存在，則預加載
-        if (!monthDataCache[prevKey]) {
-            // 非阻塞：使用 setTimeout 將預加載放在下一個任務隊列
+        uniqueKeys.forEach((key, index) => {
+            if (monthDataCache[key]) return;
+            const delay = 500 + index * 250;
             setTimeout(async () => {
                 try {
                     const res = await callApifetch({
-                        action: 'getAttendanceDetails',
-                        month: prevKey,
+                        action: 'getCalendarSummary',
+                        month: key,
                         userId: userId
                     });
 
                     if (res.ok) {
-                        monthDataCache[prevKey] = res.records.dailyStatus;
-                        console.log(`✅ 預加載 ${prevKey} 成功`);
+                        cacheMonthData(key, res.records.dailyStatus);
+                        console.log(`✅ 預加載 ${key} 成功`);
                     }
                 } catch (err) {
-                    console.warn(`⚠️ 預加載 ${prevKey} 失敗:`, err.message);
+                    console.warn(`⚠️ 預加載 ${key} 失敗:`, err.message);
                 }
-            }, 500); // 延遲 500ms 預加載，避免與主請求競爭帶寬
-        }
-
-        if (!monthDataCache[nextKey]) {
-            setTimeout(async () => {
-                try {
-                    const res = await callApifetch({
-                        action: 'getAttendanceDetails',
-                        month: nextKey,
-                        userId: userId
-                    });
-
-                    if (res.ok) {
-                        monthDataCache[nextKey] = res.records.dailyStatus;
-                        console.log(`✅ 預加載 ${nextKey} 成功`);
-                    }
-                } catch (err) {
-                    console.warn(`⚠️ 預加載 ${nextKey} 失敗:`, err.message);
-                }
-            }, 1000); // 延遲 1000ms 預加載，避免與主請求競爭帶寬
-        }
+            }, delay);
+        });
     } catch (err) {
         console.warn("⚠️ 預加載相鄰月份出錯:", err.message);
     }
+}
+
+function cacheMonthData(monthkey, data) {
+    const existingIndex = monthCacheOrder.indexOf(monthkey);
+    if (existingIndex !== -1) {
+        monthCacheOrder.splice(existingIndex, 1);
+    }
+    monthCacheOrder.push(monthkey);
+    monthDataCache[monthkey] = data;
+    while (monthCacheOrder.length > MAX_MONTH_CACHE_ENTRIES) {
+        const oldestKey = monthCacheOrder.shift();
+        delete monthDataCache[oldestKey];
+    }
+}
+
+function formatMonthKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function parseMonthKey(monthKey) {
+    const [year, month] = monthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+}
+
+function recordMonthNavigation(date) {
+    const monthKey = formatMonthKey(date);
+    if (monthNavigationHistory[monthNavigationHistory.length - 1] !== monthKey) {
+        monthNavigationHistory.push(monthKey);
+    }
+    if (monthNavigationHistory.length > 6) {
+        monthNavigationHistory.shift();
+    }
+}
+
+function getPredictedMonthKeys(currentDate) {
+    if (monthNavigationHistory.length < 2) return [];
+
+    const last = parseMonthKey(monthNavigationHistory[monthNavigationHistory.length - 1]);
+    const prev = parseMonthKey(monthNavigationHistory[monthNavigationHistory.length - 2]);
+    const direction = (last.getFullYear() - prev.getFullYear()) * 12 + (last.getMonth() - prev.getMonth());
+
+    if (Math.abs(direction) !== 1) return [];
+
+    const next1 = new Date(currentDate.getFullYear(), currentDate.getMonth() + direction, 1);
+    const next2 = new Date(currentDate.getFullYear(), currentDate.getMonth() + direction * 2, 1);
+    const nextKeys = [formatMonthKey(next1)];
+
+    // 只有當預測方向持續一致時才額外預載第二個月
+    if (monthNavigationHistory.length >= 3) {
+        const prev2 = parseMonthKey(monthNavigationHistory[monthNavigationHistory.length - 3]);
+        const direction2 = (prev.getFullYear() - prev2.getFullYear()) * 12 + (prev.getMonth() - prev2.getMonth());
+        if (direction2 === direction) {
+            nextKeys.push(formatMonthKey(next2));
+        }
+    }
+    return nextKeys;
 }
 
 // 新增一個獨立的渲染函式，以便從快取或 API 回應中調用
@@ -166,11 +207,19 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+    const recordsByDate = records.reduce((map, record) => {
+        if (!map[record.date]) map[record.date] = [];
+        map[record.date].push(record);
+        return map;
+    }, {});
+
+    const fragment = document.createDocumentFragment();
+
     // 填補月初的空白格子
     for (let i = 0; i < firstDayOfMonth; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'day-cell';
-        calendarGrid.appendChild(emptyCell);
+        fragment.appendChild(emptyCell);
     }
 
     // 根據資料渲染每一天的顏色
@@ -181,7 +230,7 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         let dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
         let dateClass = 'normal-day';
 
-        const todayRecords = records.filter(r => r.date === dateKey);
+        const todayRecords = recordsByDate[dateKey] || [];
         // 初始化假日判斷，預設為 false
         let isHoliday = false;
 
@@ -251,7 +300,7 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
             }
         });
 
-        calendarGrid.appendChild(dayCell);
+        fragment.appendChild(dayCell);
     }
 
     // 填補月末的空白格子，使日曆填滿完整的行數
@@ -263,8 +312,10 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     for (let i = 0; i < remainingCells; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'day-cell empty';
-        calendarGrid.appendChild(emptyCell);
+        fragment.appendChild(emptyCell);
     }
+
+    calendarGrid.appendChild(fragment);
 
     // 在日曆最下面一行顯示本月累計時數（作為獨立的全寬行）
     const totalRow = document.createElement('div');

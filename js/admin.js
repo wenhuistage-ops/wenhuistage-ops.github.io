@@ -74,6 +74,8 @@ async function renderAdminCalendar(userId, date) {
         // --- 情境 A: 快取有資料 ---
         console.log(`[Cache Hit] Loading data for ${cacheKey}`);
         updateCalendarUI(adminMonthDataCache[cacheKey]);
+        recordAdminMonthNavigation(date);
+        preloadAdjacentAdminMonths(date, userId);
 
     } else {
         // --- 情境 B: 無快取，需請求 API ---
@@ -84,7 +86,7 @@ async function renderAdminCalendar(userId, date) {
 
         try {
             const res = await callApifetch({
-                action: 'getAttendanceDetails',
+                action: 'getCalendarSummary',
                 month: apiMonthParam,
                 userId: userId
             });
@@ -96,6 +98,8 @@ async function renderAdminCalendar(userId, date) {
 
                 // 更新 UI
                 updateCalendarUI(records);
+                recordAdminMonthNavigation(date);
+                preloadAdjacentAdminMonths(date, userId);
             } else {
                 // API 回傳錯誤
                 console.error("Failed to fetch admin attendance records:", res.msg);
@@ -107,6 +111,81 @@ async function renderAdminCalendar(userId, date) {
             console.error("System Error in renderAdminCalendar:", err);
             calendarGrid.innerHTML = '<div class="col-span-full text-center text-red-500 py-4">發生系統錯誤</div>';
         }
+    }
+}
+
+function formatAdminMonthKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function recordAdminMonthNavigation(date) {
+    const monthKey = formatAdminMonthKey(date);
+    if (adminMonthNavigationHistory[adminMonthNavigationHistory.length - 1] !== monthKey) {
+        adminMonthNavigationHistory.push(monthKey);
+    }
+    if (adminMonthNavigationHistory.length > 6) {
+        adminMonthNavigationHistory.shift();
+    }
+}
+
+function parseAdminMonthKey(monthKey) {
+    const [year, month] = monthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+}
+
+function getPredictedAdminMonthKeys(currentDate) {
+    if (adminMonthNavigationHistory.length < 2) return [];
+
+    const last = parseAdminMonthKey(adminMonthNavigationHistory[adminMonthNavigationHistory.length - 1]);
+    const prev = parseAdminMonthKey(adminMonthNavigationHistory[adminMonthNavigationHistory.length - 2]);
+    const direction = (last.getFullYear() - prev.getFullYear()) * 12 + (last.getMonth() - prev.getMonth());
+
+    if (Math.abs(direction) !== 1) return [];
+
+    const next1 = new Date(currentDate.getFullYear(), currentDate.getMonth() + direction, 1);
+    const next2 = new Date(currentDate.getFullYear(), currentDate.getMonth() + direction * 2, 1);
+    const nextKeys = [formatAdminMonthKey(next1)];
+
+    if (adminMonthNavigationHistory.length >= 3) {
+        const prev2 = parseAdminMonthKey(adminMonthNavigationHistory[adminMonthNavigationHistory.length - 3]);
+        const direction2 = (prev.getFullYear() - prev2.getFullYear()) * 12 + (prev.getMonth() - prev2.getMonth());
+        if (direction2 === direction) {
+            nextKeys.push(formatAdminMonthKey(next2));
+        }
+    }
+    return nextKeys;
+}
+
+async function preloadAdjacentAdminMonths(currentDate, userId) {
+    try {
+        const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+        const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+        const prevKey = formatAdminMonthKey(prevMonth);
+        const nextKey = formatAdminMonthKey(nextMonth);
+        const predictedKeys = getPredictedAdminMonthKeys(currentDate);
+        const uniqueKeys = [prevKey, nextKey, ...predictedKeys].filter((key, idx, arr) => key && arr.indexOf(key) === idx);
+
+        uniqueKeys.forEach((key, index) => {
+            if (adminMonthDataCache[key]) return;
+            const delay = 500 + index * 250;
+            setTimeout(async () => {
+                try {
+                    const res = await callApifetch({
+                        action: 'getCalendarSummary',
+                        month: key,
+                        userId: userId
+                    });
+                    if (res.ok) {
+                        adminMonthDataCache[key] = res.records.dailyStatus || [];
+                        console.log(`✅ Admin 預加載 ${key} 成功`);
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ Admin 預加載 ${key} 失敗:`, err.message);
+                }
+            }, delay);
+        });
+    } catch (err) {
+        console.warn("⚠️ Admin 預加載相鄰月份出錯:", err.message);
     }
 }
 

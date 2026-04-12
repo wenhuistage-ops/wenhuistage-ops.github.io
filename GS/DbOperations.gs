@@ -180,6 +180,7 @@ function punch(sessionToken, type, lat, lng, note) {
 
   // 🚀 效能優化：確保資料按日期排序
   ensureDataSorted(sh);
+  clearAttendanceSummaryCache(Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM"), user.userId);
 
   return { ok: true, code: `PUNCH_SUCCESS`,params: { type: type }, };
 }
@@ -207,6 +208,8 @@ function punchAdjusted(sessionToken, type, punchDate, lat, lng, note) {
 
   // 🚀 效能優化：確保資料按日期排序
   ensureDataSorted(sh);
+  const adjustedMonth = Utilities.formatDate(punchDate, "Asia/Taipei", "yyyy-MM");
+  clearAttendanceSummaryCache(adjustedMonth, user.userId);
 
   return { ok: true, code: `ADJUST_PUNCH_SUCCESS`,params: { type: type } };
 }
@@ -391,6 +394,38 @@ function getAttendanceRecords(monthParam, userIdParam) {
         audit: r[8],
         device: r[9]
     }));
+}
+
+function buildAttendanceSummaryCacheKey(monthParam, userIdParam) {
+    const userKey = userIdParam ? String(userIdParam).trim() : 'all';
+    return `attendance_summary_${monthParam}_${userKey}`;
+}
+
+function getCachedAttendanceSummary(monthParam, userIdParam) {
+    const cache = CacheService.getScriptCache();
+    const key = buildAttendanceSummaryCacheKey(monthParam, userIdParam);
+    const cached = cache.get(key);
+    if (cached) {
+        try {
+            return JSON.parse(cached);
+        } catch (e) {
+            // 忽略解析失敗，重新生成快取
+        }
+    }
+
+    const attendanceRows = getAttendanceRecords(monthParam, userIdParam);
+    const summary = checkAttendanceCalendar(attendanceRows);
+    cache.put(key, JSON.stringify(summary), 600); // 10 分鐘
+    return summary;
+}
+
+function clearAttendanceSummaryCache(monthParam, userIdParam) {
+    const cache = CacheService.getScriptCache();
+    const key = buildAttendanceSummaryCacheKey(monthParam, userIdParam);
+    cache.remove(key);
+    if (userIdParam) {
+        cache.remove(buildAttendanceSummaryCacheKey(monthParam, 'all'));
+    }
 }
 // 加入地點
 function addLocation( name, lat, lng) {

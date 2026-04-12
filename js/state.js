@@ -20,7 +20,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 //let currentLang = localStorage.getItem("lang");//當前語言
 let currentMonthDate = new Date();//當前月份
 let translations = {};
+const MAX_MONTH_CACHE_ENTRIES = 12;
 let monthDataCache = {}; // 新增：用於快取月份打卡資料
+let monthCacheOrder = []; // LRU 快取順序
+let monthNavigationHistory = []; // 月曆翻頁行為記錄
+let adminMonthNavigationHistory = []; // 管理員月曆翻頁行為記錄
 let isApiCalled = false; // 新增：用於追蹤 API 呼叫狀態，避免重複呼叫
 let userId = localStorage.getItem("sessionUserId");
 
