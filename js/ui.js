@@ -402,15 +402,19 @@ async function renderDailyRecords(dateKey) {
     const dailyRecordsTitle = document.getElementById('daily-records-title');
     const dailyRecordsList = document.getElementById('daily-records-list');
     const dailyRecordsEmpty = document.getElementById('daily-records-empty');
-    const recordsLoading = document.getElementById("records-loading");
+    const dailyRecordsLoading = document.getElementById('daily-records-loading');
 
     dailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", {
         dateKey: dateKey
     });
 
+    dailyRecordsCard.style.display = 'block';
     dailyRecordsList.innerHTML = '';
     dailyRecordsEmpty.style.display = 'none';
-    recordsLoading.style.display = 'block';
+    if (dailyRecordsLoading) {
+        dailyRecordsLoading.style.display = 'block';
+    }
+
 
     const dateObject = new Date(dateKey);
     const month = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
@@ -419,15 +423,15 @@ async function renderDailyRecords(dateKey) {
     try {
         const cachedDetails = detailMonthDataCache[month];
         if (cachedDetails) {
-            recordsLoading.style.display = 'none';
+            if (dailyRecordsLoading) dailyRecordsLoading.style.display = 'none';
             return renderRecords(cachedDetails);
         }
 
         const details = await loadMonthDetailData(month);
-        recordsLoading.style.display = 'none';
+        if (dailyRecordsLoading) dailyRecordsLoading.style.display = 'none';
         renderRecords(details);
     } catch (err) {
-        recordsLoading.style.display = 'none';
+        if (dailyRecordsLoading) dailyRecordsLoading.style.display = 'none';
         console.error('API call failed:', err);
         showNotification(t("ERROR_FETCH_RECORDS"), "error");
     }

@@ -633,7 +633,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
             const res = await callApifetch({
                 action: 'getAttendanceDetails',
                 month: monthKey,
-                targetUserId: userId
+                userId: userId
             }, 'admin-records-loading');
 
             adminRecordsLoading.style.display = 'none';
