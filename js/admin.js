@@ -607,31 +607,24 @@ async function renderAdminDailyRecords(dateKey, userId) {
 
     const dateObject = new Date(dateKey);
     const monthKey = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
-    const adminCacheKey = `${userId}-${dateObject.getFullYear()}-${String(dateObject.getMonth() + 1).padStart(2, "0")}`;
 
-    if (adminMonthDataCache[adminCacheKey]) {
-        renderRecords(adminMonthDataCache[adminCacheKey]);
+    try {
+        const res = await callApifetch({
+            action: 'getAttendanceDetails',
+            month: monthKey,
+            targetUserId: userId
+        }, 'admin-records-loading');
+
         adminRecordsLoading.style.display = 'none';
-    } else {
-        try {
-            const res = await callApifetch({
-                action: 'getAttendanceDetails',
-                month: monthKey,
-                targetUserId: userId
-            }, 'admin-records-loading');
 
-            adminRecordsLoading.style.display = 'none';
-
-            if (res.ok) {
-                adminMonthDataCache[adminCacheKey] = res.records.dailyStatus;
-                renderRecords(res.records.dailyStatus);
-            } else {
-                console.error("Admin: Failed to fetch attendance records:", res.msg);
-                showNotification(t("ERROR_FETCH_RECORDS"), "error");
-            }
-        } catch (err) {
-            console.error(err);
+        if (res.ok) {
+            renderRecords(res.records.dailyStatus);
+        } else {
+            console.error("Admin: Failed to fetch attendance records:", res.msg);
+            showNotification(t("ERROR_FETCH_RECORDS"), "error");
         }
+    } catch (err) {
+        console.error(err);
     }
 
     // 內部函式：渲染日紀錄列表

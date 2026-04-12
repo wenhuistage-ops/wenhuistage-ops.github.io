@@ -348,32 +348,21 @@ async function renderDailyRecords(dateKey) {
     const month = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
     const userId = localStorage.getItem("sessionUserId");
 
-    // 檢查快取
-    if (monthDataCache[month]) {
-        renderRecords(monthDataCache[month]);
+    try {
+        const res = await callApifetch({
+            action: 'getAttendanceDetails',
+            month: month,
+            userId: userId
+        })
         recordsLoading.style.display = 'none';
-    } else {
-        // 否則從 API 取得資料
-        try {
-            //const res = await callApifetch(`getAttendanceDetails&month=${month}&userId=${userId}`);
-            const res = await callApifetch({
-                action: 'getAttendanceDetails',
-                month: month,
-                userId: userId
-            })
-            recordsLoading.style.display = 'none';
-            if (res.ok) {
-                // 將資料存入快取
-                console.log(res.records.dailyStatus);
-                monthDataCache[month] = res.records.dailyStatus;
-                renderRecords(res.records.dailyStatus);
-            } else {
-                console.error("Failed to fetch attendance records:", res.msg);
-                showNotification(t("ERROR_FETCH_RECORDS"), "error");
-            }
-        } catch (err) {
-            console.error(err);
+        if (res.ok) {
+            renderRecords(res.records.dailyStatus);
+        } else {
+            console.error("Failed to fetch attendance records:", res.msg);
+            showNotification(t("ERROR_FETCH_RECORDS"), "error");
         }
+    } catch (err) {
+        console.error(err);
     }
 
     /**
