@@ -31,13 +31,16 @@ async function renderCalendar(date, isrefresh = false) {
     const today = new Date();
 
     // 生成 monthKey
-    const monthkey = currentMonthDate.getFullYear() + "-" + String(currentMonthDate.getMonth() + 1).padStart(2, "0");
+    const monthkey = year + "-" + String(month + 1).padStart(2, "0");
 
     // 檢查快取中是否已有該月份資料
     if (monthDataCache[monthkey] && !isrefresh) {
         // 如果有，直接從快取讀取資料並渲染
         const records = monthDataCache[monthkey];
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
+
+        // 🚀 即使快取命中，也異步預加載相鄰月份
+        preloadAdjacentMonths(date);
     } else {
         // 如果沒有，才發送 API 請求
         // 清空日曆，顯示載入狀態，並確保置中
@@ -60,6 +63,9 @@ async function renderCalendar(date, isrefresh = false) {
                 // 從快取取得本月資料
                 const records = monthDataCache[monthkey] || [];
                 renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
+
+                // 🚀 異步預加載相鄰月份（非阻塞）
+                preloadAdjacentMonths(date);
             } else {
                 console.error("Failed to fetch attendance records:", res.msg);
                 showNotification(t("ERROR_FETCH_RECORDS"), "error");
@@ -67,6 +73,69 @@ async function renderCalendar(date, isrefresh = false) {
         } catch (err) {
             console.error(err);
         }
+    }
+}
+
+/**
+ * 🚀 預加載相鄰月份資料
+ * 當用戶查看當前月份時，異步加載上一個月和下一個月
+ * 預加載靜默進行，不會阻塞 UI
+ * @param {Date} currentDate - 當前查看的月份
+ */
+async function preloadAdjacentMonths(currentDate) {
+    try {
+        const userId = localStorage.getItem("sessionUserId");
+        if (!userId) return; // 未登入，不預加載
+
+        // 計算上一個月和下一個月
+        const prevMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+        const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+
+        // 生成月份鍵值
+        const prevKey = prevMonth.getFullYear() + "-" + String(prevMonth.getMonth() + 1).padStart(2, "0");
+        const nextKey = nextMonth.getFullYear() + "-" + String(nextMonth.getMonth() + 1).padStart(2, "0");
+
+        // 如果快取中不存在，則預加載
+        if (!monthDataCache[prevKey]) {
+            // 非阻塞：使用 setTimeout 將預加載放在下一個任務隊列
+            setTimeout(async () => {
+                try {
+                    const res = await callApifetch({
+                        action: 'getAttendanceDetails',
+                        month: prevKey,
+                        userId: userId
+                    });
+
+                    if (res.ok) {
+                        monthDataCache[prevKey] = res.records.dailyStatus;
+                        console.log(`✅ 預加載 ${prevKey} 成功`);
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ 預加載 ${prevKey} 失敗:`, err.message);
+                }
+            }, 500); // 延遲 500ms 預加載，避免與主請求競爭帶寬
+        }
+
+        if (!monthDataCache[nextKey]) {
+            setTimeout(async () => {
+                try {
+                    const res = await callApifetch({
+                        action: 'getAttendanceDetails',
+                        month: nextKey,
+                        userId: userId
+                    });
+
+                    if (res.ok) {
+                        monthDataCache[nextKey] = res.records.dailyStatus;
+                        console.log(`✅ 預加載 ${nextKey} 成功`);
+                    }
+                } catch (err) {
+                    console.warn(`⚠️ 預加載 ${nextKey} 失敗:`, err.message);
+                }
+            }, 1000); // 延遲 1000ms 預加載，避免與主請求競爭帶寬
+        }
+    } catch (err) {
+        console.warn("⚠️ 預加載相鄰月份出錯:", err.message);
     }
 }
 

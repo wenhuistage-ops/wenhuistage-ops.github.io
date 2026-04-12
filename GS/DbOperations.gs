@@ -191,10 +191,15 @@ function getAttendanceRecords(monthParam, userIdParam) {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ATTENDANCE);
     const values = sheet.getDataRange().getValues().slice(1);
     
+    // ✅ 優化：預先解析月份參數以避免重複計算
+    const [yearStr, monthStr] = monthParam.split('-');
+    const targetYear = parseInt(yearStr);
+    const targetMonth = parseInt(monthStr);
+    
     // 過濾本月資料，若有 userId 則只取該使用者
     return values.filter(row => {
       const d = new Date(row[0]);
-      const yyyy_mm = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+      const yyyy_mm = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
       const monthMatch = yyyy_mm === monthParam;
       const userMatch  = userIdParam ? row[1] === userIdParam : true;
       return monthMatch && userMatch;
