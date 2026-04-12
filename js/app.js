@@ -50,6 +50,7 @@ async function ensureLogin() {
                     document.getElementById("user-name").textContent = res.user.name;
                     document.getElementById("profile-img").src = res.user.picture || res.user.rate;
                     localStorage.setItem("sessionUserId", res.user.userId);
+                    userId = res.user.userId;
                     showNotification(t("LOGIN_SUCCESS"));
 
                     // 顯示用戶介面

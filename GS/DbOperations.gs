@@ -55,6 +55,25 @@ function findEmployeeByLineUserId_(userId) {
   return { ok: false, code: "ERR_NO_DATA" };
 }
 
+function getEmployeeList() {
+  const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_EMPLOYEES);
+  if (!sheet) return { ok: false, code: "ERR_EMPLOYEE_SHEET_NOT_FOUND" };
+
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return { ok: true, employeesList: [] };
+
+  const employees = values.slice(1).map(row => ({
+    userId: String(row[0] || '').trim(),
+    email: String(row[1] || '').trim(),
+    name: String(row[2] || '').trim(),
+    picture: String(row[3] || '').trim(),
+    dept: String(row[5] || '').trim(),
+    status: String(row[7] || '啟用').trim()
+  })).filter(e => e.userId);
+
+  return { ok: true, employeesList: employees };
+}
+
 function writeSession_(userId) {
   const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_SESSION);
 

@@ -81,7 +81,13 @@ function handleGetAttendanceDetails(params) {
   if (!month) return { ok: false, code: "ERR_MISSING_MONTH" };
   const records = getAttendanceRecords(month, userId);
   const results = checkAttendance(records);
-   return { ok: true, records: results };
+  return { ok: true, records: { dailyStatus: results } };
+}
+
+function handleGetEmployeeList(params) {
+  const employees = getEmployeeList();
+  if (!employees.ok) return employees;
+  return employees;
 }
 
 /**
