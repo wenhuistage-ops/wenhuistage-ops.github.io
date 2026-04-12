@@ -46,20 +46,53 @@ function getDistanceMeters_(lat1, lng1, lat2, lng2) {
  * [打卡時間, 員工ID, 薪資, 員工姓名, 上下班, GPS位置, 地點, 備註, 使用裝置詳細訊息]
  * @returns {Array} 每天每位員工的異常結果，格式為 { date: string, reason: string, id: string } 的陣列
  */
-function checkAttendanceAbnormal(attendanceRows) {
+function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
   const dailyRecords = {}; // 按 userId+date 分組
   const abnormalRecords = []; // 新增：用於儲存格式化的異常紀錄
   let abnormalIdCounter = 0; // 新增：用於產生唯一的 id
-  
-  Logger.log("checkAttendanceAbnormal開始，記錄數量: " + attendanceRows.length);
+
+  Logger.log("checkAttendanceAbnormal開始，記錄數量: " + attendanceRows.length + "，目標月份: " + targetMonth);
+
+  // 確定月份範圍
+  let monthStart, monthEnd;
   const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-  
+
+  if (targetMonth) {
+    // 如果指定了目標月份，使用該月份
+    const [year, month] = targetMonth.split('-').map(Number);
+    monthStart = new Date(year, month - 1, 1);
+    monthEnd = new Date(year, month, 0); // 當月最後一天
+  } else {
+    // 否則基於記錄確定範圍（向後兼容）
+    let minDate = null;
+
+    attendanceRows.forEach(row => {
+      try {
+        const date = getYmdFromRow(row);
+        if (!minDate || date < minDate) minDate = date;
+      } catch (err) {
+        Logger.log("❌ 解析日期失敗: " + JSON.stringify(row) + " | 錯誤: " + err.message);
+      }
+    });
+
+    if (!minDate) {
+      Logger.log("沒有找到任何記錄");
+      return [];
+    }
+
+    const [year, month] = minDate.split('-').map(Number);
+    monthStart = new Date(year, month - 1, 1);
+    monthEnd = new Date(year, month, 0);
+  }
+
+  Logger.log("檢查日期範圍: " + monthStart.toISOString().split('T')[0] + " 到 " + monthEnd.toISOString().split('T')[0]);
+
+  // 將記錄按用戶和日期分組
   attendanceRows.forEach(row => {
     try {
       const date = getYmdFromRow(row);
       const userId = row.userId;
-      
-      // 記錄所有日期（包括今天），但在最終判斷時再決定是否顯示
+
       if (!dailyRecords[userId]) dailyRecords[userId] = {};
       if (!dailyRecords[userId][date]) dailyRecords[userId][date] = [];
       dailyRecords[userId][date].push(row);
@@ -72,12 +105,18 @@ function checkAttendanceAbnormal(attendanceRows) {
   Logger.log("分組後的記錄: " + JSON.stringify(Object.keys(dailyRecords)));
 
   for (const userId in dailyRecords) {
-    for (const date in dailyRecords[userId]) {
-      // 跳過今天的記錄（因為可能還沒完成）
-      if (date === today) continue;
-      
-      const rows = dailyRecords[userId][date];
-      Logger.log("檢查日期 " + date + " 的記錄數量: " + rows.length);
+    for (let date = new Date(monthStart); date <= monthEnd; date.setDate(date.getDate() + 1)) {
+      const dateStr = Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+      // 跳過未來的日期
+      if (dateStr > today) continue;
+
+      // 跳過週末
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue; // 0=週日, 6=週六
+
+      const rows = dailyRecords[userId][dateStr] || [];
+      Logger.log("檢查日期 " + dateStr + " 的記錄數量: " + rows.length);
 
       // 過濾系統虛擬卡
       const filteredRows = rows.filter(r => r.note !== "系統虛擬卡");
@@ -89,7 +128,7 @@ function checkAttendanceAbnormal(attendanceRows) {
       let hasAdjustment = false;
       let approvedAdjustmentCount = 0;
       let totalAdjustments = 0;
-      
+
       filteredRows.forEach(r => {
         if (r.type === "上班") punchInCount++;
         if (r.type === "下班") punchOutCount++;
@@ -100,10 +139,10 @@ function checkAttendanceAbnormal(attendanceRows) {
         }
       });
 
-      Logger.log("日期 " + date + " 統計: 上班=" + punchInCount + ", 下班=" + punchOutCount + ", 補卡=" + totalAdjustments + ", 通過=" + approvedAdjustmentCount);
+      Logger.log("日期 " + dateStr + " 統計: 上班=" + punchInCount + ", 下班=" + punchOutCount + ", 補卡=" + totalAdjustments + ", 通過=" + approvedAdjustmentCount);
 
       let reason = "";
-      
+
       // 使用與 checkAttendance 相同的判斷邏輯
       const hasPair = punchInCount > 0 && punchOutCount > 0;
       const isAllApproved = totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments;
@@ -128,11 +167,11 @@ function checkAttendanceAbnormal(attendanceRows) {
       if (reason && reason !== "STATUS_PUNCH_NORMAL" && reason !== "STATUS_REPAIR_APPROVED") {
         abnormalIdCounter++;
         abnormalRecords.push({
-          date: date,
+          date: dateStr,
           reason: reason,
           id: `abnormal-${abnormalIdCounter}`
         });
-        Logger.log("發現異常記錄: " + date + " - " + reason);
+        Logger.log("發現異常記錄: " + dateStr + " - " + reason);
       }
     }
   }

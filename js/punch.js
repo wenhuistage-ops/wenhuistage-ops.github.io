@@ -164,6 +164,15 @@ async function checkAbnormal() {
 
         console.log("Abnormal records response:", res); // 添加調試信息
 
+        if (res.records && res.records.length > 0) {
+            console.log("找到 " + res.records.length + " 條異常記錄:");
+            res.records.forEach((record, index) => {
+                console.log(`  ${index + 1}. ${record.date}: ${record.reason}`);
+            });
+        } else {
+            console.log("沒有找到任何異常記錄");
+        }
+
         const abnormalRecordsSection = abnormalRecordsSectionEl;
         const abnormalList = abnormalListEl;
         const recordsEmpty = recordsEmptyEl;
@@ -185,8 +194,37 @@ async function checkAbnormal() {
                     const displayReason = hasPunchInMissing && hasPunchOutMissing ?
                         "STATUS_PUNCH_IN_MISSING" : record.reason.split(',')[0];
 
+                    // 判斷是否需要顯示請假和休假按鈕（當上班和下班都沒有時）
+                    const showLeaveButtons = hasPunchInMissing && hasPunchOutMissing;
+
                     const li = document.createElement('li');
                     li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
+
+                    // 動態生成按鈕HTML
+                    let buttonsHtml = `
+                        <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.date}" data-reason="${record.reason}" 
+                                class="adjust-btn text-sm font-semibold 
+                                       text-indigo-600 dark:text-indigo-400 
+                                       hover:text-indigo-800 dark:hover:text-indigo-300 mr-2">
+                            補打卡
+                        </button>`;
+
+                    if (showLeaveButtons) {
+                        buttonsHtml += `
+                        <button data-i18n="BTN_LEAVE" data-date="${record.date}" data-reason="${record.reason}" 
+                                class="leave-btn text-sm font-semibold 
+                                       text-orange-600 dark:text-orange-400 
+                                       hover:text-orange-800 dark:hover:text-orange-300 mr-2">
+                            請假
+                        </button>
+                        <button data-i18n="BTN_VACATION" data-date="${record.date}" data-reason="${record.reason}" 
+                                class="vacation-btn text-sm font-semibold 
+                                       text-green-600 dark:text-green-400 
+                                       hover:text-green-800 dark:hover:text-green-300">
+                            休假
+                        </button>`;
+                    }
+
                     li.innerHTML = `
                         <div>
                             <p class="font-medium text-gray-800 dark:text-white">${record.date}</p>
@@ -195,12 +233,9 @@ async function checkAbnormal() {
                                data-i18n-key="${displayReason}">
                            </p>
                         </div>
-                        <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.date}" data-reason="${record.reason}" 
-                                class="adjust-btn text-sm font-semibold 
-                                       text-indigo-600 dark:text-indigo-400 
-                                       hover:text-indigo-800 dark:hover:text-indigo-300">
-                            補打卡
-                        </button>
+                        <div class="flex flex-wrap gap-1">
+                            ${buttonsHtml}
+                        </div>
                     `;
                     abnormalList.appendChild(li);
                     renderTranslations(li); // 來自 core.js
@@ -257,6 +292,7 @@ function bindPunchEvents() {
     if (abnormalList && adjustmentFormContainer) {
         abnormalList.addEventListener('click', (e) => {
             if (e.target.classList.contains('adjust-btn')) {
+                // 補打卡按鈕處理邏輯
                 const date = e.target.dataset.date;
                 const reason = e.target.dataset.reason;
 
@@ -304,19 +340,76 @@ function bindPunchEvents() {
                     defaultTime = "18:00";
                 }
                 adjustDateTimeInput.value = `${date}T${defaultTime}`;
+            } else if (e.target.classList.contains('leave-btn')) {
+                // 請假按鈕處理邏輯
+                const date = e.target.dataset.date;
+                const formHtml = `
+                    <div class="p-4 border-t border-gray-200 fade-in ">
+                        <p class="font-semibold mb-2 text-orange-600">請假：<span class="text-orange-600">${date}</span></p>
+                        <div class="form-group mb-3">
+                            <label for="leaveReason" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">請假原因：</label>
+                            <select id="leaveReason" 
+                                    class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
+                                <option value="病假">病假</option>
+                                <option value="事假">事假</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="leaveNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">備註：</label>
+                            <textarea id="leaveNote" 
+                                      class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white" 
+                                      rows="3" placeholder="請輸入請假備註..."></textarea>
+                        </div>
+                        <button data-type="leave" data-date="${date}" 
+                                class="submit-leave-btn w-full py-2 px-4 rounded-lg font-bold bg-orange-500 hover:bg-orange-600 text-white">
+                            提交請假
+                        </button>
+                    </div>
+                `;
+                adjustmentFormContainer.innerHTML = formHtml;
+            } else if (e.target.classList.contains('vacation-btn')) {
+                // 休假按鈕處理邏輯
+                const date = e.target.dataset.date;
+                const formHtml = `
+                    <div class="p-4 border-t border-gray-200 fade-in ">
+                        <p class="font-semibold mb-2 text-green-600">休假：<span class="text-green-600">${date}</span></p>
+                        <div class="form-group mb-3">
+                            <label for="vacationType" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">休假類型：</label>
+                            <select id="vacationType" 
+                                    class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
+                                <option value="年假">年假</option>
+                                <option value="特休">特休</option>
+                                <option value="補休">補休</option>
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label for="vacationNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">備註：</label>
+                            <textarea id="vacationNote" 
+                                      class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white" 
+                                      rows="3" placeholder="請輸入休假備註..."></textarea>
+                        </div>
+                        <button data-type="vacation" data-date="${date}" 
+                                class="submit-vacation-btn w-full py-2 px-4 rounded-lg font-bold bg-green-500 hover:bg-green-600 text-white">
+                            提交休假
+                        </button>
+                    </div>
+                `;
+                adjustmentFormContainer.innerHTML = formHtml;
             }
         });
 
-        // 2. 處理補打卡表單的提交
+        // 2. 處理補打卡、請假、休假表單的提交
         adjustmentFormContainer.addEventListener('click', async (e) => {
-            const button = e.target.closest('.submit-adjust-btn');
+            const adjustButton = e.target.closest('.submit-adjust-btn');
+            const leaveButton = e.target.closest('.submit-leave-btn');
+            const vacationButton = e.target.closest('.submit-vacation-btn');
 
-            if (button) {
+            if (adjustButton) {
+                // 補打卡處理邏輯
                 const loadingText = t('LOADING') || '處理中...';
-
-                // 這裡使用 ID 獲取是正確的
                 const datetime = document.getElementById("adjustDateTime").value;
-                const type = button.dataset.type;
+                const type = adjustButton.dataset.type;
 
                 if (!datetime) {
                     showNotification("請選擇補打卡日期時間", "error");
@@ -324,16 +417,14 @@ function bindPunchEvents() {
                 }
                 if (!validateAdjustTime(datetime)) return;
 
-                // 步驟 A: 進入處理中狀態 (generalButtonState 來自 ui.js)
-                generalButtonState(button, 'processing', loadingText);
+                generalButtonState(adjustButton, 'processing', loadingText);
 
-                // ------------------ API 邏輯 ------------------
                 const dateObj = new Date(datetime);
                 const lat = 0; // 補卡不需精確 GPS 
                 const lng = 0;
 
                 try {
-                    const res = await callApifetch({ // callApifetch 來自 core.js
+                    const res = await callApifetch({
                         action: 'adjustPunch',
                         type: type === 'in' ? "上班" : "下班",
                         lat: lat,
@@ -352,11 +443,87 @@ function bindPunchEvents() {
                 } catch (err) {
                     console.error(err);
                     showNotification(t('NETWORK_ERROR') || '網絡錯誤', 'error');
-
                 } finally {
-                    // 恢復按鈕狀態，只有在表單容器沒有被清空時才需要（即請求失敗）
                     if (adjustmentFormContainer.innerHTML !== '') {
-                        generalButtonState(button, 'idle');
+                        generalButtonState(adjustButton, 'idle');
+                    }
+                }
+            } else if (leaveButton) {
+                // 請假處理邏輯
+                const loadingText = '提交中...';
+                const date = leaveButton.dataset.date;
+                const reason = document.getElementById("leaveReason").value;
+                const note = document.getElementById("leaveNote").value;
+
+                if (!reason) {
+                    showNotification("請選擇請假原因", "error");
+                    return;
+                }
+
+                generalButtonState(leaveButton, 'processing', loadingText);
+
+                try {
+                    const res = await callApifetch({
+                        action: 'submitLeave',
+                        date: date,
+                        type: 'leave',
+                        reason: reason,
+                        note: note || ''
+                    }, "loadingMsg");
+
+                    const msg = res.ok ? "請假申請已提交" : (res.msg || "請假申請失敗");
+                    showNotification(msg, res.ok ? "success" : "error");
+
+                    if (res.ok) {
+                        adjustmentFormContainer.innerHTML = '';
+                        checkAbnormal(); // 請假成功後，重新檢查異常紀錄
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    showNotification('網絡錯誤，請稍後再試', 'error');
+                } finally {
+                    if (adjustmentFormContainer.innerHTML !== '') {
+                        generalButtonState(leaveButton, 'idle');
+                    }
+                }
+            } else if (vacationButton) {
+                // 休假處理邏輯
+                const loadingText = '提交中...';
+                const date = vacationButton.dataset.date;
+                const vacationType = document.getElementById("vacationType").value;
+                const note = document.getElementById("vacationNote").value;
+
+                if (!vacationType) {
+                    showNotification("請選擇休假類型", "error");
+                    return;
+                }
+
+                generalButtonState(vacationButton, 'processing', loadingText);
+
+                try {
+                    const res = await callApifetch({
+                        action: 'submitLeave',
+                        date: date,
+                        type: 'vacation',
+                        reason: vacationType,
+                        note: note || ''
+                    }, "loadingMsg");
+
+                    const msg = res.ok ? "休假申請已提交" : (res.msg || "休假申請失敗");
+                    showNotification(msg, res.ok ? "success" : "error");
+
+                    if (res.ok) {
+                        adjustmentFormContainer.innerHTML = '';
+                        checkAbnormal(); // 休假成功後，重新檢查異常紀錄
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    showNotification('網絡錯誤，請稍後再試', 'error');
+                } finally {
+                    if (adjustmentFormContainer.innerHTML !== '') {
+                        generalButtonState(vacationButton, 'idle');
                     }
                 }
             }

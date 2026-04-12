@@ -71,9 +71,96 @@ function handleExchangeToken(otoken) {
 function handleGetAbnormalRecords(params) {
   const { month, userId } = params;
   if (!month) return { ok: false, code: "ERR_MISSING_MONTH" };
+
   const records = getAttendanceRecords(month, userId);
-  const abnormalResults = checkAttendanceAbnormal(records);
+  Logger.log("用戶 " + userId + " 在月份 " + month + " 的打卡記錄數量: " + records.length);
+
+  // 如果沒有記錄，仍然需要檢查這個月的異常
+  let abnormalResults = [];
+  if (records.length === 0) {
+    // 為沒有記錄的情況生成異常記錄
+    const [year, monthNum] = month.split('-').map(Number);
+    const monthStart = new Date(year, monthNum - 1, 1);
+    const monthEnd = new Date(year, monthNum, 0); // 當月最後一天
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+    Logger.log("檢查月份 " + month + " 的日期範圍: " + monthStart.toISOString().split('T')[0] + " 到 " + Math.min(monthEnd.toISOString().split('T')[0], today));
+
+    let abnormalIdCounter = 0;
+    for (let date = new Date(monthStart); date <= monthEnd && date <= new Date(); date.setDate(date.getDate() + 1)) {
+      const dateStr = Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+      // 跳過未來的日期
+      if (dateStr > today) continue;
+
+      // 跳過週末
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue; // 0=週日, 6=週六
+
+      // 對於沒有記錄的日期，標記為完全缺少打卡
+      abnormalIdCounter++;
+      abnormalResults.push({
+        date: dateStr,
+        reason: "STATUS_PUNCH_IN_MISSING,STATUS_PUNCH_OUT_MISSING",
+        id: `abnormal-${abnormalIdCounter}`
+      });
+      Logger.log("發現異常記錄: " + dateStr + " - 完全沒有打卡記錄");
+    }
+  } else {
+    abnormalResults = checkAttendanceAbnormal(records, month);
+  }
+
   return { ok: true, records: abnormalResults };
+}
+
+function handleSubmitLeave(params) {
+  const { token, date, type, reason, note } = params;
+  
+  if (!date || !type || !reason) {
+    return { ok: false, code: "ERR_MISSING_PARAMS", msg: "缺少必要參數" };
+  }
+  
+  try {
+    // 驗證用戶token
+    const user = checkSession_(token);
+    if (!user.ok) {
+      return { ok: false, code: "ERR_INVALID_SESSION", msg: "無效的登入狀態" };
+    }
+    
+    const userId = user.userId;
+    
+    // 在打卡記錄表中添加請假/休假記錄
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ATTENDANCE);
+    
+    // 創建請假記錄
+    const leaveRecord = [
+      new Date(), // 提交時間
+      userId, // 用戶ID
+      "", // 薪資（空）
+      "", // 姓名（空）
+      type === 'leave' ? '請假' : '休假', // 類型
+      0, // GPS緯度
+      0, // GPS經度
+      reason, // 地點欄位用於存放原因
+      note || "", // 備註
+      "系統請假記錄" // 設備信息
+    ];
+    
+    // 添加到工作表
+    sheet.appendRow(leaveRecord);
+    
+    Logger.log("請假/休假記錄已提交: " + JSON.stringify(leaveRecord));
+    
+    return { 
+      ok: true, 
+      msg: type === 'leave' ? "請假申請已提交" : "休假申請已提交",
+      record: leaveRecord 
+    };
+    
+  } catch (error) {
+    Logger.log("提交請假/休假失敗: " + error.message);
+    return { ok: false, code: "ERR_SUBMIT_LEAVE", msg: "提交失敗: " + error.message };
+  }
 }
 
 function handleGetAttendanceDetails(params) {

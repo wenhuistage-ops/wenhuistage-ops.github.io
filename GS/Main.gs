@@ -64,6 +64,8 @@ function doGet(e) {
         return respond(handleExchangeToken(e.parameter.otoken));
       case "getAbnormalRecords":
         return respond(handleGetAbnormalRecords(e.parameter));
+      case "submitLeave":
+        return respond(handleSubmitLeave(e.parameter));
       case "getAttendanceDetails":
         return respond(handleGetAttendanceDetails(e.parameter));
       case "getEmployeeList":
