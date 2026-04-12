@@ -128,8 +128,17 @@ async function callApifetch(params, loadingId = "loading") {
         }
 
         // 解析 JSON 回應
-        const data = await response.json();
-        return data;
+        let text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (jsonError) {
+            // 若回傳類似 callback({...}) 的 JSONP，嘗試抽取 JSON
+            const match = text.match(/^[^(]*\((.*)\)\s*;?\s*$/s);
+            if (match && match[1]) {
+                return JSON.parse(match[1]);
+            }
+            throw jsonError;
+        }
     } catch (error) {
         // 處理網路或其他錯誤
         showNotification(t("CONNECTION_FAILED"), "error");

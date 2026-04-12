@@ -28,14 +28,20 @@
 // doGet(e) 負責處理所有外部請求
 function doGet(e) {
   const action       = e.parameter.action;
-  const callback     = e.parameter.callback || "callback";
+  const callback     = e.parameter.callback || null;
   const sessionToken = e.parameter.token;
   const code         = e.parameter.otoken;
 
   function respond(obj) {
-    return ContentService.createTextOutput(
-      `${callback}(${JSON.stringify(obj)})`
-    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
+    const json = JSON.stringify(obj);
+    if (callback) {
+      return ContentService.createTextOutput(
+        `${callback}(${json})`
+      ).setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+    const output = ContentService.createTextOutput(json);
+    output.setMimeType(ContentService.MimeType.JSON);
+    return output;
   }
   function respond1(obj) {
     const output = ContentService.createTextOutput(JSON.stringify(obj));
