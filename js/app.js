@@ -61,7 +61,7 @@ async function ensureLogin() {
                     document.getElementById('main-app').style.display = 'block';
                     initLocationMap();
                     // 檢查異常打卡 (在 checkSession 成功後執行)
-                    checkAbnormal();
+                    checkAbnormal(3); // 檢查最近3個月的異常記錄
 
                     resolve({ isLoggedIn: true, isAdmin: isAdmin }); // 🌟 回傳狀態
                 } else {

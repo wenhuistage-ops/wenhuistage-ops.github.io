@@ -466,17 +466,33 @@ function getReviewRequest() {
         // 跳過標頭列
         if (index === 0) return false;
 
-        const _remarkMatch = row[headers.indexOf('備註')] === "補打卡";
-        const _administratorReviewIsPending = row[headers.indexOf('管理員審核')] === "?";
+        const remark = row[headers.indexOf('備註')];
+        const audit = row[headers.indexOf('管理員審核')];
         
-        return _remarkMatch && _administratorReviewIsPending;
+        // 包含補打卡和請假/休假記錄
+        const isPendingReview = audit === "?";
+        const isAdjustPunch = remark === "補打卡";
+        const isLeaveRequest = remark === "系統請假記錄";
+        
+        return isPendingReview && (isAdjustPunch || isLeaveRequest);
     }).map(row => {
         const actualRowNumber = values.indexOf(row) + 1; // 取得原始陣列中的索引並轉換為行號
+        const remark = row[headers.indexOf('備註')];
+        const type = row[headers.indexOf('打卡類別')];
+        
+        // 對於請假記錄，顯示類型和原因
+        let displayType = type;
+        let displayRemark = remark;
+        if (remark === "系統請假記錄") {
+            displayType = type; // 請假或休假
+            displayRemark = row[headers.indexOf('地點名稱')]; // 原因存放在地點名稱欄位
+        }
+        
         return {
             id: actualRowNumber,
             name: row[headers.indexOf('打卡人員')],
-            type: row[headers.indexOf('打卡類別')],
-            remark: row[headers.indexOf('備註')],
+            type: displayType,
+            remark: displayRemark,
             applicationPeriod: row[headers.indexOf('打卡時間')]
         };
     });

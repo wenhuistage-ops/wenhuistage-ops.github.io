@@ -77,6 +77,8 @@
   "BTN_ADJUST_FULL": "Bổ sung cả ngày",
   "BTN_LEAVE": "Xin nghỉ",
   "BTN_VACATION": "Nghỉ phép",
+  "LEAVE": "Xin nghỉ",
+  "VACATION": "Nghỉ phép",
   "DETECTING_LOCATION": "Đang phát hiện vị trí...",
   "UNKNOWN_LOCATION": "Không xác định",
   "DETECTION_SUCCESS": "Phát hiện thành công",

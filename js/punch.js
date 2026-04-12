@@ -137,122 +137,133 @@ function checkAutoPunch() {
 // #region 3. 異常紀錄檢查
 // ===================================
 
-async function checkAbnormal() {
+async function checkAbnormal(monthsToCheck = 1) {
     const now = new Date();
-    const month = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
-    const userId = localStorage.getItem("sessionUserId"); // 假設您在登入成功後儲存了 sessionUserId
+    const currentMonth = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    const userId = localStorage.getItem("sessionUserId");
 
-    console.log("檢查異常記錄 - 月份:", month, "用戶ID:", userId); // 添加調試信息
+    console.log("檢查異常記錄 - 當前月份:", currentMonth, "檢查月份數:", monthsToCheck, "用戶ID:", userId);
 
-    // 假設 recordsLoading 也在 state.js 中宣告
-    const recordsLoading = recordsLoadingEl; // 假設您在 state.js 中宣告為 recordsLoadingEl
+    // 收集多個月份的異常記錄
+    let allAbnormalRecords = [];
 
-    if (!recordsLoading) {
-        console.warn("recordsLoading 元素未找到");
-        return; // 錯誤處理
+    for (let i = 0; i < monthsToCheck; i++) {
+        const checkDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const month = checkDate.getFullYear() + "-" + String(checkDate.getMonth() + 1).padStart(2, "0");
+
+        console.log(`檢查第 ${i + 1} 個月: ${month}`);
+
+        try {
+            const res = await callApifetch({
+                action: 'getAbnormalRecords',
+                month: month,
+                userId: userId
+            });
+
+            if (res.ok && res.records) {
+                // 為每個記錄添加月份標記
+                const recordsWithMonth = res.records.map(record => ({
+                    ...record,
+                    month: month,
+                    displayDate: `${month}-${record.date.split('-')[2]}`
+                }));
+                allAbnormalRecords = allAbnormalRecords.concat(recordsWithMonth);
+                console.log(`月份 ${month} 找到 ${res.records.length} 條異常記錄`);
+            }
+        } catch (error) {
+            console.error(`檢查月份 ${month} 時出錯:`, error);
+        }
     }
 
-    recordsLoading.style.display = 'block';
+    // 按日期排序（最新的在前面）
+    allAbnormalRecords.sort((a, b) => new Date(b.displayDate) - new Date(a.displayDate));
 
-    try {
-        const res = await callApifetch({
-            action: 'getAbnormalRecords',
-            month: month,
-            userId: userId
-        })
-        recordsLoading.style.display = 'none';
+    console.log("總共找到 " + allAbnormalRecords.length + " 條異常記錄");
 
-        console.log("Abnormal records response:", res); // 添加調試信息
+    // 隱藏載入動畫
+    const recordsLoading = recordsLoadingEl;
+    if (recordsLoading) recordsLoading.style.display = 'none';
 
-        if (res.records && res.records.length > 0) {
-            console.log("找到 " + res.records.length + " 條異常記錄:");
-            res.records.forEach((record, index) => {
-                console.log(`  ${index + 1}. ${record.date}: ${record.reason}`);
-            });
-        } else {
-            console.log("沒有找到任何異常記錄");
-        }
+    renderAbnormalRecords(allAbnormalRecords);
+}
 
-        const abnormalRecordsSection = abnormalRecordsSectionEl;
-        const abnormalList = abnormalListEl;
-        const recordsEmpty = recordsEmptyEl;
+/**
+ * 渲染異常記錄列表
+ * @param {Array} records - 異常記錄陣列
+ */
+function renderAbnormalRecords(records) {
+    const abnormalRecordsSection = abnormalRecordsSectionEl;
+    const abnormalList = abnormalListEl;
+    const recordsEmpty = recordsEmptyEl;
 
-        if (res.ok) {
-            if (res.records.length > 0) {
-                abnormalRecordsSection.style.display = 'block';
-                recordsEmpty.style.display = 'none';
-                abnormalList.innerHTML = '';
-                res.records.forEach(record => {
-                    console.log("Abnormal Record:", record.date, record.reason); // 添加調試信息
+    if (records.length > 0) {
+        abnormalRecordsSection.style.display = 'block';
+        recordsEmpty.style.display = 'none';
+        abnormalList.innerHTML = '';
 
-                    // 處理多重異常情況（如同時缺少上班和下班卡）
-                    const reasons = record.reason.split(',');
-                    const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
-                    const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
+        records.forEach(record => {
+            console.log("Abnormal Record:", record.displayDate, record.reason);
 
-                    // 顯示主要異常原因（如果有多個，優先顯示上班卡缺失）
-                    const displayReason = hasPunchInMissing && hasPunchOutMissing ?
-                        "STATUS_PUNCH_IN_MISSING" : record.reason.split(',')[0];
+            // 處理多重異常情況（如同時缺少上班和下班卡）
+            const reasons = record.reason.split(',');
+            const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
+            const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
 
-                    // 判斷是否需要顯示請假和休假按鈕（當上班和下班都沒有時）
-                    const showLeaveButtons = hasPunchInMissing && hasPunchOutMissing;
+            // 顯示主要異常原因（如果有多個，優先顯示上班卡缺失）
+            const displayReason = hasPunchInMissing && hasPunchOutMissing ?
+                "STATUS_PUNCH_IN_MISSING" : record.reason.split(',')[0];
 
-                    const li = document.createElement('li');
-                    li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
+            // 判斷是否需要顯示請假和休假按鈕（當上班和下班都沒有時）
+            const showLeaveButtons = hasPunchInMissing && hasPunchOutMissing;
 
-                    // 動態生成按鈕HTML
-                    let buttonsHtml = `
-                        <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.date}" data-reason="${record.reason}" 
-                                class="adjust-btn text-sm font-semibold 
-                                       text-indigo-600 dark:text-indigo-400 
-                                       hover:text-indigo-800 dark:hover:text-indigo-300 mr-2">
-                            補打卡
-                        </button>`;
+            const li = document.createElement('li');
+            li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
 
-                    if (showLeaveButtons) {
-                        buttonsHtml += `
-                        <button data-i18n="BTN_LEAVE" data-date="${record.date}" data-reason="${record.reason}" 
-                                class="leave-btn text-sm font-semibold 
-                                       text-orange-600 dark:text-orange-400 
-                                       hover:text-orange-800 dark:hover:text-orange-300 mr-2">
-                            請假
-                        </button>
-                        <button data-i18n="BTN_VACATION" data-date="${record.date}" data-reason="${record.reason}" 
-                                class="vacation-btn text-sm font-semibold 
-                                       text-green-600 dark:text-green-400 
-                                       hover:text-green-800 dark:hover:text-green-300">
-                            休假
-                        </button>`;
-                    }
+            // 動態生成按鈕HTML
+            let buttonsHtml = `
+                <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.displayDate}" data-reason="${record.reason}"
+                        class="adjust-btn text-sm font-semibold
+                               text-indigo-600 dark:text-indigo-400
+                               hover:text-indigo-800 dark:hover:text-indigo-300 mr-2">
+                    補打卡
+                </button>`;
 
-                    li.innerHTML = `
-                        <div>
-                            <p class="font-medium text-gray-800 dark:text-white">${record.date}</p>
-                            <p class="text-sm text-red-600 dark:text-red-400"
-                               data-i18n-dynamic="true"
-                               data-i18n-key="${displayReason}">
-                           </p>
-                        </div>
-                        <div class="flex flex-wrap gap-1">
-                            ${buttonsHtml}
-                        </div>
-                    `;
-                    abnormalList.appendChild(li);
-                    renderTranslations(li); // 來自 core.js
-                });
-
-            } else {
-                abnormalRecordsSection.style.display = 'block';
-                recordsEmpty.style.display = 'block';
-                abnormalList.innerHTML = '';
+            if (showLeaveButtons) {
+                buttonsHtml += `
+                <button data-i18n="BTN_LEAVE" data-date="${record.displayDate}" data-reason="${record.reason}"
+                        class="leave-btn text-sm font-semibold
+                               text-orange-600 dark:text-orange-400
+                               hover:text-orange-800 dark:hover:text-orange-300 mr-2">
+                    請假
+                </button>
+                <button data-i18n="BTN_VACATION" data-date="${record.displayDate}" data-reason="${record.reason}"
+                        class="vacation-btn text-sm font-semibold
+                               text-green-600 dark:text-green-400
+                               hover:text-green-800 dark:hover:text-green-300">
+                    休假
+                </button>`;
             }
-        } else {
-            console.error("Failed to fetch abnormal records:", res.msg);
-            showNotification(t("ERROR_FETCH_RECORDS"), "error");
-        }
-    } catch (err) {
-        console.error(err);
-        if (recordsLoading) recordsLoading.style.display = 'none';
+
+            li.innerHTML = `
+                <div>
+                    <p class="font-medium text-gray-800 dark:text-white">${record.displayDate}</p>
+                    <p class="text-sm text-red-600 dark:text-red-400"
+                       data-i18n-dynamic="true"
+                       data-i18n-key="${displayReason}">
+                   </p>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                    ${buttonsHtml}
+                </div>
+            `;
+            abnormalList.appendChild(li);
+            renderTranslations(li); // 來自 core.js
+        });
+
+    } else {
+        abnormalRecordsSection.style.display = 'block';
+        recordsEmpty.style.display = 'block';
+        abnormalList.innerHTML = '';
     }
 }
 // #endregion

@@ -77,6 +77,8 @@
     "BTN_ADJUST_FULL": "補全日打卡",
     "BTN_LEAVE": "請假",
     "BTN_VACATION": "休假",
+    "LEAVE": "請假",
+    "VACATION": "休假",
     "DETECTING_LOCATION": "正在偵測位置...",
     "UNKNOWN_LOCATION": "未知",
     "DETECTION_SUCCESS": "偵測成功",

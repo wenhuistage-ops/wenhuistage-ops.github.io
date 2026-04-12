@@ -77,6 +77,8 @@
   "BTN_ADJUST_FULL": "一日修正",
   "BTN_LEAVE": "欠勤",
   "BTN_VACATION": "休暇",
+  "LEAVE": "欠勤",
+  "VACATION": "休暇",
   "DETECTING_LOCATION": "位置情報を検出中...",
   "UNKNOWN_LOCATION": "不明",
   "DETECTION_SUCCESS": "検出成功",

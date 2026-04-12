@@ -77,6 +77,8 @@
   "BTN_ADJUST_FULL": "Make-up Full Day",
   "BTN_LEAVE": "Leave",
   "BTN_VACATION": "Vacation",
+  "LEAVE": "Leave",
+  "VACATION": "Vacation",
   "DETECTING_LOCATION": "Detecting location...",
   "UNKNOWN_LOCATION": "Unknown",
   "DETECTION_SUCCESS": "Detection successful",

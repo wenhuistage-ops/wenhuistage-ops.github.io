@@ -77,6 +77,8 @@
   "BTN_ADJUST_FULL": "Absen Sehari Penuh",
   "BTN_LEAVE": "Izin",
   "BTN_VACATION": "Cuti",
+  "LEAVE": "Izin",
+  "VACATION": "Cuti",
   "DETECTING_LOCATION": "Mendeteksi lokasi...",
   "UNKNOWN_LOCATION": "Tidak diketahui",
   "DETECTION_SUCCESS": "Deteksi berhasil",
