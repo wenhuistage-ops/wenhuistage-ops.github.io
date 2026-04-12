@@ -111,7 +111,11 @@ async function callApifetch(params, loadingId = "loading") {
     // 2. 自動加入 token
     searchParams.set("token", token);
 
-    // 3. 構造最終 URL
+    // 3. 加入 callback 參數以使用 JSONP 避免 CORS 問題
+    const callback = 'callback' + Date.now() + Math.random().toString(36).substr(2, 9);
+    searchParams.set("callback", callback);
+
+    // 4. 構造最終 URL
     const url = `${API_CONFIG.apiUrl}?${searchParams.toString()}`;
 
     // 顯示指定的 loading 元素

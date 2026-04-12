@@ -51,37 +51,37 @@ function doGet(e) {
   try {
     switch (action) {
       case "getProfile":
-        return respond1(handleGetProfile(code));
+        return respond(handleGetProfile(code));
       case "getLoginUrl":
-        return respond1(handleGetLoginUrl());
+        return respond(handleGetLoginUrl());
       case "checkSession":
-        return respond1(handleCheckSession(sessionToken));
+        return respond(handleCheckSession(sessionToken));
       case "punch":
-        return respond1(handlePunch(e.parameter));
+        return respond(handlePunch(e.parameter));
       case "adjustPunch":
-        return respond1(handleAdjustPunch(e.parameter));
+        return respond(handleAdjustPunch(e.parameter));
       case "exchangeToken":
-        return respond1(handleExchangeToken(e.parameter.otoken));
+        return respond(handleExchangeToken(e.parameter.otoken));
       case "getAbnormalRecords":
-        return respond1(handleGetAbnormalRecords(e.parameter));
+        return respond(handleGetAbnormalRecords(e.parameter));
       case "getAttendanceDetails":
-        return respond1(handleGetAttendanceDetails(e.parameter));
+        return respond(handleGetAttendanceDetails(e.parameter));
       case "getEmployeeList":
-        return respond1(handleGetEmployeeList(e.parameter));
+        return respond(handleGetEmployeeList(e.parameter));
       case "getCalendarSummary":
-        return respond1(handleGetCalendarSummary(e.parameter));
+        return respond(handleGetCalendarSummary(e.parameter));
       case "addLocation":
-        return respond1(handleAddLocation(e.parameter));
+        return respond(handleAddLocation(e.parameter));
       case "getLocations":
-        return respond1(handleGetLocation());
+        return respond(handleGetLocation());
       case "getReviewRequest":
-        return respond1(handleGetReviewRequest());
+        return respond(handleGetReviewRequest());
       case "approveReview":
-        return respond1(handleApproveReview(e.parameter));
+        return respond(handleApproveReview(e.parameter));
       case "rejectReview":
-        return respond1(handleRejectReview(e.parameter));
+        return respond(handleRejectReview(e.parameter));
       case "testEndpoint": // 新增一個測試用的 action
-        return respond1({ ok: true, msg: "CORS 測試成功!" });
+        return respond({ ok: true, msg: "CORS 測試成功!" });
       default:
         return HtmlService.createHtmlOutputFromFile('index')
                .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);

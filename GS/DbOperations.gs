@@ -57,7 +57,7 @@ function findEmployeeByLineUserId_(userId) {
 
 function getEmployeeList() {
   const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_EMPLOYEES);
-  if (!sheet) return { ok: false, code: "ERR_EMPLOYEE_SHEET_NOT_FOUND" };
+  if (!sheet) return { ok: false, code: "ERR_EMPLOYEE_SHEET_NOT_FOUND", message: "員工名單工作表未找到" };
 
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return { ok: true, employeesList: [] };

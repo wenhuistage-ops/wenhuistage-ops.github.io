@@ -923,8 +923,9 @@ async function loadEmployeeList() {
                 adminSelectEmployeeMgmt.appendChild(option);
             });
         } else {
-            console.error("載入員工列表時 API 回傳失敗:", data.message);
-            showNotification(data.message || t("FAILED_TO_LOAD_EMPLOYEES"), "error");
+            const errorMessage = data?.message || data?.code || t("FAILED_TO_LOAD_EMPLOYEES");
+            console.error("載入員工列表時 API 回傳失敗:", data, errorMessage);
+            showNotification(errorMessage, "error");
         }
     } catch (e) {
         console.error("loadEmployeeList 呼叫流程錯誤:", e);
