@@ -300,46 +300,106 @@ function bindPunchEvents() {
                 const reasons = reason.split(',');
                 const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
                 const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
+                const bothMissing = hasPunchInMissing && hasPunchOutMissing;
 
-                // 決定哪些按鈕應該隱藏
-                const hideIn = hasPunchOutMissing;  // 如果缺下班卡，隱藏補上班卡按鈕
-                const hideOut = hasPunchInMissing; // 如果缺上班卡，隱藏補下班卡按鈕
+                // 決定按鈕顯示邏輯
+                let formTitle = "補打卡";
+                let buttonsHtml = "";
+                let defaultTime = "09:00";
+                let isFullDayForm = false;
+
+                if (bothMissing) {
+                    // 都沒有：顯示三個按鈕
+                    formTitle = "本日為打卡";
+                    buttonsHtml = `
+                        <button data-type="full" data-i18n="BTN_ADJUST_FULL"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-primary">
+                            補全日打卡
+                        </button>
+                        <button data-type="in" data-i18n="BTN_ADJUST_IN"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                            補全上班打卡
+                        </button>
+                        <button data-type="out" data-i18n="BTN_ADJUST_OUT"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                            補全下班打卡
+                        </button>`;
+                    defaultTime = "08:00"; // 全日打卡預設早上8點
+                } else if (hasPunchInMissing) {
+                    // 只缺上班卡：顯示補上班卡按鈕
+                    buttonsHtml = `
+                        <button data-type="in" data-i18n="BTN_ADJUST_IN"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                            補全上班打卡
+                        </button>`;
+                    defaultTime = "08:00"; // 上班卡預設早上8點
+                } else if (hasPunchOutMissing) {
+                    // 只缺下班卡：顯示補下班卡按鈕
+                    buttonsHtml = `
+                        <button data-type="out" data-i18n="BTN_ADJUST_OUT"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                            補全下班打卡
+                        </button>`;
+                    defaultTime = "18:00"; // 下班卡預設下午6點
+                }
+
                 const formHtml = `
                     <div class="p-4 border-t border-gray-200 fade-in ">
-                        <p data-i18n="ADJUST_BUTTON_TEXT" class="font-semibold mb-2">補打卡：<span class="text-indigo-600">${date}</span></p>
-                        <div class="form-group mb-3">
-                            <label for="adjustDateTime" data-i18n="SELECT_DATETIME_LABEL" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">選擇日期與時間：</label>
-                            <input id="adjustDateTime" 
-                                type="datetime-local" 
-                                class="w-full p-2 
-                                        border border-gray-300 dark:border-gray-600 
-                                        rounded-md shadow-sm 
-                                        dark:bg-gray-700 dark:text-white
-                                        focus:ring-indigo-500 focus:border-indigo-500">
+                        <p class="font-semibold mb-2">${formTitle}：<span class="text-indigo-600">${date}</span></p>
+                        <div id="timeInputsContainer">
+                            <div class="form-group mb-3">
+                                <label for="adjustDateTime" data-i18n="SELECT_DATETIME_LABEL" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">選擇日期與時間：</label>
+                                <input id="adjustDateTime"
+                                    type="datetime-local"
+                                    class="w-full p-2
+                                            border border-gray-300 dark:border-gray-600
+                                            rounded-md shadow-sm
+                                            dark:bg-gray-700 dark:text-white
+                                            focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <button data-type="in" data-i18n="BTN_ADJUST_IN" 
-                                    class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary"
-                                    style="display: ${hideIn ? 'none' : 'block'};"> // 🌟 關鍵修正 1
-                                補上班卡
-                            </button>
-                            <button data-type="out" data-i18n="BTN_ADJUST_OUT" 
-                                    class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary"
-                                    style="display: ${hideOut ? 'none' : 'block'};"> // 🌟 關鍵修正 2
-                                補下班卡
-                            </button>
+                        <div class="grid grid-cols-1 ${bothMissing ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-2">
+                            ${buttonsHtml}
                         </div>
                     </div>
                 `;
                 adjustmentFormContainer.innerHTML = formHtml;
                 renderTranslations(adjustmentFormContainer); // 來自 core.js
 
-                const adjustDateTimeInput = document.getElementById("adjustDateTime"); // 這裡使用 ID 獲取是正確的
-                let defaultTime = "09:00";
-                if (reason.includes("STATUS_PUNCH_OUT_MISSING")) {
-                    defaultTime = "18:00";
-                }
+                const adjustDateTimeInput = document.getElementById("adjustDateTime");
                 adjustDateTimeInput.value = `${date}T${defaultTime}`;
+
+                // 為全日打卡按鈕添加特殊處理
+                const fullDayBtn = adjustmentFormContainer.querySelector('button[data-type="full"]');
+                if (fullDayBtn) {
+                    fullDayBtn.addEventListener('click', function () {
+                        const timeInputsContainer = document.getElementById("timeInputsContainer");
+                        timeInputsContainer.innerHTML = `
+                            <div class="form-group mb-3">
+                                <label for="adjustInTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">上班時間：</label>
+                                <input id="adjustInTime"
+                                    type="datetime-local"
+                                    class="w-full p-2
+                                            border border-gray-300 dark:border-gray-600
+                                            rounded-md shadow-sm
+                                            dark:bg-gray-700 dark:text-white
+                                            focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="adjustOutTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">下班時間：</label>
+                                <input id="adjustOutTime"
+                                    type="datetime-local"
+                                    class="w-full p-2
+                                            border border-gray-300 dark:border-gray-600
+                                            rounded-md shadow-sm
+                                            dark:bg-gray-700 dark:text-white
+                                            focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        `;
+                        document.getElementById("adjustInTime").value = `${date}T08:00`;
+                        document.getElementById("adjustOutTime").value = `${date}T18:00`;
+                    });
+                }
             } else if (e.target.classList.contains('leave-btn')) {
                 // 請假按鈕處理邏輯
                 const date = e.target.dataset.date;
@@ -408,36 +468,95 @@ function bindPunchEvents() {
             if (adjustButton) {
                 // 補打卡處理邏輯
                 const loadingText = t('LOADING') || '處理中...';
-                const datetime = document.getElementById("adjustDateTime").value;
                 const type = adjustButton.dataset.type;
 
-                if (!datetime) {
-                    showNotification("請選擇補打卡日期時間", "error");
-                    return;
+                let inDateTime, outDateTime;
+
+                if (type === 'full') {
+                    // 全日打卡：需要兩個時間
+                    inDateTime = document.getElementById("adjustInTime")?.value;
+                    outDateTime = document.getElementById("adjustOutTime")?.value;
+
+                    if (!inDateTime || !outDateTime) {
+                        showNotification("請選擇上班和下班時間", "error");
+                        return;
+                    }
+                    if (!validateAdjustTime(inDateTime) || !validateAdjustTime(outDateTime)) return;
+
+                    // 檢查下班時間是否晚於上班時間
+                    if (new Date(outDateTime) <= new Date(inDateTime)) {
+                        showNotification("下班時間必須晚於上班時間", "error");
+                        return;
+                    }
+                } else {
+                    // 單次打卡
+                    const datetime = document.getElementById("adjustDateTime").value;
+                    if (!datetime) {
+                        showNotification("請選擇補打卡日期時間", "error");
+                        return;
+                    }
+                    if (!validateAdjustTime(datetime)) return;
+                    inDateTime = type === 'in' ? datetime : null;
+                    outDateTime = type === 'out' ? datetime : null;
                 }
-                if (!validateAdjustTime(datetime)) return;
 
                 generalButtonState(adjustButton, 'processing', loadingText);
 
-                const dateObj = new Date(datetime);
-                const lat = 0; // 補卡不需精確 GPS 
+                const lat = 0; // 補卡不需精確 GPS
                 const lng = 0;
 
                 try {
-                    const res = await callApifetch({
-                        action: 'adjustPunch',
-                        type: type === 'in' ? "上班" : "下班",
-                        lat: lat,
-                        lng: lng,
-                        datetime: dateObj.toISOString(),
-                        note: encodeURIComponent(navigator.userAgent)
-                    }, "loadingMsg");
-                    const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
-                    showNotification(msg, res.ok ? "success" : "error");
+                    if (type === 'full') {
+                        // 全日打卡：需要提交上班和下班兩次
+                        const inRes = await callApifetch({
+                            action: 'adjustPunch',
+                            type: "上班",
+                            lat: lat,
+                            lng: lng,
+                            datetime: new Date(inDateTime).toISOString(),
+                            note: encodeURIComponent(navigator.userAgent)
+                        }, "loadingMsg");
 
-                    if (res.ok) {
-                        adjustmentFormContainer.innerHTML = '';
-                        checkAbnormal(); // 補打卡成功後，重新檢查異常紀錄
+                        if (!inRes.ok) {
+                            const msg = t(inRes.code || "UNKNOWN_ERROR", inRes.params || {});
+                            showNotification("上班打卡失敗：" + msg, "error");
+                            return;
+                        }
+
+                        const outRes = await callApifetch({
+                            action: 'adjustPunch',
+                            type: "下班",
+                            lat: lat,
+                            lng: lng,
+                            datetime: new Date(outDateTime).toISOString(),
+                            note: encodeURIComponent(navigator.userAgent)
+                        }, "loadingMsg");
+
+                        const msg = t(outRes.code || "UNKNOWN_ERROR", outRes.params || {});
+                        showNotification(outRes.ok ? "全日打卡補登成功" : "下班打卡失敗：" + msg, outRes.ok ? "success" : "error");
+
+                        if (outRes.ok) {
+                            adjustmentFormContainer.innerHTML = '';
+                            checkAbnormal(); // 補打卡成功後，重新檢查異常紀錄
+                        }
+                    } else {
+                        // 單次打卡
+                        const datetime = inDateTime || outDateTime;
+                        const res = await callApifetch({
+                            action: 'adjustPunch',
+                            type: type === 'in' ? "上班" : "下班",
+                            lat: lat,
+                            lng: lng,
+                            datetime: new Date(datetime).toISOString(),
+                            note: encodeURIComponent(navigator.userAgent)
+                        }, "loadingMsg");
+                        const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+                        showNotification(msg, res.ok ? "success" : "error");
+
+                        if (res.ok) {
+                            adjustmentFormContainer.innerHTML = '';
+                            checkAbnormal(); // 補打卡成功後，重新檢查異常紀錄
+                        }
                     }
 
                 } catch (err) {

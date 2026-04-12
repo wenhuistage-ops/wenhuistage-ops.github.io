@@ -74,6 +74,7 @@
     "SELECT_DATETIME_LABEL": "選擇日期與時間：",
     "BTN_ADJUST_IN": "補上班打卡",
     "BTN_ADJUST_OUT": "補下班打卡",
+    "BTN_ADJUST_FULL": "補全日打卡",
     "BTN_LEAVE": "請假",
     "BTN_VACATION": "休假",
     "DETECTING_LOCATION": "正在偵測位置...",
