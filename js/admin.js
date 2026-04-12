@@ -94,7 +94,7 @@ async function renderAdminCalendar(userId, date) {
             if (res.ok) {
                 // 儲存至快取
                 const records = res.records.dailyStatus || [];
-                adminMonthDataCache[cacheKey] = records;
+                cacheAdminMonthData(cacheKey, records);
 
                 // 更新 UI
                 updateCalendarUI(records);
@@ -116,6 +116,19 @@ async function renderAdminCalendar(userId, date) {
 
 function formatAdminMonthKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function cacheAdminMonthData(monthkey, data) {
+    const existingIndex = adminMonthCacheOrder.indexOf(monthkey);
+    if (existingIndex !== -1) {
+        adminMonthCacheOrder.splice(existingIndex, 1);
+    }
+    adminMonthCacheOrder.push(monthkey);
+    adminMonthDataCache[monthkey] = data;
+    while (adminMonthCacheOrder.length > MAX_ADMIN_MONTH_CACHE_ENTRIES) {
+        const oldestKey = adminMonthCacheOrder.shift();
+        delete adminMonthDataCache[oldestKey];
+    }
 }
 
 function recordAdminMonthNavigation(date) {
@@ -167,7 +180,7 @@ async function preloadAdjacentAdminMonths(currentDate, userId) {
 
         uniqueKeys.forEach((key, index) => {
             if (adminMonthDataCache[key]) return;
-            const delay = 500 + index * 250;
+            const delay = PRELOAD_BASE_DELAY + index * PRELOAD_INCREMENT_DELAY;
             setTimeout(async () => {
                 try {
                     const res = await callApifetch({
@@ -176,7 +189,7 @@ async function preloadAdjacentAdminMonths(currentDate, userId) {
                         userId: userId
                     });
                     if (res.ok) {
-                        adminMonthDataCache[key] = res.records.dailyStatus || [];
+                        cacheAdminMonthData(key, res.records.dailyStatus || []);
                         console.log(`✅ Admin 預加載 ${key} 成功`);
                     }
                 } catch (err) {
@@ -643,6 +656,12 @@ async function renderAdminDailyRecords(dateKey, userId) {
 
             // 假設 dailyRecords 通常只有一個（單一日期），但以 forEach 處理可能多個
             dailyRecords.forEach(dailyRecord => {
+                // 安全檢查：確保 record 存在且為數組
+                if (!dailyRecord.record || !Array.isArray(dailyRecord.record)) {
+                    console.warn('記錄數據結構異常:', dailyRecord);
+                    return;
+                }
+
                 // 為每個打卡記錄創建獨立卡片
                 dailyRecord.record.forEach(r => {
                     const li = document.createElement('li');

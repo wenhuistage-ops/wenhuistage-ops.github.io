@@ -21,6 +21,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 let currentMonthDate = new Date();//當前月份
 let translations = {};
 const MAX_MONTH_CACHE_ENTRIES = 12;
+const PRELOAD_BASE_DELAY = 500; // 預加載基礎延遲 (毫秒)
+const PRELOAD_INCREMENT_DELAY = 250; // 每個預加載項目的額外延遲 (毫秒)
 let monthDataCache = {}; // 新增：用於快取月份打卡資料
 let monthCacheOrder = []; // LRU 快取順序
 let monthNavigationHistory = []; // 月曆翻頁行為記錄
@@ -33,6 +35,8 @@ let adminSelectedUserId = null;
 let adminCurrentDate = new Date(); // 初始化為當前月份
 let allEmployeeList = []; // 用於儲存所有員工列表
 const adminMonthDataCache = {};
+const MAX_ADMIN_MONTH_CACHE_ENTRIES = 12;
+let adminMonthCacheOrder = []; // Admin LRU 快取順序
 
 
 

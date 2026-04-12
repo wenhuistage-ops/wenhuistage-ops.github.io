@@ -167,6 +167,9 @@ function checkAttendance(attendanceRows) {
         location: r.location || ""
       }));
 
+      // 確保 record 總是一個數組
+      const safeRecord = Array.isArray(record) ? record : [];
+
       // ✅ 優化：預計算計數器而不是使用 every/some
       let punchInCount = 0;
       let punchOutCount = 0;
@@ -215,7 +218,7 @@ function checkAttendance(attendanceRows) {
       dailyStatus.push({
         ok: !reason,
         date: date,
-        record: record,
+        record: safeRecord,
         reason: reason,
         id: id
       });

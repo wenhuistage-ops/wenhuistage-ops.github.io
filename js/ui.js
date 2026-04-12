@@ -101,7 +101,7 @@ async function preloadAdjacentMonths(currentDate) {
 
         uniqueKeys.forEach((key, index) => {
             if (monthDataCache[key]) return;
-            const delay = 500 + index * 250;
+            const delay = PRELOAD_BASE_DELAY + index * PRELOAD_INCREMENT_DELAY;
             setTimeout(async () => {
                 try {
                     const res = await callApifetch({
@@ -356,13 +356,14 @@ async function renderDailyRecords(dateKey) {
         })
         recordsLoading.style.display = 'none';
         if (res.ok) {
+            console.log('API response for', dateKey, ':', res);
             renderRecords(res.records.dailyStatus);
         } else {
             console.error("Failed to fetch attendance records:", res.msg);
             showNotification(t("ERROR_FETCH_RECORDS"), "error");
         }
     } catch (err) {
-        console.error(err);
+        console.error('API call failed:', err);
     }
 
     /**
@@ -377,6 +378,8 @@ async function renderDailyRecords(dateKey) {
             return record.date === dateKey;
         });
 
+        console.log('Filtered dailyRecords for', dateKey, ':', dailyRecords);
+
         // 清空現有列表
         dailyRecordsList.innerHTML = '';
 
@@ -389,6 +392,13 @@ async function renderDailyRecords(dateKey) {
 
             // 假設 dailyRecords 通常只有一個（單一日期），但以 forEach 處理可能多個
             dailyRecords.forEach(dailyRecord => {
+                console.log('Processing dailyRecord:', dailyRecord);
+                // 安全檢查：確保 record 存在且為數組
+                if (!dailyRecord.record || !Array.isArray(dailyRecord.record)) {
+                    console.warn('記錄數據結構異常:', dailyRecord);
+                    return;
+                }
+
                 // 為每個打卡記錄創建獨立卡片
                 dailyRecord.record.forEach(r => {
                     const li = document.createElement('li');
