@@ -187,6 +187,25 @@ function checkAttendance(attendanceRows) {
         }
       });
 
+      // 計算工時
+      let hours = 0;
+      if (safeRecord.length >= 2) {
+        const sortedRecords = safeRecord.sort((a, b) => {
+          const dateA = new Date(a.time);
+          const dateB = new Date(b.time);
+          return dateA - dateB;
+        });
+        
+        const punchIn = sortedRecords.find(r => r.type === "上班");
+        const punchOut = sortedRecords.find(r => r.type === "下班");
+        
+        if (punchIn && punchOut) {
+          const inTime = new Date(punchIn.time);
+          const outTime = new Date(punchOut.time);
+          hours = ((outTime - inTime) / (1000 * 60 * 60)).toFixed(2);
+        }
+      }
+
       let reason = "";
       let id = "normal";
 
@@ -220,6 +239,7 @@ function checkAttendance(attendanceRows) {
         date: date,
         record: safeRecord,
         reason: reason,
+        hours: parseFloat(hours) || 0,
         id: id
       });
     }

@@ -39,7 +39,8 @@ async function renderCalendar(date, isrefresh = false) {
         const records = monthDataCache[monthkey];
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
         recordMonthNavigation(date);
-
+        // 背景預載詳細資料，提高點擊日期紀錄速度
+        prefetchMonthDetails(monthkey);
         // 🚀 即使快取命中，也異步預加載相鄰月份
         preloadAdjacentMonths(date);
     } else {
@@ -48,23 +49,23 @@ async function renderCalendar(date, isrefresh = false) {
         calendarGrid.innerHTML = '<div data-i18n="LOADING" class="col-span-full text-center text-gray-500 py-4">正在載入...</div>';
         renderTranslations(calendarGrid);
         try {
-            //const res = await callApifetch(`getAttendanceDetails&month=${monthkey}&userId=${userId}`);
             const res = await callApifetch({
                 action: 'getCalendarSummary',
                 month: monthkey,
                 userId: userId
-            })
+            });
             if (res.ok) {
-                // 將資料存入快取
                 cacheMonthData(monthkey, res.records.dailyStatus);
 
                 // 收到資料後，清空載入訊息
                 calendarGrid.innerHTML = '';
 
-                // 從快取取得本月資料
                 const records = monthDataCache[monthkey] || [];
                 renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
                 recordMonthNavigation(date);
+
+                // 背景預加載詳細資料，提高點擊紀錄速度
+                prefetchMonthDetails(monthkey);
 
                 // 🚀 異步預加載相鄰月份（非阻塞）
                 preloadAdjacentMonths(date);
@@ -135,6 +136,69 @@ function cacheMonthData(monthkey, data) {
         const oldestKey = monthCacheOrder.shift();
         delete monthDataCache[oldestKey];
     }
+}
+
+function cacheDetailMonthData(monthkey, data) {
+    const existingIndex = detailMonthCacheOrder.indexOf(monthkey);
+    if (existingIndex !== -1) {
+        detailMonthCacheOrder.splice(existingIndex, 1);
+    }
+    detailMonthCacheOrder.push(monthkey);
+    detailMonthDataCache[monthkey] = data;
+    while (detailMonthCacheOrder.length > MAX_DETAIL_MONTH_CACHE_ENTRIES) {
+        const oldestKey = detailMonthCacheOrder.shift();
+        delete detailMonthDataCache[oldestKey];
+    }
+}
+
+async function prefetchMonthDetails(monthkey) {
+    if (detailMonthDataCache[monthkey]) return;
+    if (monthDetailLoadPromises[monthkey]) return;
+    const userId = localStorage.getItem("sessionUserId") || window.userId;
+    if (!userId) return;
+
+    monthDetailLoadPromises[monthkey] = callApifetch({
+        action: 'getAttendanceDetails',
+        month: monthkey,
+        userId: userId
+    }).then(res => {
+        if (res.ok) {
+            cacheDetailMonthData(monthkey, res.records.dailyStatus || []);
+        }
+        return res;
+    }).finally(() => {
+        delete monthDetailLoadPromises[monthkey];
+    });
+
+    return monthDetailLoadPromises[monthkey];
+}
+
+async function loadMonthDetailData(monthkey) {
+    if (detailMonthDataCache[monthkey]) {
+        return detailMonthDataCache[monthkey];
+    }
+    if (monthDetailLoadPromises[monthkey]) {
+        const res = await monthDetailLoadPromises[monthkey];
+        return res.ok ? (res.records.dailyStatus || []) : [];
+    }
+    const userId = localStorage.getItem("sessionUserId") || window.userId;
+    if (!userId) return [];
+
+    try {
+        const res = await callApifetch({
+            action: 'getAttendanceDetails',
+            month: monthkey,
+            userId: userId
+        });
+        if (res.ok) {
+            const details = res.records.dailyStatus || [];
+            cacheDetailMonthData(monthkey, details);
+            return details;
+        }
+    } catch (err) {
+        console.error('Failed to load detailed month data:', err);
+    }
+    return [];
 }
 
 function formatMonthKey(date) {
@@ -349,21 +413,19 @@ async function renderDailyRecords(dateKey) {
     const userId = localStorage.getItem("sessionUserId");
 
     try {
-        const res = await callApifetch({
-            action: 'getAttendanceDetails',
-            month: month,
-            userId: userId
-        })
-        recordsLoading.style.display = 'none';
-        if (res.ok) {
-            console.log('API response for', dateKey, ':', res);
-            renderRecords(res.records.dailyStatus);
-        } else {
-            console.error("Failed to fetch attendance records:", res.msg);
-            showNotification(t("ERROR_FETCH_RECORDS"), "error");
+        const cachedDetails = detailMonthDataCache[month];
+        if (cachedDetails) {
+            recordsLoading.style.display = 'none';
+            return renderRecords(cachedDetails);
         }
+
+        const details = await loadMonthDetailData(month);
+        recordsLoading.style.display = 'none';
+        renderRecords(details);
     } catch (err) {
+        recordsLoading.style.display = 'none';
         console.error('API call failed:', err);
+        showNotification(t("ERROR_FETCH_RECORDS"), "error");
     }
 
     /**

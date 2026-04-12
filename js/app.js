@@ -50,6 +50,8 @@ async function ensureLogin() {
                     document.getElementById("user-name").textContent = res.user.name;
                     document.getElementById("profile-img").src = res.user.picture || res.user.rate;
                     localStorage.setItem("sessionUserId", res.user.userId);
+                    localStorage.setItem("userName", res.user.name);
+                    localStorage.setItem("userPicture", res.user.picture || res.user.rate);
                     userId = res.user.userId;
                     showNotification(t("LOGIN_SUCCESS"));
 
@@ -291,8 +293,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             loginBtn.style.display = 'block';
         }
     } else {
-        // 處理沒有 otoken 的情況 (檢查是否有 sessionToken)
-        loginResult = await ensureLogin();
+        // 處理沒有 otoken 的情況
+        // 檢查是否已經有有效的登入狀態（避免重新整理時重新登入）
+        const sessionToken = localStorage.getItem("sessionToken");
+        const sessionUserId = localStorage.getItem("sessionUserId");
+        const isAdmin = localStorage.getItem("isAdmin") === 'true';
+
+        if (sessionToken && sessionUserId) {
+            // 如果本地已有登入狀態，直接使用而不重新檢查
+            console.log("使用已存在的登入狀態，避免重新登入");
+            loginResult = { isLoggedIn: true, isAdmin: isAdmin };
+
+            // 恢復用戶介面
+            document.getElementById("user-name").textContent = localStorage.getItem("userName") || "用戶";
+            document.getElementById("profile-img").src = localStorage.getItem("userPicture") || "";
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('user-header').style.display = 'flex';
+            document.getElementById('main-app').style.display = 'block';
+
+            if (isAdmin) {
+                document.getElementById('tab-admin-btn').style.display = 'block';
+            }
+
+            // 設置全域 userId 變數
+            userId = sessionUserId;
+
+            initLocationMap();
+            checkAbnormal();
+            checkAutoPunch(); // 添加自動打卡檢查
+        } else {
+            // 沒有本地狀態，檢查會話
+            loginResult = await ensureLogin();
+        }
     }
 
     // ==========================================
