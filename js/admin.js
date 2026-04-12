@@ -75,6 +75,7 @@ async function renderAdminCalendar(userId, date) {
         console.log(`[Cache Hit] Loading data for ${cacheKey}`);
         updateCalendarUI(adminMonthDataCache[cacheKey]);
         recordAdminMonthNavigation(date);
+        prefetchMonthDetails(apiMonthParam, userId);
         preloadAdjacentAdminMonths(date, userId);
 
     } else {
@@ -99,6 +100,7 @@ async function renderAdminCalendar(userId, date) {
                 // 更新 UI
                 updateCalendarUI(records);
                 recordAdminMonthNavigation(date);
+                prefetchMonthDetails(apiMonthParam, userId);
                 preloadAdjacentAdminMonths(date, userId);
             } else {
                 // API 回傳錯誤
@@ -622,21 +624,28 @@ async function renderAdminDailyRecords(dateKey, userId) {
     const monthKey = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
 
     try {
-        const res = await callApifetch({
-            action: 'getAttendanceDetails',
-            month: monthKey,
-            targetUserId: userId
-        }, 'admin-records-loading');
-
+        const details = await loadMonthDetailData(monthKey, userId);
         adminRecordsLoading.style.display = 'none';
 
-        if (res.ok) {
-            renderRecords(res.records.dailyStatus);
+        if (details !== null && details !== undefined) {
+            renderRecords(details);
         } else {
-            console.error("Admin: Failed to fetch attendance records:", res.msg);
-            showNotification(t("ERROR_FETCH_RECORDS"), "error");
+            const res = await callApifetch({
+                action: 'getAttendanceDetails',
+                month: monthKey,
+                targetUserId: userId
+            }, 'admin-records-loading');
+
+            adminRecordsLoading.style.display = 'none';
+            if (res.ok) {
+                renderRecords(res.records.dailyStatus);
+            } else {
+                console.error("Admin: Failed to fetch attendance records:", res.msg);
+                showNotification(t("ERROR_FETCH_RECORDS"), "error");
+            }
         }
     } catch (err) {
+        adminRecordsLoading.style.display = 'none';
         console.error(err);
     }
 

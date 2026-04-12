@@ -151,38 +151,42 @@ function cacheDetailMonthData(monthkey, data) {
     }
 }
 
-async function prefetchMonthDetails(monthkey) {
-    if (detailMonthDataCache[monthkey]) return;
-    if (monthDetailLoadPromises[monthkey]) return;
-    const userId = localStorage.getItem("sessionUserId") || window.userId;
+async function prefetchMonthDetails(monthkey, targetUserId = null) {
+    const userId = targetUserId || localStorage.getItem("sessionUserId") || window.userId;
     if (!userId) return;
+    const cacheKey = `${userId}-${monthkey}`;
 
-    monthDetailLoadPromises[monthkey] = callApifetch({
+    if (detailMonthDataCache[cacheKey]) return;
+    if (monthDetailLoadPromises[cacheKey]) return;
+
+    monthDetailLoadPromises[cacheKey] = callApifetch({
         action: 'getAttendanceDetails',
         month: monthkey,
         userId: userId
     }).then(res => {
         if (res.ok) {
-            cacheDetailMonthData(monthkey, res.records.dailyStatus || []);
+            cacheDetailMonthData(cacheKey, res.records.dailyStatus || []);
         }
         return res;
     }).finally(() => {
-        delete monthDetailLoadPromises[monthkey];
+        delete monthDetailLoadPromises[cacheKey];
     });
 
-    return monthDetailLoadPromises[monthkey];
+    return monthDetailLoadPromises[cacheKey];
 }
 
-async function loadMonthDetailData(monthkey) {
-    if (detailMonthDataCache[monthkey]) {
-        return detailMonthDataCache[monthkey];
+async function loadMonthDetailData(monthkey, targetUserId = null) {
+    const userId = targetUserId || localStorage.getItem("sessionUserId") || window.userId;
+    if (!userId) return [];
+    const cacheKey = `${userId}-${monthkey}`;
+
+    if (detailMonthDataCache[cacheKey]) {
+        return detailMonthDataCache[cacheKey];
     }
-    if (monthDetailLoadPromises[monthkey]) {
-        const res = await monthDetailLoadPromises[monthkey];
+    if (monthDetailLoadPromises[cacheKey]) {
+        const res = await monthDetailLoadPromises[cacheKey];
         return res.ok ? (res.records.dailyStatus || []) : [];
     }
-    const userId = localStorage.getItem("sessionUserId") || window.userId;
-    if (!userId) return [];
 
     try {
         const res = await callApifetch({
@@ -192,7 +196,7 @@ async function loadMonthDetailData(monthkey) {
         });
         if (res.ok) {
             const details = res.records.dailyStatus || [];
-            cacheDetailMonthData(monthkey, details);
+            cacheDetailMonthData(cacheKey, details);
             return details;
         }
     } catch (err) {
