@@ -26,6 +26,13 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // #region 1. 核心打卡邏輯
 // ===================================
 
+let lastPunchPosition = null;
+const PUNCH_GEOLOCATION_OPTIONS = {
+    enableHighAccuracy: false,
+    timeout: 5000,
+    maximumAge: 300000 // 5 分鐘內的快取位置
+};
+
 async function doPunch(type) {
     const punchButtonId = type === '上班' ? 'punch-in-btn' : 'punch-out-btn';
 
@@ -45,13 +52,9 @@ async function doPunch(type) {
         return;
     }
 
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-        // --- 定位成功：執行 API 請求 ---
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
+    const submitPunch = async (lat, lng) => {
         try {
-            const res = await callApifetch({ // callApifetch 來自 core.js
+            const res = await callApifetch({
                 action: 'punch',
                 type: type,
                 lat: lat,
@@ -59,26 +62,35 @@ async function doPunch(type) {
                 note: navigator.userAgent
             });
             const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
-            showNotification(msg, res.ok ? "success" : "error"); // showNotification 來自 core.js
-
-            // D. 退出點 2: API 成功後
+            showNotification(msg, res.ok ? "success" : "error");
             generalButtonState(button, 'idle');
 
-            // 💡 建議：打卡成功後檢查當日異常紀錄
             if (res.ok) {
-                checkAbnormal(); // 檢查異常紀錄
+                checkAbnormal();
             }
-
         } catch (err) {
             console.error(err);
             generalButtonState(button, 'idle');
         }
+    };
 
+    const canUseCachedPosition = lastPunchPosition && (Date.now() - lastPunchPosition.timestamp < PUNCH_GEOLOCATION_OPTIONS.maximumAge);
+    if (canUseCachedPosition) {
+        submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude);
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        lastPunchPosition = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            timestamp: Date.now()
+        };
+        await submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude);
     }, (err) => {
-        // --- 定位失敗：處理權限錯誤等 ---
         showNotification(t("ERROR_GEOLOCATION", { msg: err.message }), "error");
         generalButtonState(button, 'idle');
-    });
+    }, PUNCH_GEOLOCATION_OPTIONS);
 }
 // #endregion
 
