@@ -236,6 +236,11 @@ html.dark .notification {
     font-weight: bold;
 }
 
+.day-cell.holiday-text {
+    color: #ef4444;
+    font-weight: bold;
+}
+
 .day-cell:hover {
     transform: translateY(-2px);
     box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -290,6 +295,11 @@ html.dark .day-cell.today {
     /* dark:bg-green-700 */
     color: #bbf7d0;
     /* dark:text-green-200 */
+}
+
+html.dark .day-cell.holiday-text {
+    color: #fb7185;
+    font-weight: bold;
 }
 
 html.dark .day-cell:hover {

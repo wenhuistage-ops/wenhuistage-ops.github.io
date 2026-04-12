@@ -193,18 +193,18 @@ function checkAttendance(attendanceRows) {
 
       if (!hasPair) {
         if (punchInCount === 0 && punchOutCount === 0) {
-          reason = "未打上班卡, 未打下班卡";
+          reason = "STATUS_PUNCH_IN_MISSING";
         } else if (punchInCount > 0) {
-          reason = "未打下班卡";
-        } else if (punchOutCount > 0) {
-          reason = "未打上班卡";
+          reason = "STATUS_PUNCH_OUT_MISSING";
+        } else {
+          reason = "STATUS_PUNCH_IN_MISSING";
         }
       } else if (isAllApproved) {
-        reason = "補卡通過";
+        reason = "STATUS_REPAIR_APPROVED";
       } else if (hasAdjustment) {
-        reason = "有補卡(審核中)";
+        reason = "STATUS_REPAIR_PENDING";
       } else {
-        reason = "正常";
+        reason = "STATUS_PUNCH_NORMAL";
       }
 
       if (reason) {

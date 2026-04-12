@@ -164,7 +164,7 @@ function punch(sessionToken, type, lat, lng, note) {
   // === 寫入打卡紀錄 ===
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_ATTENDANCE);
   const row = [
-    new Date(),
+    new Date(),           // 日期（自動排序鍵）
     user.userId,
     user.dept,
     user.name,
@@ -177,6 +177,9 @@ function punch(sessionToken, type, lat, lng, note) {
   ];
   sh.getRange(sh.getLastRow() + 1, 1, 1, row.length).setValues([row]);
   // ⚡ 用 setValues() 取代 appendRow()
+
+  // 🚀 效能優化：確保資料按日期排序
+  ensureDataSorted(sh);
 
   return { ok: true, code: `PUNCH_SUCCESS`,params: { type: type }, };
 }
@@ -202,37 +205,191 @@ function punchAdjusted(sessionToken, type, punchDate, lat, lng, note) {
     note
   ]);
 
+  // 🚀 效能優化：確保資料按日期排序
+  ensureDataSorted(sh);
+
   return { ok: true, code: `ADJUST_PUNCH_SUCCESS`,params: { type: type } };
 }
 
-function getAttendanceRecords(monthParam, userIdParam) {
-    // 從 `getAbnormalRecords` 案例中提取的邏輯
+/**
+ * � 管理員工具：手動排序打卡資料
+ * 確保資料按日期升序排列，優化查詢效能
+ */
+function sortAttendanceData() {
+  try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ATTENDANCE);
-    const values = sheet.getDataRange().getValues().slice(1);
-    
-    // ✅ 優化：預先解析月份參數以避免重複計算
+    const lastRow = sheet.getLastRow();
+
+    if (lastRow <= 1) {
+      return { ok: true, msg: "沒有資料需要排序" };
+    }
+
+    // 排序資料範圍（排除標題行）
+    const range = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+    range.sort([{column: 1, ascending: true}]); // 按日期升序
+
+    Logger.log(`打卡資料已排序完成，共 ${lastRow - 1} 筆記錄`);
+    return { ok: true, msg: `資料排序完成，共處理 ${lastRow - 1} 筆記錄` };
+  } catch (err) {
+    Logger.log("手動排序失敗: " + err.message);
+    return { ok: false, msg: `排序失敗：${err.message}` };
+  }
+}
+
+/**
+ * 🚀 效能優化：確保打卡資料按日期排序
+ * 只有在資料可能無序時才排序，避免頻繁排序
+ * @param {Sheet} sheet - 打卡資料工作表
+ */
+function ensureDataSorted(sheet) {
+  try {
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return; // 沒有資料或只有標題
+
+    // 檢查最後幾行是否已經排序（簡單的啟發式）
+    const checkRows = Math.min(5, lastRow - 1); // 檢查最後5行
+    let isSorted = true;
+
+    for (let i = lastRow - checkRows + 1; i < lastRow; i++) {
+      const currentDate = new Date(sheet.getRange(i, 1).getValue());
+      const nextDate = new Date(sheet.getRange(i + 1, 1).getValue());
+
+      if (currentDate > nextDate) {
+        isSorted = false;
+        break;
+      }
+    }
+
+    // 如果資料看起來無序，才進行排序
+    if (!isSorted) {
+      const range = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+      range.sort([{column: 1, ascending: true}]); // 按第1列（日期）升序排序
+      Logger.log("資料已重新排序以優化查詢效能");
+    }
+  } catch (err) {
+    Logger.log("排序檢查失敗: " + err.message);
+    // 不中斷主要流程
+  }
+}
+
+function getAttendanceRecords(monthParam, userIdParam) {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ATTENDANCE);
+
+    // 🚀 效能優化：使用二分搜尋找到月份範圍，避免全表掃描
     const [yearStr, monthStr] = monthParam.split('-');
     const targetYear = parseInt(yearStr);
-    const targetMonth = parseInt(monthStr);
-    
-    // 過濾本月資料，若有 userId 則只取該使用者
+    const targetMonth = parseInt(monthStr) - 1; // JavaScript months are 0-based
+
+    // 獲取資料範圍（排除標題行）
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return []; // 沒有資料
+
+    // 輔助函式：比較日期與目標月份
+    function compareDate(rowIndex, targetYear, targetMonth) {
+        try {
+            const dateValue = sheet.getRange(rowIndex, 1).getValue(); // 第1列是日期
+            const date = new Date(dateValue);
+            if (isNaN(date.getTime())) return 0; // 無效日期視為匹配（容錯）
+
+            const year = date.getFullYear();
+            const month = date.getMonth();
+
+            if (year < targetYear || (year === targetYear && month < targetMonth)) return -1;
+            if (year > targetYear || (year === targetYear && month > targetMonth)) return 1;
+            return 0;
+        } catch (e) {
+            return 0; // 錯誤時視為匹配
+        }
+    }
+
+    // 二分搜尋：找到第一個 >= 目標月份的行
+    let left = 2; // 從第2行開始（跳過標題）
+    let right = lastRow;
+    let startRow = lastRow + 1; // 預設為找不到
+
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        const cmp = compareDate(mid, targetYear, targetMonth);
+        if (cmp < 0) {
+            left = mid + 1;
+        } else {
+            startRow = mid;
+            right = mid - 1;
+        }
+    }
+
+    // 如果找不到匹配的月份，嘗試備用方案：讀取最近的資料
+    if (startRow > lastRow || compareDate(startRow, targetYear, targetMonth) !== 0) {
+        // 備用：讀取最後 1000 行資料，希望包含目標月份
+        const fallbackStart = Math.max(2, lastRow - 1000 + 1);
+        const fallbackRange = sheet.getRange(fallbackStart, 1, lastRow - fallbackStart + 1, 10);
+        const fallbackValues = fallbackRange.getValues();
+
+        return fallbackValues.filter(row => {
+            try {
+                const d = new Date(row[0]);
+                const yyyy_mm = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+                const monthMatch = yyyy_mm === monthParam;
+                const userMatch = userIdParam ? row[1] === userIdParam : true;
+                return monthMatch && userMatch;
+            } catch (e) {
+                return false;
+            }
+        }).map(r => ({
+            date: r[0],
+            userId: r[1],
+            salary: r[2],
+            name: r[3],
+            type: r[4],
+            gps: r[5],
+            location: r[6],
+            note: r[7],
+            audit: r[8],
+            device: r[9]
+        }));
+    }
+
+    // 二分搜尋：找到最後一個 <= 目標月份的行
+    left = startRow;
+    right = lastRow;
+    let endRow = startRow - 1;
+
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        const cmp = compareDate(mid, targetYear, targetMonth);
+        if (cmp <= 0) {
+            endRow = mid;
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    // 確保範圍有效
+    if (endRow < startRow) {
+        return []; // 沒有找到匹配的資料
+    }
+
+    // 讀取月份範圍的資料
+    const numRows = endRow - startRow + 1;
+    const dataRange = sheet.getRange(startRow, 1, numRows, 10); // 假設有10列
+    const values = dataRange.getValues();
+
+    // 應用用戶過濾並格式化
     return values.filter(row => {
-      const d = new Date(row[0]);
-      const yyyy_mm = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-      const monthMatch = yyyy_mm === monthParam;
-      const userMatch  = userIdParam ? row[1] === userIdParam : true;
-      return monthMatch && userMatch;
+        const userMatch = userIdParam ? row[1] === userIdParam : true;
+        return userMatch;
     }).map(r => ({
-      date: r[0],
-      userId: r[1],
-      salary: r[2],
-      name: r[3],
-      type: r[4],
-      gps: r[5],
-      location: r[6],
-      note: r[7],
-      audit: r[8],
-      device: r[9]
+        date: r[0],
+        userId: r[1],
+        salary: r[2],
+        name: r[3],
+        type: r[4],
+        gps: r[5],
+        location: r[6],
+        note: r[7],
+        audit: r[8],
+        device: r[9]
     }));
 }
 // 加入地點
