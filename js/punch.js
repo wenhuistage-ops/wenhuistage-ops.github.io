@@ -312,6 +312,7 @@ function bindPunchEvents() {
                 const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
                 const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
                 const bothMissing = hasPunchInMissing && hasPunchOutMissing;
+                const isBothMissing = reason === "STATUS_BOTH_MISSING";
 
                 // 決定按鈕顯示邏輯
                 let formTitle = "補打卡";
@@ -319,7 +320,20 @@ function bindPunchEvents() {
                 let defaultTime = "09:00";
                 let isFullDayForm = false;
 
-                if (bothMissing) {
+                if (isBothMissing) {
+                    // 本日未打卡：顯示兩個按鈕（上班和下班）
+                    formTitle = "本日未打卡";
+                    buttonsHtml = `
+                        <button data-type="in" data-i18n="BTN_ADJUST_IN"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                            補全上班打卡
+                        </button>
+                        <button data-type="out" data-i18n="BTN_ADJUST_OUT"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                            補全下班打卡
+                        </button>`;
+                    defaultTime = "08:00"; // 上班卡預設早上8點
+                } else if (bothMissing) {
                     // 都沒有：顯示三個按鈕
                     formTitle = "本日為打卡";
                     buttonsHtml = `
@@ -358,18 +372,41 @@ function bindPunchEvents() {
                     <div class="p-4 border-t border-gray-200 fade-in ">
                         <p class="font-semibold mb-2">${formTitle}：<span class="text-indigo-600">${date}</span></p>
                         <div id="timeInputsContainer">
-                            <div class="form-group mb-3">
-                                <label for="adjustDateTime" data-i18n="SELECT_DATETIME_LABEL" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">選擇日期與時間：</label>
-                                <input id="adjustDateTime"
-                                    type="datetime-local"
-                                    class="w-full p-2
-                                            border border-gray-300 dark:border-gray-600
-                                            rounded-md shadow-sm
-                                            dark:bg-gray-700 dark:text-white
-                                            focus:ring-indigo-500 focus:border-indigo-500">
-                            </div>
+                            ${isBothMissing ? `
+                                <div class="form-group mb-3">
+                                    <label for="adjustInTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">上班時間：</label>
+                                    <input id="adjustInTime"
+                                        type="datetime-local"
+                                        class="w-full p-2
+                                                border border-gray-300 dark:border-gray-600
+                                                rounded-md shadow-sm
+                                                dark:bg-gray-700 dark:text-white
+                                                focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label for="adjustOutTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">下班時間：</label>
+                                    <input id="adjustOutTime"
+                                        type="datetime-local"
+                                        class="w-full p-2
+                                                border border-gray-300 dark:border-gray-600
+                                                rounded-md shadow-sm
+                                                dark:bg-gray-700 dark:text-white
+                                                focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                            ` : `
+                                <div class="form-group mb-3">
+                                    <label for="adjustDateTime" data-i18n="SELECT_DATETIME_LABEL" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">選擇日期與時間：</label>
+                                    <input id="adjustDateTime"
+                                        type="datetime-local"
+                                        class="w-full p-2
+                                                border border-gray-300 dark:border-gray-600
+                                                rounded-md shadow-sm
+                                                dark:bg-gray-700 dark:text-white
+                                                focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                            `}
                         </div>
-                        <div class="grid grid-cols-1 ${bothMissing ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-2">
+                        <div class="grid grid-cols-1 ${isBothMissing ? 'sm:grid-cols-2' : (bothMissing ? 'sm:grid-cols-3' : 'sm:grid-cols-1')} gap-2">
                             ${buttonsHtml}
                         </div>
                     </div>
@@ -377,39 +414,15 @@ function bindPunchEvents() {
                 adjustmentFormContainer.innerHTML = formHtml;
                 renderTranslations(adjustmentFormContainer); // 來自 core.js
 
-                const adjustDateTimeInput = document.getElementById("adjustDateTime");
-                adjustDateTimeInput.value = `${date}T${defaultTime}`;
-
-                // 為全日打卡按鈕添加特殊處理
-                const fullDayBtn = adjustmentFormContainer.querySelector('button[data-type="full"]');
-                if (fullDayBtn) {
-                    fullDayBtn.addEventListener('click', function () {
-                        const timeInputsContainer = document.getElementById("timeInputsContainer");
-                        timeInputsContainer.innerHTML = `
-                            <div class="form-group mb-3">
-                                <label for="adjustInTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">上班時間：</label>
-                                <input id="adjustInTime"
-                                    type="datetime-local"
-                                    class="w-full p-2
-                                            border border-gray-300 dark:border-gray-600
-                                            rounded-md shadow-sm
-                                            dark:bg-gray-700 dark:text-white
-                                            focus:ring-indigo-500 focus:border-indigo-500">
-                            </div>
-                            <div class="form-group mb-3">
-                                <label for="adjustOutTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">下班時間：</label>
-                                <input id="adjustOutTime"
-                                    type="datetime-local"
-                                    class="w-full p-2
-                                            border border-gray-300 dark:border-gray-600
-                                            rounded-md shadow-sm
-                                            dark:bg-gray-700 dark:text-white
-                                            focus:ring-indigo-500 focus:border-indigo-500">
-                            </div>
-                        `;
-                        document.getElementById("adjustInTime").value = `${date}T08:00`;
-                        document.getElementById("adjustOutTime").value = `${date}T18:00`;
-                    });
+                // 設置默認時間值
+                if (isBothMissing) {
+                    document.getElementById("adjustInTime").value = `${date}T08:00`;
+                    document.getElementById("adjustOutTime").value = `${date}T18:00`;
+                } else {
+                    const adjustDateTimeInput = document.getElementById("adjustDateTime");
+                    if (adjustDateTimeInput) {
+                        adjustDateTimeInput.value = `${date}T${defaultTime}`;
+                    }
                 }
             } else if (e.target.classList.contains('leave-btn')) {
                 // 請假按鈕處理邏輯

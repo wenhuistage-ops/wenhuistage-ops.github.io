@@ -101,7 +101,7 @@ function handleGetAbnormalRecords(params) {
       abnormalIdCounter++;
       abnormalResults.push({
         date: dateStr,
-        reason: "STATUS_PUNCH_IN_MISSING,STATUS_PUNCH_OUT_MISSING",
+        reason: "STATUS_BOTH_MISSING", // 修改：當天完全沒有打卡記錄
         id: `abnormal-${abnormalIdCounter}`
       });
       Logger.log("發現異常記錄: " + dateStr + " - 完全沒有打卡記錄");
@@ -127,7 +127,9 @@ function handleSubmitLeave(params) {
       return { ok: false, code: "ERR_INVALID_SESSION", msg: "無效的登入狀態" };
     }
     
-    const userId = user.userId;
+    const userId = user.user.userId;
+    const userName = user.user.name;
+    const userDept = user.user.dept;
     
     // 在打卡記錄表中添加請假/休假記錄
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ATTENDANCE);
@@ -136,8 +138,8 @@ function handleSubmitLeave(params) {
     const leaveRecord = [
       new Date(date), // 打卡時間（使用請假日期）
       userId, // 用戶ID
-      "", // 部門（空）
-      "", // 姓名（空）
+      userDept || "", // 部門
+      userName || "", // 姓名
       type === 'leave' ? '請假' : '休假', // 類型
       "(0,0)", // GPS位置
       reason, // 地點名稱欄位用於存放原因

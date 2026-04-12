@@ -141,6 +141,7 @@
   "ERR_AFTER_TODAY": "⚠️ Không thể chọn thời gian sau hôm nay.",
   "STATUS_PUNCH_OUT_MISSING": "Thiếu chấm công ra",
   "STATUS_PUNCH_IN_MISSING": "Thiếu chấm công vào",
+  "STATUS_BOTH_MISSING": "Không chấm công hôm nay",
   "STATUS_REPAIR_PENDING": "Chấm công bổ sung (Đang chờ duyệt)",
   "STATUS_REPAIR_APPROVED": "Chấm công bổ sung đã duyệt",
   "PUNCH_IN": "Chấm công vào",
