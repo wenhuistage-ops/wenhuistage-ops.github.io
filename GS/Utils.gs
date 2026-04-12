@@ -51,14 +51,15 @@ function checkAttendanceAbnormal(attendanceRows) {
   const abnormalRecords = []; // 新增：用於儲存格式化的異常紀錄
   let abnormalIdCounter = 0; // 新增：用於產生唯一的 id
   
-  Logger.log("checkAttendanceAbnormal開始");
+  Logger.log("checkAttendanceAbnormal開始，記錄數量: " + attendanceRows.length);
   const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  
   attendanceRows.forEach(row => {
     try {
       const date = getYmdFromRow(row);
       const userId = row.userId;
-        // 🚫 跳過今天的資料
-      if (date === today) return;
+      
+      // 記錄所有日期（包括今天），但在最終判斷時再決定是否顯示
       if (!dailyRecords[userId]) dailyRecords[userId] = {};
       if (!dailyRecords[userId][date]) dailyRecords[userId][date] = [];
       dailyRecords[userId][date].push(row);
@@ -68,40 +69,75 @@ function checkAttendanceAbnormal(attendanceRows) {
     }
   });
 
+  Logger.log("分組後的記錄: " + JSON.stringify(Object.keys(dailyRecords)));
+
   for (const userId in dailyRecords) {
     for (const date in dailyRecords[userId]) {
+      // 跳過今天的記錄（因為可能還沒完成）
+      if (date === today) continue;
+      
       const rows = dailyRecords[userId][date];
+      Logger.log("檢查日期 " + date + " 的記錄數量: " + rows.length);
 
       // 過濾系統虛擬卡
-      const filteredRows = rows.filter(r => r.notes !== "系統虛擬卡");
-      const types = filteredRows.map(r => r.type);
-      const notes = filteredRows.map(r => r.note);
-      const audits =filteredRows.map(r => r.audit);
+      const filteredRows = rows.filter(r => r.note !== "系統虛擬卡");
+      Logger.log("過濾後記錄數量: " + filteredRows.length);
+
+      // 使用與 checkAttendance 相同的邏輯
+      let punchInCount = 0;
+      let punchOutCount = 0;
+      let hasAdjustment = false;
+      let approvedAdjustmentCount = 0;
+      let totalAdjustments = 0;
+      
+      filteredRows.forEach(r => {
+        if (r.type === "上班") punchInCount++;
+        if (r.type === "下班") punchOutCount++;
+        if (r.note === "補打卡") {
+          hasAdjustment = true;
+          totalAdjustments++;
+          if (r.audit === "v") approvedAdjustmentCount++;
+        }
+      });
+
+      Logger.log("日期 " + date + " 統計: 上班=" + punchInCount + ", 下班=" + punchOutCount + ", 補卡=" + totalAdjustments + ", 通過=" + approvedAdjustmentCount);
 
       let reason = "";
-      if (types.length === 0) {
-        reason = "未打上班卡, 未打下班卡";
-      } else if (types.every(t => t === "上班")) {
-        reason = "未打下班卡";
-      } else if (types.every(t => t === "下班")) {
-        reason = "未打上班卡";
-      }else if (notes.every(t => t === "補卡")) {
-        reason = "補卡(審核中)";
-      }else if (audits.every(t => t === "v")) {
-        reason = "補卡通過";
+      
+      // 使用與 checkAttendance 相同的判斷邏輯
+      const hasPair = punchInCount > 0 && punchOutCount > 0;
+      const isAllApproved = totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments;
+
+      if (!hasPair) {
+        if (punchInCount === 0 && punchOutCount === 0) {
+          reason = "STATUS_PUNCH_IN_MISSING,STATUS_PUNCH_OUT_MISSING";
+        } else if (punchInCount > 0) {
+          reason = "STATUS_PUNCH_OUT_MISSING";
+        } else {
+          reason = "STATUS_PUNCH_IN_MISSING";
+        }
+      } else if (isAllApproved) {
+        reason = "STATUS_REPAIR_APPROVED";
+      } else if (hasAdjustment) {
+        reason = "STATUS_REPAIR_PENDING";
+      } else {
+        reason = "STATUS_PUNCH_NORMAL";
       }
 
-      if (reason) {
+      // 只記錄異常記錄（非正常狀態）
+      if (reason && reason !== "STATUS_PUNCH_NORMAL" && reason !== "STATUS_REPAIR_APPROVED") {
         abnormalIdCounter++;
         abnormalRecords.push({
           date: date,
           reason: reason,
           id: `abnormal-${abnormalIdCounter}`
         });
+        Logger.log("發現異常記錄: " + date + " - " + reason);
       }
     }
   }
 
+  Logger.log("最終異常記錄數量: " + abnormalRecords.length);
   Logger.log("checkAttendanceAbnormal debug: %s", JSON.stringify(abnormalRecords));
   return abnormalRecords;
 }

@@ -142,10 +142,15 @@ async function checkAbnormal() {
     const month = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     const userId = localStorage.getItem("sessionUserId"); // 假設您在登入成功後儲存了 sessionUserId
 
+    console.log("檢查異常記錄 - 月份:", month, "用戶ID:", userId); // 添加調試信息
+
     // 假設 recordsLoading 也在 state.js 中宣告
     const recordsLoading = recordsLoadingEl; // 假設您在 state.js 中宣告為 recordsLoadingEl
 
-    if (!recordsLoading) return; // 錯誤處理
+    if (!recordsLoading) {
+        console.warn("recordsLoading 元素未找到");
+        return; // 錯誤處理
+    }
 
     recordsLoading.style.display = 'block';
 
@@ -157,6 +162,8 @@ async function checkAbnormal() {
         })
         recordsLoading.style.display = 'none';
 
+        console.log("Abnormal records response:", res); // 添加調試信息
+
         const abnormalRecordsSection = abnormalRecordsSectionEl;
         const abnormalList = abnormalListEl;
         const recordsEmpty = recordsEmptyEl;
@@ -167,8 +174,17 @@ async function checkAbnormal() {
                 recordsEmpty.style.display = 'none';
                 abnormalList.innerHTML = '';
                 res.records.forEach(record => {
-                    // ... (渲染邏輯不變) ...
-                    console.log("Abnormal Record:", record.reason); // 調試輸出
+                    console.log("Abnormal Record:", record.date, record.reason); // 添加調試信息
+
+                    // 處理多重異常情況（如同時缺少上班和下班卡）
+                    const reasons = record.reason.split(',');
+                    const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
+                    const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
+
+                    // 顯示主要異常原因（如果有多個，優先顯示上班卡缺失）
+                    const displayReason = hasPunchInMissing && hasPunchOutMissing ?
+                        "STATUS_PUNCH_IN_MISSING" : record.reason.split(',')[0];
+
                     const li = document.createElement('li');
                     li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
                     li.innerHTML = `
@@ -176,7 +192,7 @@ async function checkAbnormal() {
                             <p class="font-medium text-gray-800 dark:text-white">${record.date}</p>
                             <p class="text-sm text-red-600 dark:text-red-400"
                                data-i18n-dynamic="true"
-                               data-i18n-key="${record.reason}"> 1
+                               data-i18n-key="${displayReason}">
                            </p>
                         </div>
                         <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.date}" data-reason="${record.reason}" 
@@ -243,8 +259,15 @@ function bindPunchEvents() {
             if (e.target.classList.contains('adjust-btn')) {
                 const date = e.target.dataset.date;
                 const reason = e.target.dataset.reason;
-                const hideIn = reason.includes("STATUS_PUNCH_OUT_MISSING");  // 如果缺下班卡，則隱藏補上班卡
-                const hideOut = reason.includes("STATUS_PUNCH_IN_MISSING"); // 如果缺上班卡，則隱藏補下班卡
+
+                // 解析異常原因，支持多重異常
+                const reasons = reason.split(',');
+                const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
+                const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
+
+                // 決定哪些按鈕應該隱藏
+                const hideIn = hasPunchOutMissing;  // 如果缺下班卡，隱藏補上班卡按鈕
+                const hideOut = hasPunchInMissing; // 如果缺上班卡，隱藏補下班卡按鈕
                 const formHtml = `
                     <div class="p-4 border-t border-gray-200 fade-in ">
                         <p data-i18n="ADJUST_BUTTON_TEXT" class="font-semibold mb-2">補打卡：<span class="text-indigo-600">${date}</span></p>
