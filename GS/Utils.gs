@@ -111,10 +111,6 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
       // 跳過未來的日期
       if (dateStr > today) continue;
 
-      // 跳過週末
-      const dayOfWeek = date.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue; // 0=週日, 6=週六
-
       const rows = dailyRecords[userId][dateStr] || [];
       Logger.log("檢查日期 " + dateStr + " 的記錄數量: " + rows.length);
 
@@ -149,7 +145,7 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
 
       if (!hasPair) {
         if (punchInCount === 0 && punchOutCount === 0) {
-          reason = "STATUS_PUNCH_IN_MISSING,STATUS_PUNCH_OUT_MISSING";
+          reason = "STATUS_BOTH_MISSING";
         } else if (punchInCount > 0) {
           reason = "STATUS_PUNCH_OUT_MISSING";
         } else {
@@ -290,7 +286,7 @@ function checkAttendance(attendanceRows) {
 
       if (!hasPair) {
         if (punchInCount === 0 && punchOutCount === 0) {
-          reason = "STATUS_PUNCH_IN_MISSING";
+          reason = "STATUS_BOTH_MISSING";
         } else if (punchInCount > 0) {
           reason = "STATUS_PUNCH_OUT_MISSING";
         } else {

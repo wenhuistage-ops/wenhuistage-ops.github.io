@@ -93,10 +93,6 @@ function handleGetAbnormalRecords(params) {
       // 跳過未來的日期
       if (dateStr > today) continue;
 
-      // 跳過週末
-      const dayOfWeek = date.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue; // 0=週日, 6=週六
-
       // 對於沒有記錄的日期，標記為完全缺少打卡
       abnormalIdCounter++;
       abnormalResults.push({

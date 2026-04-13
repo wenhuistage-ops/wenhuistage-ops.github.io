@@ -204,17 +204,11 @@ function renderAbnormalRecords(records) {
         records.forEach(record => {
             console.log("Abnormal Record:", record.displayDate, record.reason);
 
-            // 處理多重異常情況（如同時缺少上班和下班卡）
-            const reasons = record.reason.split(',');
-            const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
-            const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
+            // 判斷異常類型
+            const displayReason = record.reason; // 直接使用 reason 作為顯示鍵
 
-            // 顯示主要異常原因（如果有多個，優先顯示上班卡缺失）
-            const displayReason = hasPunchInMissing && hasPunchOutMissing ?
-                "STATUS_PUNCH_IN_MISSING" : record.reason.split(',')[0];
-
-            // 判斷是否需要顯示請假和休假按鈕（當上班和下班都沒有時）
-            const showLeaveButtons = hasPunchInMissing && hasPunchOutMissing;
+            // 只有當上班和下班都沒有打卡時，才顯示請假和休假按鈕
+            const showLeaveButtons = record.reason === "STATUS_BOTH_MISSING";
 
             const li = document.createElement('li');
             li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
@@ -307,12 +301,10 @@ function bindPunchEvents() {
                 const date = e.target.dataset.date;
                 const reason = e.target.dataset.reason;
 
-                // 解析異常原因，支持多重異常
-                const reasons = reason.split(',');
-                const hasPunchOutMissing = reasons.includes("STATUS_PUNCH_OUT_MISSING");
-                const hasPunchInMissing = reasons.includes("STATUS_PUNCH_IN_MISSING");
-                const bothMissing = hasPunchInMissing && hasPunchOutMissing;
+                // 判斷異常類型
                 const isBothMissing = reason === "STATUS_BOTH_MISSING";
+                const hasPunchInMissing = reason === "STATUS_PUNCH_IN_MISSING";
+                const hasPunchOutMissing = reason === "STATUS_PUNCH_OUT_MISSING";
 
                 // 決定按鈕顯示邏輯
                 let formTitle = "補打卡";
@@ -333,23 +325,6 @@ function bindPunchEvents() {
                             補全下班打卡
                         </button>`;
                     defaultTime = "08:00"; // 上班卡預設早上8點
-                } else if (bothMissing) {
-                    // 都沒有：顯示三個按鈕
-                    formTitle = "本日為打卡";
-                    buttonsHtml = `
-                        <button data-type="full" data-i18n="BTN_ADJUST_FULL"
-                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-primary">
-                            補全日打卡
-                        </button>
-                        <button data-type="in" data-i18n="BTN_ADJUST_IN"
-                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
-                            補全上班打卡
-                        </button>
-                        <button data-type="out" data-i18n="BTN_ADJUST_OUT"
-                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
-                            補全下班打卡
-                        </button>`;
-                    defaultTime = "08:00"; // 全日打卡預設早上8點
                 } else if (hasPunchInMissing) {
                     // 只缺上班卡：顯示補上班卡按鈕
                     buttonsHtml = `
@@ -406,7 +381,7 @@ function bindPunchEvents() {
                                 </div>
                             `}
                         </div>
-                        <div class="grid grid-cols-1 ${isBothMissing ? 'sm:grid-cols-2' : (bothMissing ? 'sm:grid-cols-3' : 'sm:grid-cols-1')} gap-2">
+                        <div class="grid grid-cols-1 ${isBothMissing ? 'sm:grid-cols-2' : 'sm:grid-cols-1'} gap-2">
                             ${buttonsHtml}
                         </div>
                     </div>
