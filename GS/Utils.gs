@@ -145,6 +145,9 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
       let hasAdjustment = false;
       let approvedAdjustmentCount = 0;
       let totalAdjustments = 0;
+      let hasLeaveRequest = false;
+      let approvedLeaveCount = 0;
+      let totalLeaveRequests = 0;
 
       filteredRows.forEach(r => {
         if (r.type === "上班") punchInCount++;
@@ -154,15 +157,23 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
           totalAdjustments++;
           if (r.audit === "v") approvedAdjustmentCount++;
         }
+        if (r.note === "系統請假記錄") {
+          hasLeaveRequest = true;
+          totalLeaveRequests++;
+          if (r.audit === "v") approvedLeaveCount++;
+        }
       });
 
-      Logger.log("日期 " + dateStr + " 統計: 上班=" + punchInCount + ", 下班=" + punchOutCount + ", 補卡=" + totalAdjustments + ", 通過=" + approvedAdjustmentCount);
+      Logger.log("日期 " + dateStr + " 統計: 上班=" + punchInCount + ", 下班=" + punchOutCount + ", 補卡=" + totalAdjustments + ", 通過=" + approvedAdjustmentCount + ", 請假=" + totalLeaveRequests + ", 請假通過=" + approvedLeaveCount);
 
       let reason = "";
 
       // 使用與 checkAttendance 相同的判斷邏輯
       const hasPair = punchInCount > 0 && punchOutCount > 0;
-      const isAllApproved = totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments;
+      const isAllApproved = (totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments) || 
+                           (totalLeaveRequests > 0 && approvedLeaveCount === totalLeaveRequests);
+      const hasPendingRequest = (hasAdjustment && approvedAdjustmentCount < totalAdjustments) || 
+                               (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests);
 
       if (!hasPair) {
         if (punchInCount === 0 && punchOutCount === 0) {
@@ -174,8 +185,19 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
         }
       } else if (isAllApproved) {
         reason = "STATUS_REPAIR_APPROVED";
-      } else if (hasAdjustment) {
-        reason = "STATUS_REPAIR_PENDING";
+      } else if (hasPendingRequest) {
+        // 檢查是否有請假記錄的待審核請求
+        if (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests) {
+          // 找到請假記錄的類型
+          const leaveRecord = filteredRows.find(r => r.note === "系統請假記錄");
+          if (leaveRecord && leaveRecord.type) {
+            reason = leaveRecord.type === "請假" ? "STATUS_LEAVE_PENDING" : "STATUS_VACATION_PENDING";
+          } else {
+            reason = "STATUS_LEAVE_PENDING"; // 預設為請假
+          }
+        } else {
+          reason = "STATUS_REPAIR_PENDING";
+        }
       } else {
         reason = "STATUS_PUNCH_NORMAL";
       }

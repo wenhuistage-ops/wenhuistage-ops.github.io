@@ -184,6 +184,8 @@
   "STATUS_BOTH_MISSING": "Tidak ada absen hari ini",
   "STATUS_REPAIR_PENDING": "Absen susulan (Tertunda)",
   "STATUS_REPAIR_APPROVED": "Absen susulan disetujui",
+  "STATUS_LEAVE_PENDING": "Cuti (Tertunda)",
+  "STATUS_VACATION_PENDING": "Liburan (Tertunda)",
   "PUNCH_IN": "Absen Masuk",
   "PUNCH_OUT": "Absen Keluar"
 }

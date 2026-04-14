@@ -184,6 +184,8 @@
   "STATUS_BOTH_MISSING": "No punches today",
   "STATUS_REPAIR_PENDING": "Make-up Punch (Pending)",
   "STATUS_REPAIR_APPROVED": "Make-up Punch Approved",
+  "STATUS_LEAVE_PENDING": "Leave (Pending)",
+  "STATUS_VACATION_PENDING": "Vacation (Pending)",
   "PUNCH_IN": "Punch In",
   "PUNCH_OUT": "Punch Out"
 }
