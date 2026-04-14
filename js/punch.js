@@ -435,19 +435,17 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
  * @param {Array} records - 異常記錄陣列
  */
 async function enrichAbnormalRecordsWithApplicationStatus(records) {
-    const userId = localStorage.getItem("sessionUserId");
-
     try {
         // 查詢所有待審核申請
         const res = await callApifetch({
-            action: 'getPendingApplications',
-            userId: userId
+            action: 'getReviewRequest'
         });
 
-        if (res.ok && res.applications) {
+        if (res.ok && res.reviewRequest) {
             // 為每個異常記錄檢查是否有對應的待審核申請
             const applicationsByDate = {};
-            res.applications.forEach(app => {
+            res.reviewRequest.forEach(app => {
+                // 日期格式可能是 YYYY-MM-DD 或其他格式
                 const appDate = app.date || app.displayDate;
                 if (!applicationsByDate[appDate]) {
                     applicationsByDate[appDate] = [];
@@ -457,10 +455,13 @@ async function enrichAbnormalRecordsWithApplicationStatus(records) {
 
             // 將狀態合併到異常記錄中
             records.forEach(record => {
-                if (applicationsByDate[record.displayDate] && applicationsByDate[record.displayDate].length > 0) {
+                // 匹配時需要考慮日期格式，記錄的 displayDate 格式是 YYYY-MM-DD
+                const displayDate = record.displayDate; // 格式: YYYY-MM-DD
+
+                if (applicationsByDate[displayDate] && applicationsByDate[displayDate].length > 0) {
                     record.status = 'pending'; // 有待審核申請
-                    record.applications = applicationsByDate[record.displayDate];
-                    console.log(`異常記錄 ${record.displayDate} 有 ${record.applications.length} 個待審核申請`);
+                    record.applications = applicationsByDate[displayDate];
+                    console.log(`異常記錄 ${displayDate} 有 ${record.applications.length} 個待審核申請`);
                 }
             });
         }
