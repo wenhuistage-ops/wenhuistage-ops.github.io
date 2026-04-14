@@ -30,11 +30,49 @@ async function loadTranslations(lang) {
         translations = await res.json();
         currentLang = lang;
         localStorage.setItem("lang", lang);
+
+        // 檢查翻譯完整性
+        checkTranslationCompleteness(lang);
+
         renderTranslations();
     } catch (err) {
         console.error("載入語系失敗:", err);
     }
 }
+
+/**
+ * 檢查翻譯的完整性，找出缺失的鍵值
+ * @param {string} lang - 語言代碼
+ */
+function checkTranslationCompleteness(lang) {
+    // 定義必須的核心翻譯鍵值（常用的UI元素）
+    const coreTranslationKeys = [
+        'APP_TITLE', 'SUBTITLE_LOGIN', 'LOGIN_INFO', 'BTN_LOGOIN',
+        'BTN_LOGOUT', 'BTN_CANCEL', 'BTN_CONFIRM',
+        'PUNCH_SECTION_TITLE', 'PUNCH_SECTION_DESCRIPTION',
+        'PUNCH_IN_LABEL', 'PUNCH_OUT_LABEL',
+        'TAB_DASHBOARD', 'TAB_MONTHLY', 'TAB_LOCATION', 'TAB_ADMIN'
+    ];
+
+    const missingKeys = [];
+    coreTranslationKeys.forEach(key => {
+        if (!translations[key]) {
+            missingKeys.push(key);
+        }
+    });
+
+    if (missingKeys.length > 0) {
+        console.warn(`⚠️ 語言 ${lang} 缺少以下翻譯鍵值:`, missingKeys);
+        console.warn(`建議檢查 i18n/${lang}.json 文件`);
+    } else {
+        console.log(`✅ 語言 ${lang} 的核心翻譯鍵值完整`);
+    }
+
+    // 記錄翻譯統計資訊
+    const totalKeys = Object.keys(translations).length;
+    console.log(`語言 ${lang} 共有 ${totalKeys} 個翻譯鍵值`);
+}
+
 
 // 翻譯函式
 function t(code, params = {}) {
