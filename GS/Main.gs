@@ -25,11 +25,13 @@
 // 從其他模組匯入函式
 // 這裡沒有 ES6 模組匯入，但我們可以用註解來表示程式碼的來源
 // 實際開發中，GAS 專案會自動將所有 .gs 檔視為同一專案
-// doGet(e) 負責處理所有外部請求
-function doGet(e) {
+
+// ✅ 改進 2.1：統一的請求處理函數（支持 GET 和 POST）
+// 注意：推薦使用 POST 以避免 token 在 URL 中洩露
+function handleRequest(e) {
   const action       = e.parameter.action;
   const callback     = e.parameter.callback || null;
-  const sessionToken = e.parameter.token;
+  const sessionToken = e.parameter.token;  // ✅ 支持 URL 參數或 POST body
   const code         = e.parameter.otoken;
 
   function respond(obj) {
@@ -97,4 +99,14 @@ function doGet(e) {
   } catch (err) {
     return respond({ ok: false, msg: err.message });
   }
+}
+
+// ✅ 改進 2.1：支持 GET 請求（向後相容）
+function doGet(e) {
+  return handleRequest(e);
+}
+
+// ✅ 改進 2.1：支持 POST 請求（推薦使用，token 不在 URL 中）
+function doPost(e) {
+  return handleRequest(e);
 }

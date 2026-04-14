@@ -136,6 +136,7 @@ function renderTranslations(container = document) {
 
 /**
  * 透過 fetch API 呼叫後端 API。
+ * ✅ 改進 2.1：改用 POST 請求，token 在 body 中，不在 URL 中
  * @param {object} params - 包含 action 和所有其他參數的物件 (e.g., { action: '...', month: '...', userId: '...' })
  * @param {string} [loadingId="loading"] - 顯示 loading 狀態的 DOM 元素 ID。
  * @returns {Promise<object>} - 回傳一個包含 API 回應資料的 Promise。
@@ -143,26 +144,33 @@ function renderTranslations(container = document) {
 async function callApifetch(params, loadingId = "loading") {
     const token = localStorage.getItem("sessionToken");
 
-    // 1. 構造 URLSearchParams 物件
+    // 1. 構造 URLSearchParams 物件（用於 POST body）
     const searchParams = new URLSearchParams(params);
 
-    // 2. 自動加入 token
+    // ✅ 改進：將 token 放在 body 中，不在 URL 中
     searchParams.set("token", token);
 
-    // 3. 加入 callback 參數以使用 JSONP 避免 CORS 問題
+    // 2. 加入 callback 參數以使用 JSONP 避免 CORS 問題
     const callback = 'callback' + Date.now() + Math.random().toString(36).substr(2, 9);
     searchParams.set("callback", callback);
 
-    // 4. 構造最終 URL
-    const url = `${API_CONFIG.apiUrl}?${searchParams.toString()}`;
+    // 3. 構造 API URL（不包含任何參數）
+    const url = API_CONFIG.apiUrl;
 
     // 顯示指定的 loading 元素
     const loadingEl = document.getElementById(loadingId);
     if (loadingEl) loadingEl.style.display = "block";
 
     try {
-        // 使用 fetch API 發送請求
-        const response = await fetch(url);
+        // ✅ 改進：改用 POST 請求，避免 token 在 URL 中洩露
+        const response = await fetch(url, {
+            method: 'POST',  // 🌟 改為 POST
+            mode: 'cors',
+            body: searchParams.toString(),  // 參數放在 body 中
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
 
         // 檢查 HTTP 狀態碼
         if (!response.ok) {
