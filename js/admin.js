@@ -1437,14 +1437,13 @@ function setupAdminExport() {
                 userId: userId,
                 token: token
             });
-            const data = await response.json();
-            if (!data || !data.ok || !data.records) {
+            if (!response.ok) {
                 alert('無法取得完整的打卡記錄');
                 return;
             }
 
             // allRecords 是該月份該員工的所有打卡記錄
-            const allRecords = Array.isArray(data.records) ? data.records : [];
+            const allRecords = Array.isArray(response.records) ? data.records : [];
 
             // Sheet 1: 所有完整打卡紀錄
             const completeRecordRows = [
