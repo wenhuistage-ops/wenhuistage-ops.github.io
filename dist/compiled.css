@@ -2441,3 +2441,44 @@ html.dark .leaflet-control-attribution {
   display: inline-block;
   width: 100%;
 }
+/* 🎨 新增請假/休假狀態樣式 */
+.day-cell.leave-pending {
+    background-color: #fed7aa;
+    color: #b45309;
+}
+
+.day-cell.leave-approved {
+    background-color: #c7d2fe;
+    color: #3730a3;
+}
+
+.day-cell.vacation-pending {
+    background-color: #fce7f3;
+    color: #be185d;
+}
+
+.day-cell.vacation-approved {
+    background-color: #d1d5ff;
+    color: #4c1d95;
+}
+
+/* 暗黑模式：請假/休假狀態 */
+html.dark .day-cell.leave-pending {
+    background-color: #92400e;
+    color: #fde68a;
+}
+
+html.dark .day-cell.leave-approved {
+    background-color: #3730a3;
+    color: #e0e7ff;
+}
+
+html.dark .day-cell.vacation-pending {
+    background-color: #831843;
+    color: #fbcfe8;
+}
+
+html.dark .day-cell.vacation-approved {
+    background-color: #4c1d95;
+    color: #e9d5ff;
+}
