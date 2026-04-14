@@ -916,23 +916,24 @@ function renderReviewRequests(requests) {
     requests.forEach((req, index) => {
         const li = document.createElement('li');
         li.className = 'p-4 bg-gray-50 rounded-lg shadow-sm flex flex-col space-y-2 dark:bg-gray-700';
-        
+
         // 判斷是補打卡還是請假/休假
         const isLeaveRequest = req.remark && req.remark !== "補打卡";
-        
+
         // 構建詳情文字
         let detailText = req.name || "（未知）";
         if (isLeaveRequest) {
             // 請假/休假記錄：顯示 "姓名 - 原因"
             detailText = `${req.name || "（未知）"} - ${req.remark || "（無原因）"}`;
         }
-        
+
         li.innerHTML = `
              <div class="flex flex-col space-y-1">
                 <div class="flex items-center justify-between w-full">
                     <div>
                         <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">申請時間: ${req.applicationPeriod || "（未知）"}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">申請時間: ${req.applicationTime || "（未知）"}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}: ${req.targetTime || "（未知）"}</p>
                     </div>
                     <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
                 </div>

@@ -193,8 +193,9 @@ function punchAdjusted(sessionToken, type, punchDate, lat, lng, note) {
   if (!user) return { ok: false, code: "ERR_SESSION_INVALID" };
 
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_ATTENDANCE);
+  const applicationTime = new Date(); // 表單送出時間
   sh.appendRow([
-    punchDate,              // 使用者指定時間
+    punchDate,              // 使用者指定時間（補打卡時間）
     user.userId,
     user.dept,
     user.name,
@@ -203,7 +204,7 @@ function punchAdjusted(sessionToken, type, punchDate, lat, lng, note) {
     "",                     // locationName 補打卡不填
     "補打卡",
     "?",
-    note
+    `申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}${note ? " | " + note : ""}` // 設備信息欄位：申請時間 + 備註
   ]);
 
   // 🚀 效能優化：確保資料按日期排序
@@ -468,7 +469,8 @@ function getReviewRequest() {
     const nameColIdx = 3;         // 打卡人員 (員工名稱)
     const typeColIdx = 4;         // 打卡類別 (上班/下班 或 請假/休假)
     const locationColIdx = 6;     // 地點名稱 (原因存放位置)
-    const dateColIdx = 0;         // 打卡時間
+    const dateColIdx = 0;         // 打卡時間 (請假/補卡時間)
+    const noteColIdx = 9;         // 設備信息 (包含申請時間)
 
     const reviewRequest = values.filter((row, index) => {
         // 跳過標頭列
@@ -488,6 +490,7 @@ function getReviewRequest() {
         const remark = row[remarkColIdx];
         const type = row[typeColIdx];
         const punchDate = row[dateColIdx];
+        const note = row[noteColIdx] || "";
         
         // 對於請假記錄，顯示類型和原因
         let displayType = type;
@@ -499,10 +502,18 @@ function getReviewRequest() {
             displayRemark = row[locationColIdx] || ""; 
         }
         
-        // 格式化申請時間 (yyyy-MM-dd HH:mm)
-        let formattedDate = "";
+        // 解析申請時間和請假/補卡時間
+        let applicationTime = "";
+        let targetTime = "";
+        
         if (punchDate instanceof Date) {
-            formattedDate = Utilities.formatDate(punchDate, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+            targetTime = Utilities.formatDate(punchDate, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+        }
+        
+        // 從設備信息欄位解析申請時間
+        const applicationTimeMatch = note.match(/申請時間:\s*([^\|]+)/);
+        if (applicationTimeMatch) {
+            applicationTime = applicationTimeMatch[1].trim();
         }
         
         return {
@@ -510,7 +521,8 @@ function getReviewRequest() {
             name: row[nameColIdx] || "",
             type: displayType,
             remark: displayRemark,
-            applicationPeriod: formattedDate
+            applicationTime: applicationTime,     // 表單送出時間
+            targetTime: targetTime               // 請假/補卡時間
         };
     });
     

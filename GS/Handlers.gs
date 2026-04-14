@@ -131,8 +131,9 @@ function handleSubmitLeave(params) {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ATTENDANCE);
     
     // 創建請假記錄
+    const applicationTime = new Date(); // 表單送出時間
     const leaveRecord = [
-      new Date(date), // 打卡時間（使用請假日期）
+      new Date(date), // 打卡時間（請假/休假日期）
       userId, // 用戶ID
       userDept || "", // 部門
       userName || "", // 姓名
@@ -141,7 +142,7 @@ function handleSubmitLeave(params) {
       reason, // 地點名稱欄位用於存放原因
       "系統請假記錄", // 備註
       "?", // 管理員審核（待審核）
-      note || "" // 設備信息欄位用於存放備註
+      `申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}${note ? " | " + note : ""}` // 設備信息欄位：申請時間 + 備註
     ];
     
     // 添加到工作表
