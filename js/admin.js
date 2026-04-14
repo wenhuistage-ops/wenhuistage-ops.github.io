@@ -1469,18 +1469,20 @@ function setupAdminExport() {
 
                 // 提取時間字串（處理各種日期格式）
                 let timeStr = '';
+                let dateObj = null;
+
                 if (typeof record.date === 'string') {
-                    if (record.date.includes('T')) {
-                        // ISO 格式：2024-01-15T09:30:00
-                        timeStr = record.date.split('T')[1].substring(0, 5);
-                    } else if (record.date.includes(' ')) {
-                        // 空格格式：2024-01-15 09:30:00
-                        timeStr = record.date.split(' ')[1].substring(0, 5);
-                    }
+                    // 處理格式不標準的空白（將 "2026-02-01 06:31" 轉為 "2026-02-01T06:31" 讓 Date 好讀取）
+                    const standardFormat = record.date.replace(' ', 'T');
+                    dateObj = new Date(standardFormat);
                 } else if (record.date instanceof Date) {
-                    // Date 物件
-                    const h = String(record.date.getHours()).padStart(2, '0');
-                    const m = String(record.date.getMinutes()).padStart(2, '0');
+                    dateObj = record.date;
+                }
+
+                if (dateObj && !isNaN(dateObj.getTime())) {
+                    // 使用 getHours() 會根據使用者電腦的時區顯示
+                    const h = String(dateObj.getHours()).padStart(2, '0');
+                    const m = String(dateObj.getMinutes()).padStart(2, '0');
                     timeStr = `${h}:${m}`;
                 }
 
