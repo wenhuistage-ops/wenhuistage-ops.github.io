@@ -188,9 +188,9 @@ async function handleLocationPermissionDenied(button) {
 // 無定位打卡功能（管理員專用）
 async function submitPunchWithoutLocation(button) {
     try {
-        // 檢查用戶是否為管理員
-        const adminCheck = await callApifetch({ action: 'checkAdminStatus' });
-        if (!adminCheck.isAdmin) {
+        // 🌟 修正點 (問題1.1)：使用新的驗證函數
+        const isAdmin = await verifyAdminPermission();
+        if (!isAdmin) {
             showNotification(t('ADMIN_ONLY_FEATURE') || '此功能僅限管理員使用', "error");
             generalButtonState(button, 'idle');
             return;

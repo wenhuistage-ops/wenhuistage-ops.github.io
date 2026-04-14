@@ -39,8 +39,9 @@ async function ensureLogin() {
                 if (res.ok) {
                     const isAdmin = (res.user.dept === "管理員");
 
-                    // 🌟 關鍵修正：儲存 isAdmin 狀態
-                    localStorage.setItem("isAdmin", isAdmin ? 'true' : 'false');
+                    // 🌟 修正點 (問題1.2)：不再儲存 isAdmin 到 localStorage
+                    // 改為每次需要時從服務器驗證
+                    // localStorage.setItem("isAdmin", isAdmin ? 'true' : 'false'); // ❌ 已移除
 
                     if (isAdmin) {
                         // 顯示管理員按鈕
@@ -181,7 +182,8 @@ function bindEvents() {
 
     logoutBtn.onclick = () => {
         localStorage.removeItem("sessionToken");
-        localStorage.removeItem("isAdmin"); // 清除管理員狀態
+        // 🌟 修正點 (問題1.2)：已移除對 localStorage "isAdmin" 的操作
+        // localStorage.removeItem("isAdmin"); // ❌ 已移除
         localStorage.removeItem("sessionUserId"); // 清除用戶ID
         window.location.href = "/index.html";
     };
@@ -205,9 +207,9 @@ function bindEvents() {
     tabSchedulingBtn.addEventListener('click', () => switchAdminSubTab('scheduling-view'));
 
 
-    // 🌟 修正點：Tab 按鈕點擊時，直接依賴 localStorage 判斷權限
-    tabAdminBtn.addEventListener('click', () => {
-        const isUserAdmin = (localStorage.getItem("isAdmin") === 'true');
+    // 🌟 修正點 (問題1.1)：每次點擊管理員Tab時驗證服務器權限
+    tabAdminBtn.addEventListener('click', async () => {
+        const isUserAdmin = await verifyAdminPermission();
 
         if (isUserAdmin) {
             switchTab('admin-view');
@@ -297,12 +299,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 檢查是否已經有有效的登入狀態（避免重新整理時重新登入）
         const sessionToken = localStorage.getItem("sessionToken");
         const sessionUserId = localStorage.getItem("sessionUserId");
-        const isAdmin = localStorage.getItem("isAdmin") === 'true';
 
         if (sessionToken && sessionUserId) {
-            // 如果本地已有登入狀態，直接使用而不重新檢查
+            // 🌟 修正點 (問題1.2)：不再從 localStorage 讀取 isAdmin
+            // 改為使用 verifyAdminPermission 動態驗證
             console.log("使用已存在的登入狀態，避免重新登入");
-            loginResult = { isLoggedIn: true, isAdmin: isAdmin };
+
+            // 先檢查是否為管理員（用於顯示管理員按鈕）
+            const isUserAdmin = await verifyAdminPermission();
+            loginResult = { isLoggedIn: true, isAdmin: isUserAdmin };
 
             // 恢復用戶介面
             document.getElementById("user-name").textContent = localStorage.getItem("userName") || "用戶";
@@ -311,7 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('user-header').style.display = 'flex';
             document.getElementById('main-app').style.display = 'block';
 
-            if (isAdmin) {
+            if (isUserAdmin) {
                 document.getElementById('tab-admin-btn').style.display = 'block';
             }
 

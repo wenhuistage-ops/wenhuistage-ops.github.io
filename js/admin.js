@@ -872,6 +872,14 @@ function determineDayType(dayOfWeek, isNationalHoliday) {
  * 取得並渲染所有待審核的請求。
  */
 async function fetchAndRenderReviewRequests() {
+    // 🌟 修正點 (問題1.1)：在獲取審核請求前驗證管理員權限
+    const isAdmin = await verifyAdminPermission();
+    if (!isAdmin) {
+        console.error("非管理員用戶嘗試獲取待審核請求");
+        showNotification(t("ERR_NO_PERMISSION") || "您沒有管理員權限", "error");
+        return;
+    }
+
     // 修正：使用全域變數 (來自 state.js 並在 app.js/getDOMElements 中賦值)
     const loadingEl = requestsLoading;
     const emptyEl = requestsEmpty;
@@ -967,8 +975,16 @@ function renderReviewRequests(requests) {
 
 /**
  * 處理審核動作（核准或拒絕）。
+ * 🌟 修正點 (問題1.1)：在執行操作前驗證管理員權限
  */
 async function handleReviewAction(button, index, action) {
+    // 🌟 驗證管理員權限
+    const isAdmin = await verifyAdminPermission();
+    if (!isAdmin) {
+        showNotification(t("ERR_NO_PERMISSION") || "您沒有管理員權限", "error");
+        return;
+    }
+
     const request = pendingRequests[index]; // 來自 state.js
     // ... (錯誤檢查與 API 呼叫邏輯與您提供的相同) ...
 
@@ -1214,11 +1230,19 @@ function initAdminEvents() {
     }
 
     // 5. 處理新增打卡地點
+    // 🌟 修正點 (問題1.1)：在新增地點前驗證管理員權限
     addLocationBtn.addEventListener('click', async () => {
+        // 驗證管理員權限
+        const isAdmin = await verifyAdminPermission();
+        if (!isAdmin) {
+            showNotification(t("ERR_NO_PERMISSION") || "您沒有管理員權限", "error");
+            return;
+        }
+
         const name = locationName.value; // 假設您有宣告 locationName
         const lat = locationLatInput.value;
         const lng = locationLngInput.value;
-        showNotification("請填寫所有欄位並取得位置", "error");
+
         if (!name || !lat || !lng) {
             showNotification("請填寫所有欄位並取得位置", "error");
             return;
@@ -1256,8 +1280,20 @@ function initAdminEvents() {
 
 /**
  * 管理員儀表板的總啟動函式 (供 app.js 呼叫)
+ * 🌟 修正點 (問題1.1)：在載入前驗證管理員權限
  */
 async function loadAdminDashboard() {
+    // 🌟 新增驗證：確保用戶真的有管理員權限
+    const isAdmin = await verifyAdminPermission();
+    if (!isAdmin) {
+        console.error("非管理員用戶嘗試訪問管理員儀表板");
+        showNotification(t("ERR_NO_PERMISSION") || "您沒有管理員權限", "error");
+        // 隱藏管理員 Tab
+        const tabAdminBtn = document.getElementById('tab-admin-btn');
+        if (tabAdminBtn) tabAdminBtn.style.display = 'none';
+        return;
+    }
+
     // 確保 adminEventsBound 在 state.js 中被宣告為 let adminEventsBound = false;
     if (!adminEventsBound) {
         initAdminEvents();

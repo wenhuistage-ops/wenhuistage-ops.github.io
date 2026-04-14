@@ -158,6 +158,51 @@ async function callApifetch(params, loadingId = "loading") {
 // #endregion
 // ===================================
 
+// ===================================
+// #region 3. 管理員權限驗證
+// ===================================
+
+/**
+ * 驗證當前用戶是否為管理員（每次都查詢服務器）
+ * 這是修復問題 1.1 & 1.2 的關鍵函數
+ * @returns {Promise<boolean>} 是否為管理員
+ */
+async function verifyAdminPermission() {
+    try {
+        const res = await callApifetch({ action: 'checkAdminStatus' });
+        return res && res.ok && res.isAdmin === true;
+    } catch (error) {
+        console.error("驗證管理員權限失敗:", error);
+        return false;
+    }
+}
+
+/**
+ * 安全的管理員操作包裝器
+ * 在執行管理員操作前驗證權限
+ * @param {Function} adminOperation - 要執行的管理員操作函數
+ * @returns {Promise<boolean>} 操作是否成功執行
+ */
+async function executeAdminOperation(adminOperation) {
+    const isAdmin = await verifyAdminPermission();
+    if (!isAdmin) {
+        showNotification(t("ERR_NO_PERMISSION") || "您沒有管理員權限", "error");
+        return false;
+    }
+
+    try {
+        await adminOperation();
+        return true;
+    } catch (error) {
+        console.error("管理員操作失敗:", error);
+        showNotification(t("OPERATION_FAILED") || "操作失敗，請稍後重試", "error");
+        return false;
+    }
+}
+
+// #endregion
+// ===================================
+
 /* ===== 共用訊息顯示 ===== */
 const showNotification = (message, type = 'success') => {
     const notification = document.getElementById('notification');
