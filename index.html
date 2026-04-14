@@ -709,6 +709,21 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         <p id="notification-message"></p>
     </div>
 
+    <!-- Confirmation Dialog (問題8.6：敏感操作確認) -->
+    <div id="confirm-dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm mx-4">
+            <p id="confirm-message" class="text-gray-800 dark:text-gray-100 mb-6 text-center font-medium"></p>
+            <div class="flex gap-3 justify-center">
+                <button id="confirm-cancel-btn" class="px-4 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white font-semibold hover:bg-gray-400 dark:hover:bg-gray-500">
+                    <span data-i18n="BTN_CANCEL">取消</span>
+                </button>
+                <button id="confirm-ok-btn" class="px-4 py-2 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600">
+                    <span data-i18n="BTN_CONFIRM">確認</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/config.js"></script>
     <script src="js/state.js"></script>
     <script src="js/core.js"></script>

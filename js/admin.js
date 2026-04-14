@@ -976,6 +976,7 @@ function renderReviewRequests(requests) {
 /**
  * 處理審核動作（核准或拒絕）。
  * 🌟 修正點 (問題1.1)：在執行操作前驗證管理員權限
+ * 🌟 修正點 (問題8.6)：添加二次確認對話框
  */
 async function handleReviewAction(button, index, action) {
     // 🌟 驗證管理員權限
@@ -991,6 +992,15 @@ async function handleReviewAction(button, index, action) {
     const recordId = request.id;
     const endpoint = action === 'approve' ? 'approveReview' : 'rejectReview';
     const loadingText = t('LOADING') || '處理中...';
+
+    // 🌟 修正點 (問題8.6)：添加確認對話框
+    const actionText = action === 'approve' ? '核准' : '拒絕';
+    const confirmMsg = `確定要${actionText}此項申請嗎？`;
+    const confirmed = await showConfirmDialog(confirmMsg);
+
+    if (!confirmed) {
+        return; // 用戶取消操作
+    }
 
     // generalButtonState 來自 ui.js
     generalButtonState(button, 'processing', loadingText);
@@ -1231,6 +1241,7 @@ function initAdminEvents() {
 
     // 5. 處理新增打卡地點
     // 🌟 修正點 (問題1.1)：在新增地點前驗證管理員權限
+    // 🌟 修正點 (問題8.6)：添加確認對話框
     addLocationBtn.addEventListener('click', async () => {
         // 驗證管理員權限
         const isAdmin = await verifyAdminPermission();
@@ -1246,6 +1257,14 @@ function initAdminEvents() {
         if (!name || !lat || !lng) {
             showNotification("請填寫所有欄位並取得位置", "error");
             return;
+        }
+
+        // 🌟 修正點 (問題8.6)：添加確認對話框
+        const confirmMsg = `確定要新增地點 "${name}" 嗎？`;
+        const confirmed = await showConfirmDialog(confirmMsg);
+
+        if (!confirmed) {
+            return; // 用戶取消操作
         }
 
         try {

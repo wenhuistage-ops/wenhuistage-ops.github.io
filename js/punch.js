@@ -689,7 +689,7 @@ function bindPunchEvents() {
             const vacationButton = e.target.closest('.submit-vacation-btn');
 
             if (adjustButton) {
-                // 補打卡處理邏輯
+                // 🌟 修正點 (問題8.6)：補打卡前添加確認
                 const loadingText = t('LOADING') || '處理中...';
                 const type = adjustButton.dataset.type;
 
@@ -711,6 +711,12 @@ function bindPunchEvents() {
                         showNotification("下班時間必須晚於上班時間", "error");
                         return;
                     }
+
+                    // 添加確認對話框
+                    const confirmMsg = `確定要補打卡嗎？\n上班: ${inDateTime}\n下班: ${outDateTime}`;
+                    const confirmed = await showConfirmDialog(confirmMsg);
+                    if (!confirmed) return;
+
                 } else {
                     // 單次打卡
                     const datetime = document.getElementById("adjustDateTime").value;
@@ -721,6 +727,12 @@ function bindPunchEvents() {
                     if (!validateAdjustTime(datetime)) return;
                     inDateTime = type === 'in' ? datetime : null;
                     outDateTime = type === 'out' ? datetime : null;
+
+                    // 添加確認對話框
+                    const typeText = type === 'in' ? '上班' : '下班';
+                    const confirmMsg = `確定要補打 ${typeText} 卡嗎？\n時間: ${datetime}`;
+                    const confirmed = await showConfirmDialog(confirmMsg);
+                    if (!confirmed) return;
                 }
 
                 generalButtonState(adjustButton, 'processing', loadingText);
@@ -791,7 +803,7 @@ function bindPunchEvents() {
                     }
                 }
             } else if (leaveButton) {
-                // 請假處理邏輯
+                // 🌟 修正點 (問題8.6)：請假申請前添加確認
                 const loadingText = '提交中...';
                 const date = leaveButton.dataset.date;
                 const reason = document.getElementById("leaveReason").value;
@@ -800,6 +812,14 @@ function bindPunchEvents() {
                 if (!reason) {
                     showNotification(t('SELECT_LEAVE_REASON') || "請選擇請假原因", "error");
                     return;
+                }
+
+                // 添加確認對話框
+                const confirmMsg = `確定要在 ${date} 提交 ${reason} 的申請嗎？`;
+                const confirmed = await showConfirmDialog(confirmMsg);
+
+                if (!confirmed) {
+                    return; // 用戶取消操作
                 }
 
                 generalButtonState(leaveButton, 'processing', loadingText);
@@ -830,7 +850,7 @@ function bindPunchEvents() {
                     }
                 }
             } else if (vacationButton) {
-                // 休假處理邏輯
+                // 🌟 修正點 (問題8.6)：休假申請前添加確認
                 const loadingText = '提交中...';
                 const date = vacationButton.dataset.date;
                 const vacationType = document.getElementById("vacationType").value;
@@ -839,6 +859,14 @@ function bindPunchEvents() {
                 if (!vacationType) {
                     showNotification(t('SELECT_VACATION_TYPE') || "請選擇休假類型", "error");
                     return;
+                }
+
+                // 添加確認對話框
+                const confirmMsg = `確定要在 ${date} 提交 ${vacationType} 的申請嗎？`;
+                const confirmed = await showConfirmDialog(confirmMsg);
+
+                if (!confirmed) {
+                    return; // 用戶取消操作
                 }
 
                 generalButtonState(vacationButton, 'processing', loadingText);

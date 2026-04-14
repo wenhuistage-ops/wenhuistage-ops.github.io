@@ -221,3 +221,62 @@ const showNotification = (message, type = 'success') => {
         notification.classList.remove('show');
     }, 3000);
 };
+
+// ===================================
+// #region 4. 確認對話框（問題8.6）
+// ===================================
+
+/**
+ * 顯示確認對話框
+ * @param {string} message - 確認訊息
+ * @returns {Promise<boolean>} 用戶是否點擊確認
+ */
+function showConfirmDialog(message) {
+    return new Promise((resolve) => {
+        const dialog = document.getElementById('confirm-dialog');
+        const messageEl = document.getElementById('confirm-message');
+        const okBtn = document.getElementById('confirm-ok-btn');
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+        if (!dialog || !messageEl) {
+            console.error("確認對話框 DOM 元素未找到");
+            resolve(false);
+            return;
+        }
+
+        messageEl.textContent = message;
+        dialog.classList.remove('hidden');
+
+        // 定義一個函數來清理事件監聽器
+        const cleanup = () => {
+            dialog.classList.add('hidden');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            dialog.removeEventListener('keydown', onKeyDown);
+        };
+
+        const onOk = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                cleanup();
+                resolve(false);
+            }
+        };
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        dialog.addEventListener('keydown', onKeyDown);
+    });
+}
+
+// #endregion
+// ===================================
