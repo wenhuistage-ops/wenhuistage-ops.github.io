@@ -138,17 +138,33 @@ function handleSubmitLeave(params) {
       userDept || "", // 部門
       userName || "", // 姓名
       type === 'leave' ? '請假' : '休假', // 類型
-      "(0,0)", // GPS位置
+      `申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}`, // GPS欄位用於記錄申請時間
       reason, // 地點名稱欄位用於存放原因
       "系統請假記錄", // 備註
       "?", // 管理員審核（待審核）
-      `申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}${note ? " | " + note : ""}` // 設備信息欄位：申請時間 + 備註
+      note || "" // 設備信息欄位用於存放備註
     ];
     
     // 添加到工作表
     sheet.appendRow(leaveRecord);
     
     Logger.log("請假/休假記錄已提交: " + JSON.stringify(leaveRecord));
+    
+    // 發送通知給管理員
+    const notificationMessage = `📋 新申請通知\n` +
+      `👤 申請人: ${userName}\n` +
+      `📝 類型: ${type === 'leave' ? '請假' : '休假'}\n` +
+      `📅 日期: ${date}\n` +
+      `📋 原因: ${reason}\n` +
+      `🕒 申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}\n` +
+      `📍 部門: ${userDept || '未設定'}`;
+    
+    const notifyResult = notifyAdmins(notificationMessage);
+    if (notifyResult.ok) {
+      Logger.log("管理員通知發送成功: " + notifyResult.msg);
+    } else {
+      Logger.log("管理員通知發送失敗: " + notifyResult.msg);
+    }
     
     return { 
       ok: true, 

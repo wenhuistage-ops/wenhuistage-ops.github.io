@@ -24,6 +24,7 @@
 
 const LINE_CHANNEL_ID     = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ID");
 const LINE_CHANNEL_SECRET = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_SECRET");
+const LINE_CHANNEL_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
 // 新增你的前端回呼網址
 const LINE_REDIRECT_URL   = "https://0rigind1865-bit.github.io/Attendance-System/";
 

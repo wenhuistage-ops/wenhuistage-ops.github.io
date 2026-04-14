@@ -74,3 +74,93 @@ function getLineUserInfo_(tokenJson) {
     email: payload.email || ""
   };
 }
+
+/**
+ * 發送 LINE 推送消息給指定用戶
+ * @param {string} userId - LINE 用戶 ID
+ * @param {string} message - 要發送的消息
+ * @return {object} 發送結果
+ */
+function sendLinePushMessage(userId, message) {
+  try {
+    const channelAccessToken = LINE_CHANNEL_ACCESS_TOKEN;
+    if (!channelAccessToken) {
+      Logger.log("LINE_CHANNEL_ACCESS_TOKEN 未設定，無法發送推送消息");
+      return { ok: false, msg: "LINE_CHANNEL_ACCESS_TOKEN 未設定" };
+    }
+
+    const url = 'https://api.line.me/v2/bot/message/push';
+    const payload = {
+      to: userId,
+      messages: [{
+        type: 'text',
+        text: message
+      }]
+    };
+
+    const resp = UrlFetchApp.fetch(url, {
+      method: 'post',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + channelAccessToken
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    const responseCode = resp.getResponseCode();
+    if (responseCode === 200) {
+      Logger.log("LINE 推送消息發送成功: " + userId);
+      return { ok: true, msg: "消息發送成功" };
+    } else {
+      Logger.log("LINE 推送消息發送失敗: " + resp.getContentText());
+      return { ok: false, msg: "發送失敗: " + resp.getContentText() };
+    }
+  } catch (error) {
+    Logger.log("發送 LINE 推送消息時發生錯誤: " + error.message);
+    return { ok: false, msg: "發送錯誤: " + error.message };
+  }
+}
+
+/**
+ * 發送通知給所有管理員
+ * @param {string} message - 要發送的消息
+ * @return {object} 發送結果
+ */
+function notifyAdmins(message) {
+  try {
+    const admins = getAdminList();
+    if (!admins || admins.length === 0) {
+      Logger.log("沒有找到管理員，無法發送通知");
+      return { ok: false, msg: "沒有管理員" };
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const admin of admins) {
+      if (admin.lineUserId) {
+        const result = sendLinePushMessage(admin.lineUserId, message);
+        if (result.ok) {
+          successCount++;
+        } else {
+          failCount++;
+          Logger.log("發送給管理員 " + admin.name + " 失敗: " + result.msg);
+        }
+      } else {
+        Logger.log("管理員 " + admin.name + " 沒有 LINE 用戶 ID");
+        failCount++;
+      }
+    }
+
+    return {
+      ok: successCount > 0,
+      msg: `發送完成，成功: ${successCount}，失敗: ${failCount}`,
+      successCount: successCount,
+      failCount: failCount
+    };
+  } catch (error) {
+    Logger.log("通知管理員時發生錯誤: " + error.message);
+    return { ok: false, msg: "通知錯誤: " + error.message };
+  }
+}

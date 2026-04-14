@@ -68,10 +68,26 @@ function getEmployeeList() {
     name: String(row[2] || '').trim(),
     picture: String(row[3] || '').trim(),
     dept: String(row[5] || '').trim(),
-    status: String(row[7] || '啟用').trim()
+    status: String(row[7] || '啟用').trim(),
+    isAdmin: String(row[8] || '').trim().toLowerCase() === 'admin', // 第8欄：管理員標記
+    lineUserId: String(row[9] || '').trim() // 第9欄：LINE 用戶 ID
   })).filter(e => e.userId);
 
   return { ok: true, employeesList: employees };
+}
+
+/**
+ * 獲取管理員列表
+ * @return {Array} 管理員列表
+ */
+function getAdminList() {
+  const employeeResult = getEmployeeList();
+  if (!employeeResult.ok) {
+    Logger.log("獲取員工列表失敗: " + JSON.stringify(employeeResult));
+    return [];
+  }
+
+  return employeeResult.employeesList.filter(employee => employee.isAdmin && employee.lineUserId);
 }
 
 function writeSession_(userId) {
@@ -200,17 +216,32 @@ function punchAdjusted(sessionToken, type, punchDate, lat, lng, note) {
     user.dept,
     user.name,
     type,
-    `(${lat},${lng})`,
+    `申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}`, // GPS欄位用於記錄申請時間
     "",                     // locationName 補打卡不填
     "補打卡",
     "?",
-    `申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}${note ? " | " + note : ""}` // 設備信息欄位：申請時間 + 備註
+    note || ""              // 設備信息欄位用於備註
   ]);
 
   // 🚀 效能優化：確保資料按日期排序
   ensureDataSorted(sh);
   const adjustedMonth = Utilities.formatDate(punchDate, "Asia/Taipei", "yyyy-MM");
   clearAttendanceSummaryCache(adjustedMonth, user.userId);
+
+  // 發送通知給管理員
+  const notificationMessage = `🕒 新補打卡申請\n` +
+    `👤 申請人: ${user.name}\n` +
+    `📝 類型: 補打卡 (${type})\n` +
+    `📅 補打卡時間: ${Utilities.formatDate(punchDate, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}\n` +
+    `🕒 申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}\n` +
+    `📍 部門: ${user.dept || '未設定'}${note ? '\n📋 備註: ' + note : ''}`;
+
+  const notifyResult = notifyAdmins(notificationMessage);
+  if (notifyResult.ok) {
+    Logger.log("補打卡管理員通知發送成功: " + notifyResult.msg);
+  } else {
+    Logger.log("補打卡管理員通知發送失敗: " + notifyResult.msg);
+  }
 
   return { ok: true, code: `ADJUST_PUNCH_SUCCESS`,params: { type: type } };
 }
@@ -470,7 +501,7 @@ function getReviewRequest() {
     const typeColIdx = 4;         // 打卡類別 (上班/下班 或 請假/休假)
     const locationColIdx = 6;     // 地點名稱 (原因存放位置)
     const dateColIdx = 0;         // 打卡時間 (請假/補卡時間)
-    const noteColIdx = 9;         // 設備信息 (包含申請時間)
+    const gpsColIdx = 5;          // GPS欄位 (申請時間存放位置)
 
     const reviewRequest = values.filter((row, index) => {
         // 跳過標頭列
@@ -490,7 +521,7 @@ function getReviewRequest() {
         const remark = row[remarkColIdx];
         const type = row[typeColIdx];
         const punchDate = row[dateColIdx];
-        const note = row[noteColIdx] || "";
+        const gpsInfo = row[gpsColIdx] || ""; // GPS欄位包含申請時間
         
         // 對於請假記錄，顯示類型和原因
         let displayType = type;
@@ -510,8 +541,8 @@ function getReviewRequest() {
             targetTime = Utilities.formatDate(punchDate, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
         }
         
-        // 從設備信息欄位解析申請時間
-        const applicationTimeMatch = note.match(/申請時間:\s*([^\|]+)/);
+        // 從GPS欄位解析申請時間
+        const applicationTimeMatch = gpsInfo.match(/申請時間:\s*([^\|]+)/);
         if (applicationTimeMatch) {
             applicationTime = applicationTimeMatch[1].trim();
         }
