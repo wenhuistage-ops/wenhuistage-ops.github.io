@@ -408,7 +408,50 @@ async function checkAbnormal(monthsToCheck = 1) {
     const recordsLoading = recordsLoadingEl;
     if (recordsLoading) recordsLoading.style.display = 'none';
 
+    // 查詢待審核申請，並將狀態合併到異常記錄中
+    await enrichAbnormalRecordsWithApplicationStatus(allAbnormalRecords);
+
     renderAbnormalRecords(allAbnormalRecords);
+}
+
+/**
+ * 查詢待審核申請，並將狀態信息添加到異常記錄中
+ * @param {Array} records - 異常記錄陣列
+ */
+async function enrichAbnormalRecordsWithApplicationStatus(records) {
+    const userId = localStorage.getItem("sessionUserId");
+
+    try {
+        // 查詢所有待審核申請
+        const res = await callApifetch({
+            action: 'getPendingApplications',
+            userId: userId
+        });
+
+        if (res.ok && res.applications) {
+            // 為每個異常記錄檢查是否有對應的待審核申請
+            const applicationsByDate = {};
+            res.applications.forEach(app => {
+                const appDate = app.date || app.displayDate;
+                if (!applicationsByDate[appDate]) {
+                    applicationsByDate[appDate] = [];
+                }
+                applicationsByDate[appDate].push(app);
+            });
+
+            // 將狀態合併到異常記錄中
+            records.forEach(record => {
+                if (applicationsByDate[record.displayDate] && applicationsByDate[record.displayDate].length > 0) {
+                    record.status = 'pending'; // 有待審核申請
+                    record.applications = applicationsByDate[record.displayDate];
+                    console.log(`異常記錄 ${record.displayDate} 有 ${record.applications.length} 個待審核申請`);
+                }
+            });
+        }
+    } catch (error) {
+        console.error("查詢待審核申請時出錯:", error);
+        // 即使出錯也繼續，不阻止異常記錄顯示
+    }
 }
 
 /**
