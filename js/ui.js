@@ -327,6 +327,18 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
                 case "STATUS_REPAIR_APPROVED":
                     dateClass = 'approved-virtual';
                     break;
+                case "STATUS_LEAVE_PENDING":
+                    dateClass = 'leave-pending';
+                    break;
+                case "STATUS_LEAVE_APPROVED":
+                    dateClass = 'leave-approved';
+                    break;
+                case "STATUS_VACATION_PENDING":
+                    dateClass = 'vacation-pending';
+                    break;
+                case "STATUS_VACATION_APPROVED":
+                    dateClass = 'vacation-approved';
+                    break;
                 default:
                     if (reason && reason !== "") {
                         dateClass = 'pending-adjustment'; // 假設所有有備註的都算 pending
@@ -474,24 +486,39 @@ async function renderDailyRecords(dateKey) {
                     const li = document.createElement('li');
                     li.className = 'p-3 rounded-lg';
 
-                    // 根據 type 設定不同顏色
-                    if (r.type === '上班') {
-                        li.classList.add('bg-blue-50', 'dark:bg-blue-700'); // 上班顏色（藍色系）
-                    } else if (r.type === '下班') {
-                        li.classList.add('bg-green-50', 'dark:bg-green-700'); // 下班顏色（綠色系）
+                    // 🌟 檢查是否為請假/休假記錄
+                    if (r.note === "系統請假記錄") {
+                        // 請假/休假特殊處理：不顯示時間，只顯示申請狀態
+                        const isApproved = r.audit === "v";
+                        const leaveType = r.type || "請假";
+                        const statusText = isApproved ? "已批准" : "審核中";
+
+                        li.classList.add('bg-orange-50', 'dark:bg-orange-700'); // 請假/休假顏色（橙色系）
+                        li.innerHTML = `
+                        <p class="font-medium text-gray-800 dark:text-white">${leaveType} - <span style="color: ${isApproved ? 'green' : 'orange'}; font-weight: bold;">${statusText}</span></p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">請假申請記錄</p>
+                    `;
                     } else {
-                        li.classList.add('bg-gray-50', 'dark:bg-gray-700'); // 其他類型（灰色系）
+                        // 普通打卡記錄：顯示時間、位置等
+                        // 根據 type 設定不同顏色
+                        if (r.type === '上班') {
+                            li.classList.add('bg-blue-50', 'dark:bg-blue-700'); // 上班顏色（藍色系）
+                        } else if (r.type === '下班') {
+                            li.classList.add('bg-green-50', 'dark:bg-green-700'); // 下班顏色（綠色系）
+                        } else {
+                            li.classList.add('bg-gray-50', 'dark:bg-gray-700'); // 其他類型（灰色系）
+                        }
+
+                        // 根據 r.type 的值來選擇正確的翻譯鍵值
+                        const typeKey = r.type === '上班' ? 'PUNCH_IN' : 'PUNCH_OUT';
+
+                        // 產生單一打卡記錄的 HTML
+                        li.innerHTML = `
+                        <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${r.location}</p>
+                        <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
+                    `;
                     }
-
-                    // 根據 r.type 的值來選擇正確的翻譯鍵值
-                    const typeKey = r.type === '上班' ? 'PUNCH_IN' : 'PUNCH_OUT';
-
-                    // 產生單一打卡記錄的 HTML
-                    li.innerHTML = `
-                    <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">${r.location}</p>
-                    <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
-                `;
 
                     dailyRecordsList.appendChild(li);
                     renderTranslations(li);  // 渲染翻譯

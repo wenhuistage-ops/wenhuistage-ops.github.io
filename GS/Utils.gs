@@ -369,12 +369,39 @@ function checkAttendance(attendanceRows) {
 
       // 使用預計算的計數器進行判斷
       const hasPair = punchInCount > 0 && punchOutCount > 0;
-      const isAllApproved = (totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments) || 
-                           (totalLeaveRequests > 0 && approvedLeaveCount === totalLeaveRequests);
-      const hasPendingRequest = (hasAdjustment && approvedAdjustmentCount < totalAdjustments) || 
+      const hasApprovedRepair = totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments;
+      const hasApprovedLeave = hasLeaveRequest && approvedLeaveCount === totalLeaveRequests;
+      const hasPendingRequest = (hasAdjustment && approvedAdjustmentCount < totalAdjustments) ||
                                (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests);
 
-      if (!hasPair) {
+      // ✅ 優先檢查是否有已批准的請假/休假
+      if (hasApprovedLeave) {
+        const leaveRecord = filteredRows.find(r => r.note === "系統請假記錄" && r.audit === "v");
+        if (leaveRecord && leaveRecord.type) {
+          reason = leaveRecord.type === "請假" ? "STATUS_LEAVE_APPROVED" : "STATUS_VACATION_APPROVED";
+        } else {
+          reason = "STATUS_LEAVE_APPROVED"; // 預設為請假
+        }
+      }
+      // 其次检查已批准的補卡
+      else if (hasApprovedRepair) {
+        reason = "STATUS_REPAIR_APPROVED";
+      }
+      // 然後检查待審核的請求
+      else if (hasPendingRequest) {
+        if (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests) {
+          const leaveRecord = filteredRows.find(r => r.note === "系統請假記錄");
+          if (leaveRecord && leaveRecord.type) {
+            reason = leaveRecord.type === "請假" ? "STATUS_LEAVE_PENDING" : "STATUS_VACATION_PENDING";
+          } else {
+            reason = "STATUS_LEAVE_PENDING"; // 預設為請假
+          }
+        } else {
+          reason = "STATUS_REPAIR_PENDING";
+        }
+      }
+      // 最後判斷打卡情況
+      else if (!hasPair) {
         if (punchInCount === 0 && punchOutCount === 0) {
           reason = "STATUS_BOTH_MISSING";
         } else if (punchInCount > 0) {
@@ -382,10 +409,6 @@ function checkAttendance(attendanceRows) {
         } else {
           reason = "STATUS_PUNCH_IN_MISSING";
         }
-      } else if (isAllApproved) {
-        reason = "STATUS_REPAIR_APPROVED";
-      } else if (hasPendingRequest) {
-        reason = "STATUS_REPAIR_PENDING";
       } else {
         reason = "STATUS_PUNCH_NORMAL";
       }

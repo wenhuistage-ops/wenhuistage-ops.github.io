@@ -225,6 +225,26 @@ html.dark .notification {
     color: #2563eb;
 }
 
+.day-cell.leave-pending {
+    background-color: #fecaca;
+    color: #dc2626;
+}
+
+.day-cell.leave-approved {
+    background-color: #d1fae5;
+    color: #059669;
+}
+
+.day-cell.vacation-pending {
+    background-color: #fef3c7;
+    color: #ca8a04;
+}
+
+.day-cell.vacation-approved {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
 .day-cell.day-off {
     background-color: #ccfbf1;
     color: #0d9488;
@@ -281,6 +301,26 @@ html.dark .day-cell.pending-virtual {
 html.dark .day-cell.approved-virtual {
     background-color: #1e40af;
     color: #bfdbfe;
+}
+
+html.dark .day-cell.leave-pending {
+    background-color: #7f1d1d;
+    color: #fca5a5;
+}
+
+html.dark .day-cell.leave-approved {
+    background-color: #064e3b;
+    color: #6ee7b7;
+}
+
+html.dark .day-cell.vacation-pending {
+    background-color: #78350f;
+    color: #fcd34d;
+}
+
+html.dark .day-cell.vacation-approved {
+    background-color: #1e3a8a;
+    color: #93c5fd;
 }
 
 /* dark:bg-blue-800, dark:text-blue-300 */
