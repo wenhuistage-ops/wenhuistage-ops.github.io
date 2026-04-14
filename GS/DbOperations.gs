@@ -22,6 +22,28 @@
 
 // DbOperations.gs
 
+// 驗證坐標數據的有效性
+function validateCoordinates(lat, lng) {
+  // 檢查是否為數字
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+
+  if (isNaN(latNum) || isNaN(lngNum)) {
+    return { valid: false, error: "ERR_INVALID_COORDINATES" };
+  }
+
+  // 檢查範圍
+  if (latNum < -90 || latNum > 90) {
+    return { valid: false, error: "ERR_INVALID_LATITUDE" };
+  }
+
+  if (lngNum < -180 || lngNum > 180) {
+    return { valid: false, error: "ERR_INVALID_LONGITUDE" };
+  }
+
+  return { valid: true };
+}
+
 function writeEmployee_(profile) {
   const sheet  = SpreadsheetApp.getActive().getSheetByName(SHEET_EMPLOYEES);
   const values = sheet.getDataRange().getValues();
@@ -159,22 +181,60 @@ function punch(sessionToken, type, lat, lng, note) {
   const user     = employee.user;
   if (!user) return { ok: false, code: "ERR_SESSION_INVALID" };
 
+  // 驗證輸入參數
+  const validation = validateCoordinates(lat, lng);
+  if (!validation.valid) {
+    return { ok: false, code: validation.error };
+  }
+
   // === 讀取打卡地點 ===
   const shLoc = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LOCATIONS);
   const values = shLoc.getRange(2, 1, shLoc.getLastRow() - 1, 5).getValues();
-  // ⚡ 只取有資料的範圍，避免整張表
 
   let locationName = null;
+  let minDistance = Infinity;
+  let bestLocation = null;
+
+  // 遍歷所有地點，找到最近且在範圍內的地點
   for (let [ , name, locLat, locLng, radius ] of values) {
-    const dist = getDistanceMeters_(lat, lng, Number(locLat), Number(locLng));
-    if (dist <= Number(radius)) {
+    // 快速檢查是否為有效數字（效能優化）
+    const locLatNum = Number(locLat);
+    const locLngNum = Number(locLng);
+    const radiusNum = Number(radius);
+
+    // 跳過無效數據（簡化檢查）
+    if (isNaN(locLatNum) || isNaN(locLngNum) || isNaN(radiusNum) ||
+        locLatNum < -90 || locLatNum > 90 || locLngNum < -180 || locLngNum > 180) {
+      continue;
+    }
+
+    const dist = getDistanceMeters_(lat, lng, locLatNum, locLngNum);
+
+    // 記錄最近的地點（無論是否在範圍內）
+    if (dist < minDistance) {
+      minDistance = dist;
+      bestLocation = {
+        name: name,
+        distance: dist,
+        radius: radiusNum
+      };
+    }
+
+    // 檢查是否在允許範圍內
+    if (dist <= radiusNum) {
       locationName = name;
-      break; // ✅ 找到第一個合法地點就停
+      break; // 找到第一個合法地點就停
     }
   }
 
+  // 如果沒有找到合法地點，提供詳細的錯誤信息
   if (!locationName) {
-    return { ok: false, code: "ERR_OUT_OF_RANGE" };
+    let errorMsg = "ERR_OUT_OF_RANGE";
+    if (bestLocation) {
+      // 提供最近地點的距離信息
+      errorMsg += `_DISTANCE:${Math.round(bestLocation.distance)}m_LOCATION:${bestLocation.name}_RADIUS:${bestLocation.radius}m`;
+    }
+    return { ok: false, code: errorMsg };
   }
 
   // === 寫入打卡紀錄 ===
@@ -587,4 +647,65 @@ function updateReviewStatus(rowNumber, status, note) {
   } catch (err) {
     return { ok: false, msg: `審核失敗：${err.message}` };
   }
+}
+
+// 處理無定位打卡請求（管理員專用）
+function handlePunchWithoutLocation(params) {
+  const sessionToken = params.token;
+  const type = params.type;
+  const note = params.note || '';
+
+  // 驗證 session
+  const employee = checkSession_(sessionToken);
+  const user = employee.user;
+  if (!user) return { ok: false, code: "ERR_SESSION_INVALID" };
+
+  // 檢查是否為管理員
+  const shEmp = SpreadsheetApp.getActive().getSheetByName(SHEET_EMPLOYEES);
+  const empValues = shEmp.getDataRange().getValues();
+  let isAdmin = false;
+
+  for (let i = 1; i < empValues.length; i++) {
+    if (String(empValues[i][0]).trim() === user.userId) {
+      const adminStatus = String(empValues[i][7] || '').trim().toLowerCase();
+      isAdmin = adminStatus === '管理員' || adminStatus === 'admin';
+      break;
+    }
+  }
+
+  if (!isAdmin) {
+    return { ok: false, code: "ERR_ADMIN_REQUIRED" };
+  }
+
+  // 驗證打卡類型
+  if (!['上班', '下班'].includes(type)) {
+    return { ok: false, code: "ERR_INVALID_PUNCH_TYPE" };
+  }
+
+  // 寫入打卡記錄（無GPS坐標）
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_ATTENDANCE);
+  const row = [
+    new Date(),           // 日期（自動排序鍵）
+    user.userId,
+    user.dept,
+    user.name,
+    type,
+    "無定位",             // GPS坐標
+    "管理員手動授權",     // 地點名稱
+    "",                   // 狀態（空）
+    "",                   // 補卡標記（空）
+    note || ""           // 備註
+  ];
+
+  sh.getRange(sh.getLastRow() + 1, 1, 1, row.length).setValues([row]);
+
+  // 確保資料按日期排序
+  ensureDataSorted(sh);
+  clearAttendanceSummaryCache(Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM"), user.userId);
+
+  return {
+    ok: true,
+    code: "PUNCH_SUCCESS_ADMIN",
+    params: { type: type }
+  };
 }

@@ -28,16 +28,37 @@ function jsonp(e, obj) {
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
-// 距離計算公式
+// 距離計算公式 - 使用 Haversine 公式計算球面距離
 function getDistanceMeters_(lat1, lng1, lat2, lng2) {
+  // 輸入驗證
+  if (typeof lat1 !== 'number' || typeof lng1 !== 'number' ||
+      typeof lat2 !== 'number' || typeof lng2 !== 'number') {
+    throw new Error('坐標必須是數字類型');
+  }
+
+  // 範圍檢查
+  if (lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90) {
+    throw new Error('緯度必須在 -90 到 90 度之間');
+  }
+  if (lng1 < -180 || lng1 > 180 || lng2 < -180 || lng2 > 180) {
+    throw new Error('經度必須在 -180 到 180 度之間');
+  }
+
   function toRad(deg) { return deg * Math.PI / 180; }
+
   const R = 6371000; // 地球半徑 (公尺)
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 +
+
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
             Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+
+  // 確保返回有效的數字
+  return isNaN(distance) ? 0 : Math.round(distance * 100) / 100; // 保留2位小數
 }
 
 /**

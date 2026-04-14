@@ -28,10 +28,74 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
 let lastPunchPosition = null;
 const PUNCH_GEOLOCATION_OPTIONS = {
-    enableHighAccuracy: false,
-    timeout: 5000,
-    maximumAge: 300000 // 5 分鐘內的快取位置
+    enableHighAccuracy: true,  // 改為高精確度模式
+    timeout: 15000,            // 增加超時時間到15秒
+    maximumAge: 300000         // 5 分鐘內的快取位置
 };
+
+// GPS 精確度閾值設定
+const GPS_ACCURACY_THRESHOLDS = {
+    EXCELLENT: 10,   // 10公尺以內 - 優秀
+    GOOD: 25,        // 25公尺以內 - 良好
+    FAIR: 50,        // 50公尺以內 - 一般
+    POOR: 100        // 100公尺以上 - 較差
+};
+
+// 地理位置權限狀態快取
+let geolocationPermissionStatus = null;
+
+// 檢查地理位置權限狀態
+async function checkGeolocationPermission() {
+    if (!navigator.permissions) {
+        // 不支持 Permissions API 的瀏覽器
+        return 'unknown';
+    }
+
+    try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        geolocationPermissionStatus = result.state;
+
+        // 監聽權限變化
+        result.addEventListener('change', () => {
+            geolocationPermissionStatus = result.state;
+            console.log('地理位置權限狀態變更:', result.state);
+        });
+
+        return result.state; // 'granted', 'denied', 'prompt'
+    } catch (error) {
+        console.warn('檢查地理位置權限失敗:', error);
+        return 'unknown';
+    }
+}
+
+// 請求地理位置權限（優化用戶體驗）
+async function requestGeolocationPermission() {
+    return new Promise((resolve) => {
+        // 先檢查權限狀態
+        checkGeolocationPermission().then(permission => {
+            if (permission === 'granted') {
+                // 權限已授予，直接解析
+                resolve(true);
+            } else if (permission === 'denied') {
+                // 權限被拒絕
+                resolve(false);
+            } else {
+                // 需要請求權限，嘗試獲取一次位置來觸發權限請求
+                navigator.geolocation.getCurrentPosition(
+                    () => resolve(true),  // 成功
+                    (error) => {
+                        if (error.code === error.PERMISSION_DENIED) {
+                            resolve(false); // 用戶拒絕
+                        } else {
+                            resolve(false); // 其他錯誤
+                        }
+                    },
+                    { timeout: 10000, enableHighAccuracy: false } // 快速檢查
+                );
+            }
+        });
+    });
+}
 
 async function doPunch(type) {
     const punchButtonId = type === '上班' ? 'punch-in-btn' : 'punch-out-btn';
@@ -46,20 +110,22 @@ async function doPunch(type) {
     // A. 進入處理中狀態 (generalButtonState 來自 ui.js)
     generalButtonState(button, 'processing', loadingText);
 
-    if (!navigator.geolocation) {
-        showNotification(t("ERROR_GEOLOCATION", { msg: "您的瀏覽器不支援地理位置功能。" }), "error");
-        generalButtonState(button, 'idle');
+    // B. 檢查地理位置權限
+    const hasPermission = await requestGeolocationPermission();
+    if (!hasPermission) {
+        // 權限被拒絕，提供降級方案
+        await handleLocationPermissionDenied(button);
         return;
     }
 
-    const submitPunch = async (lat, lng) => {
+    const submitPunch = async (lat, lng, accuracy) => {
         try {
             const res = await callApifetch({
                 action: 'punch',
                 type: type,
                 lat: lat,
                 lng: lng,
-                note: navigator.userAgent
+                note: `精確度: ${Math.round(accuracy)}m | ${navigator.userAgent}`
             });
             const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
             showNotification(msg, res.ok ? "success" : "error");
@@ -74,24 +140,182 @@ async function doPunch(type) {
         }
     };
 
-    const canUseCachedPosition = lastPunchPosition && (Date.now() - lastPunchPosition.timestamp < PUNCH_GEOLOCATION_OPTIONS.maximumAge);
+    // 檢查快取位置是否仍然有效
+    const canUseCachedPosition = lastPunchPosition &&
+        (Date.now() - lastPunchPosition.timestamp < PUNCH_GEOLOCATION_OPTIONS.maximumAge) &&
+        lastPunchPosition.accuracy <= GPS_ACCURACY_THRESHOLDS.FAIR;
+
     if (canUseCachedPosition) {
-        submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude);
+        await submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude, lastPunchPosition.accuracy);
         return;
     }
 
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-        lastPunchPosition = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            timestamp: Date.now()
-        };
-        await submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude);
-    }, (err) => {
-        showNotification(t("ERROR_GEOLOCATION", { msg: err.message }), "error");
-        generalButtonState(button, 'idle');
-    }, PUNCH_GEOLOCATION_OPTIONS);
+    // 獲取新位置，帶有精確度檢查和重試機制
+    await getAccurateLocation(submitPunch, button);
 }
+
+// 處理地理位置權限被拒絕的情況
+async function handleLocationPermissionDenied(button) {
+    // 顯示權限被拒絕的通知
+    const permissionMsg = t('LOCATION_PERMISSION_DENIED_DETAIL') ||
+        '地理位置權限已被拒絕。請在瀏覽器設定中允許此網站存取您的位置，或聯繫管理員進行手動打卡。';
+
+    showNotification(permissionMsg, "warning");
+
+    // 提供重新請求權限的選項
+    const retryPermission = confirm(t('RETRY_LOCATION_PERMISSION') ||
+        '是否要重新請求地理位置權限？');
+
+    if (retryPermission) {
+        // 清除權限快取並重試
+        geolocationPermissionStatus = null;
+        // 重新載入頁面來重置權限狀態（某些瀏覽器需要）
+        window.location.reload();
+        return;
+    }
+
+    // 詢問是否要進行無定位打卡（管理員功能）
+    const proceedWithoutLocation = confirm(t('PROCEED_WITHOUT_LOCATION') ||
+        '是否要進行無定位打卡？（需要管理員權限）');
+
+    if (proceedWithoutLocation) {
+        await submitPunchWithoutLocation(button);
+    } else {
+        generalButtonState(button, 'idle');
+    }
+}
+
+// 無定位打卡功能（管理員專用）
+async function submitPunchWithoutLocation(button) {
+    try {
+        // 檢查用戶是否為管理員
+        const adminCheck = await callApifetch({ action: 'checkAdminStatus' });
+        if (!adminCheck.isAdmin) {
+            showNotification(t('ADMIN_ONLY_FEATURE') || '此功能僅限管理員使用', "error");
+            generalButtonState(button, 'idle');
+            return;
+        }
+
+        // 獲取打卡類型
+        const punchType = button === punchInBtn ? '上班' : '下班';
+
+        // 提交無定位打卡
+        const res = await callApifetch({
+            action: 'punchWithoutLocation',
+            type: punchType,
+            note: '管理員手動授權 - 無GPS定位 | ' + navigator.userAgent
+        });
+
+        const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+        showNotification(msg, res.ok ? "success" : "error");
+        generalButtonState(button, 'idle');
+
+        if (res.ok) {
+            checkAbnormal();
+        }
+    } catch (err) {
+        console.error('無定位打卡失敗:', err);
+        showNotification(t('PUNCH_FAILED') || '打卡失敗', "error");
+        generalButtonState(button, 'idle');
+    }
+}
+
+// 獲取精確位置的函數，包含精確度檢查和重試機制
+async function getAccurateLocation(onSuccess, button, retryCount = 0) {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2000; // 2秒重試延遲
+
+    return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const accuracy = pos.coords.accuracy;
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+
+                // 儲存位置資訊
+                lastPunchPosition = {
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: accuracy,
+                    timestamp: Date.now()
+                };
+
+                // 評估精確度品質
+                let quality;
+                if (accuracy <= GPS_ACCURACY_THRESHOLDS.EXCELLENT) {
+                    quality = 'excellent';
+                } else if (accuracy <= GPS_ACCURACY_THRESHOLDS.GOOD) {
+                    quality = 'good';
+                } else if (accuracy <= GPS_ACCURACY_THRESHOLDS.FAIR) {
+                    quality = 'fair';
+                } else {
+                    quality = 'poor';
+                }
+
+                // 如果精確度太差且還有重試次數，提示用戶並重試
+                if (quality === 'poor' && retryCount < MAX_RETRIES) {
+                    const retryMsg = t('GPS_ACCURACY_LOW_RETRY', {
+                        accuracy: Math.round(accuracy),
+                        retry: retryCount + 1,
+                        max: MAX_RETRIES
+                    }) || `GPS精確度較差 (${Math.round(accuracy)}m)，正在重試 (${retryCount + 1}/${MAX_RETRIES})...`;
+
+                    showNotification(retryMsg, "warning");
+
+                    // 等待一段時間後重試
+                    setTimeout(() => {
+                        getAccurateLocation(onSuccess, button, retryCount + 1)
+                            .then(resolve)
+                            .catch(reject);
+                    }, RETRY_DELAY);
+                    return;
+                }
+
+                // 精確度可接受或已達最大重試次數，直接使用
+                if (quality !== 'excellent' && quality !== 'good') {
+                    const accuracyMsg = t('GPS_ACCURACY_WARNING', {
+                        accuracy: Math.round(accuracy),
+                        quality: t(`GPS_QUALITY_${quality.toUpperCase()}`) || quality
+                    }) || `GPS精確度: ${Math.round(accuracy)}m (${quality})`;
+                    showNotification(accuracyMsg, "info");
+                }
+
+                // 呼叫成功回調
+                await onSuccess(lat, lng, accuracy);
+                resolve();
+            },
+            (err) => {
+                // 如果還有重試次數，自動重試
+                if (retryCount < MAX_RETRIES) {
+                    const retryMsg = t('GPS_RETRY_ON_ERROR', {
+                        error: err.message,
+                        retry: retryCount + 1,
+                        max: MAX_RETRIES
+                    }) || `GPS獲取失敗，正在重試 (${retryCount + 1}/${MAX_RETRIES})...`;
+
+                    showNotification(retryMsg, "warning");
+
+                    setTimeout(() => {
+                        getAccurateLocation(onSuccess, button, retryCount + 1)
+                            .then(resolve)
+                            .catch(reject);
+                    }, RETRY_DELAY);
+                    return;
+                }
+
+                // 達到最大重試次數，顯示錯誤
+                const errorMsg = t("ERROR_GEOLOCATION", {
+                    msg: `${err.message} (已重試 ${MAX_RETRIES} 次)`
+                });
+                showNotification(errorMsg, "error");
+                generalButtonState(button, 'idle');
+                reject(err);
+            },
+            PUNCH_GEOLOCATION_OPTIONS
+        );
+    });
+}
+
 // #endregion
 
 // ===================================
@@ -404,25 +628,25 @@ function bindPunchEvents() {
                 const date = e.target.dataset.date;
                 const formHtml = `
                     <div class="p-4 border-t border-gray-200 fade-in ">
-                        <p class="font-semibold mb-2 text-orange-600">請假：<span class="text-orange-600">${date}</span></p>
+                        <p class="font-semibold mb-2 text-orange-600">${t('LEAVE_TITLE') || '請假：'}<span class="text-orange-600">${date}</span></p>
                         <div class="form-group mb-3">
-                            <label for="leaveReason" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">請假原因：</label>
+                            <label for="leaveReason" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('LEAVE_REASON_LABEL') || '請假原因：'}</label>
                             <select id="leaveReason" 
                                     class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
-                                <option value="病假">病假</option>
-                                <option value="事假">事假</option>
-                                <option value="其他">其他</option>
+                                <option value="${t('LEAVE_SICK') || '病假'}">${t('LEAVE_SICK') || '病假'}</option>
+                                <option value="${t('LEAVE_PERSONAL') || '事假'}">${t('LEAVE_PERSONAL') || '事假'}</option>
+                                <option value="${t('LEAVE_OTHER') || '其他'}">${t('LEAVE_OTHER') || '其他'}</option>
                             </select>
                         </div>
                         <div class="form-group mb-3">
-                            <label for="leaveNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">備註：</label>
+                            <label for="leaveNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('NOTE_LABEL') || '備註：'}</label>
                             <textarea id="leaveNote" 
                                       class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white" 
-                                      rows="3" placeholder="請輸入請假備註..."></textarea>
+                                      rows="3" placeholder="${t('LEAVE_PLACEHOLDER') || '請輸入請假備註...'}"></textarea>
                         </div>
                         <button data-type="leave" data-date="${date}" 
                                 class="submit-leave-btn w-full py-2 px-4 rounded-lg font-bold bg-orange-500 hover:bg-orange-600 text-white">
-                            提交請假
+                            ${t('SUBMIT_LEAVE') || '提交請假'}
                         </button>
                     </div>
                 `;
@@ -432,25 +656,25 @@ function bindPunchEvents() {
                 const date = e.target.dataset.date;
                 const formHtml = `
                     <div class="p-4 border-t border-gray-200 fade-in ">
-                        <p class="font-semibold mb-2 text-green-600">休假：<span class="text-green-600">${date}</span></p>
+                        <p class="font-semibold mb-2 text-green-600">${t('VACATION_TITLE') || '休假：'}<span class="text-green-600">${date}</span></p>
                         <div class="form-group mb-3">
-                            <label for="vacationType" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">休假類型：</label>
+                            <label for="vacationType" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('VACATION_TYPE_LABEL') || '休假類型：'}</label>
                             <select id="vacationType" 
                                     class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
-                                <option value="年假">年假</option>
-                                <option value="特休">特休</option>
-                                <option value="補休">補休</option>
+                                <option value="${t('VACATION_ANNUAL') || '年假'}">${t('VACATION_ANNUAL') || '年假'}</option>
+                                <option value="${t('VACATION_SPECIAL') || '特休'}">${t('VACATION_SPECIAL') || '特休'}</option>
+                                <option value="${t('VACATION_COMPENSATORY') || '補休'}">${t('VACATION_COMPENSATORY') || '補休'}</option>
                             </select>
                         </div>
                         <div class="form-group mb-3">
-                            <label for="vacationNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">備註：</label>
+                            <label for="vacationNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('NOTE_LABEL') || '備註：'}</label>
                             <textarea id="vacationNote" 
                                       class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white" 
-                                      rows="3" placeholder="請輸入休假備註..."></textarea>
+                                      rows="3" placeholder="${t('VACATION_PLACEHOLDER') || '請輸入休假備註...'}"></textarea>
                         </div>
                         <button data-type="vacation" data-date="${date}" 
                                 class="submit-vacation-btn w-full py-2 px-4 rounded-lg font-bold bg-green-500 hover:bg-green-600 text-white">
-                            提交休假
+                            ${t('SUBMIT_VACATION') || '提交休假'}
                         </button>
                     </div>
                 `;
@@ -574,7 +798,7 @@ function bindPunchEvents() {
                 const note = document.getElementById("leaveNote").value;
 
                 if (!reason) {
-                    showNotification("請選擇請假原因", "error");
+                    showNotification(t('SELECT_LEAVE_REASON') || "請選擇請假原因", "error");
                     return;
                 }
 
@@ -589,7 +813,7 @@ function bindPunchEvents() {
                         note: note || ''
                     }, "loadingMsg");
 
-                    const msg = res.ok ? "請假申請已提交" : (res.msg || "請假申請失敗");
+                    const msg = res.ok ? (t('LEAVE_SUBMIT_SUCCESS') || "請假申請已提交") : (res.msg || (t('LEAVE_SUBMIT_FAILURE') || "請假申請失敗"));
                     showNotification(msg, res.ok ? "success" : "error");
 
                     if (res.ok) {
@@ -613,7 +837,7 @@ function bindPunchEvents() {
                 const note = document.getElementById("vacationNote").value;
 
                 if (!vacationType) {
-                    showNotification("請選擇休假類型", "error");
+                    showNotification(t('SELECT_VACATION_TYPE') || "請選擇休假類型", "error");
                     return;
                 }
 
@@ -628,7 +852,7 @@ function bindPunchEvents() {
                         note: note || ''
                     }, "loadingMsg");
 
-                    const msg = res.ok ? "休假申請已提交" : (res.msg || "休假申請失敗");
+                    const msg = res.ok ? (t('VACATION_SUBMIT_SUCCESS') || "休假申請已提交") : (res.msg || (t('VACATION_SUBMIT_FAILURE') || "休假申請失敗"));
                     showNotification(msg, res.ok ? "success" : "error");
 
                     if (res.ok) {

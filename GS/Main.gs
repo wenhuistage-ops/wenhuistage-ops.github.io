@@ -58,6 +58,8 @@ function doGet(e) {
         return respond(handleCheckSession(sessionToken));
       case "punch":
         return respond(handlePunch(e.parameter));
+      case "punchWithoutLocation":
+        return respond(handlePunchWithoutLocation(e.parameter));
       case "adjustPunch":
         return respond(handleAdjustPunch(e.parameter));
       case "exchangeToken":
