@@ -186,6 +186,8 @@
   "STATUS_REPAIR_APPROVED": "打刻修正済み",
   "STATUS_LEAVE_PENDING": "休暇（承認待ち）",
   "STATUS_VACATION_PENDING": "休暇（承認待ち）",
+  "STATUS_LEAVE_APPROVED": "休暇承認済み",
+  "STATUS_VACATION_APPROVED": "休暇承認済み",
   "PUNCH_IN": "出勤",
   "PUNCH_OUT": "退勤",
   "STATUS_PUNCH_NORMAL": "パンチ正常"

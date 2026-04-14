@@ -172,6 +172,8 @@
   "STATUS_REPAIR_APPROVED": "Chấm công bổ sung đã duyệt",
   "STATUS_LEAVE_PENDING": "Nghỉ phép (Đang chờ duyệt)",
   "STATUS_VACATION_PENDING": "Nghỉ mát (Đang chờ duyệt)",
+  "STATUS_LEAVE_APPROVED": "Nghỉ phép đã duyệt",
+  "STATUS_VACATION_APPROVED": "Nghỉ mát đã duyệt",
   "PUNCH_IN": "Chấm công vào",
   "PUNCH_OUT": "Chấm công ra",
   "LEAVE_TITLE": "Leave:",

@@ -497,12 +497,28 @@ function renderAbnormalRecords(records) {
             // 檢查是否有待審核申請（status: 'pending' 或 'reviewing'）
             const hasPendingApplication = record.status === 'pending' || record.status === 'reviewing';
 
+            // 檢查是否有請假/休假申請（待審核或已批准）
+            const hasLeaveOrVacationRequest = [
+              "STATUS_LEAVE_PENDING",
+              "STATUS_VACATION_PENDING",
+              "STATUS_LEAVE_APPROVED",
+              "STATUS_VACATION_APPROVED"
+            ].includes(record.reason);
+
+            // 補打卡按鈕顯示條件：需排除請假/休假申請，只在打卡缺失時顯示
+            const canShowAdjustBtn = !hasPendingApplication && !hasLeaveOrVacationRequest &&
+              [
+                "STATUS_BOTH_MISSING",
+                "STATUS_PUNCH_IN_MISSING",
+                "STATUS_PUNCH_OUT_MISSING"
+              ].includes(record.reason);
+
             const li = document.createElement('li');
             li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
 
-            // 動態生成按鈕HTML - 只在沒有待審核申請時顯示
+            // 動態生成按鈕HTML
             let buttonsHtml = '';
-            if (!hasPendingApplication) {
+            if (canShowAdjustBtn) {
                 buttonsHtml = `
                     <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.displayDate}" data-reason="${record.reason}"
                             class="adjust-btn text-sm font-semibold
@@ -512,7 +528,7 @@ function renderAbnormalRecords(records) {
                     </button>`;
             }
 
-            if (showLeaveButtons && !hasPendingApplication) {
+            if (showLeaveButtons && !hasPendingApplication && !hasLeaveOrVacationRequest) {
                 buttonsHtml += `
                     <button data-i18n="BTN_LEAVE" data-date="${record.displayDate}" data-reason="${record.reason}"
                             class="leave-btn text-sm font-semibold

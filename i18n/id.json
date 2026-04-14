@@ -186,6 +186,8 @@
   "STATUS_REPAIR_APPROVED": "Absen susulan disetujui",
   "STATUS_LEAVE_PENDING": "Cuti (Tertunda)",
   "STATUS_VACATION_PENDING": "Liburan (Tertunda)",
+  "STATUS_LEAVE_APPROVED": "Cuti disetujui",
+  "STATUS_VACATION_APPROVED": "Liburan disetujui",
   "PUNCH_IN": "Absen Masuk",
   "PUNCH_OUT": "Absen Keluar",
   "STATUS_PUNCH_NORMAL": "Punch Normal"

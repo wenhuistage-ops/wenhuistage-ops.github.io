@@ -186,6 +186,8 @@
   "STATUS_REPAIR_APPROVED": "補卡通過",
   "STATUS_LEAVE_PENDING": "請假(審核中)",
   "STATUS_VACATION_PENDING": "休假(審核中)",
+  "STATUS_LEAVE_APPROVED": "請假已批准",
+  "STATUS_VACATION_APPROVED": "休假已批准",
   "PUNCH_IN": "上班",
   "PUNCH_OUT": "下班",
   "ERR_AFTER_TODAY": "⚠️ 無法選擇今天之後的時間"

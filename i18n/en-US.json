@@ -186,6 +186,8 @@
   "STATUS_REPAIR_APPROVED": "Make-up Punch Approved",
   "STATUS_LEAVE_PENDING": "Leave (Pending)",
   "STATUS_VACATION_PENDING": "Vacation (Pending)",
+  "STATUS_LEAVE_APPROVED": "Leave Approved",
+  "STATUS_VACATION_APPROVED": "Vacation Approved",
   "PUNCH_IN": "Punch In",
   "PUNCH_OUT": "Punch Out",
   "STATUS_PUNCH_NORMAL": "Punch Normal"
