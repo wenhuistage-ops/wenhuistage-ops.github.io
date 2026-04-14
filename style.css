@@ -226,23 +226,23 @@ html.dark .notification {
 }
 
 .day-cell.leave-pending {
-    background-color: #fecaca;
-    color: #dc2626;
+    background-color: #fed7aa;
+    color: #b45309;
 }
 
 .day-cell.leave-approved {
-    background-color: #d1fae5;
-    color: #059669;
+    background-color: #c7d2fe;
+    color: #3730a3;
 }
 
 .day-cell.vacation-pending {
-    background-color: #fef3c7;
-    color: #ca8a04;
+    background-color: #fce7f3;
+    color: #be185d;
 }
 
 .day-cell.vacation-approved {
-    background-color: #dbeafe;
-    color: #1e40af;
+    background-color: #d1d5ff;
+    color: #4c1d95;
 }
 
 .day-cell.day-off {
@@ -304,23 +304,23 @@ html.dark .day-cell.approved-virtual {
 }
 
 html.dark .day-cell.leave-pending {
-    background-color: #7f1d1d;
-    color: #fca5a5;
+    background-color: #92400e;
+    color: #fde68a;
 }
 
 html.dark .day-cell.leave-approved {
-    background-color: #064e3b;
-    color: #6ee7b7;
+    background-color: #3730a3;
+    color: #e0e7ff;
 }
 
 html.dark .day-cell.vacation-pending {
-    background-color: #78350f;
-    color: #fcd34d;
+    background-color: #831843;
+    color: #fbcfe8;
 }
 
 html.dark .day-cell.vacation-approved {
-    background-color: #1e3a8a;
-    color: #93c5fd;
+    background-color: #4c1d95;
+    color: #e9d5ff;
 }
 
 /* dark:bg-blue-800, dark:text-blue-300 */

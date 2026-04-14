@@ -374,7 +374,7 @@ function checkAttendance(attendanceRows) {
       const hasPendingRequest = (hasAdjustment && approvedAdjustmentCount < totalAdjustments) ||
                                (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests);
 
-      // ✅ 優先檢查是否有已批准的請假/休假
+      // ✅ 優先檢查是否有已批准的請假/休假（無論打卡情況）
       if (hasApprovedLeave) {
         const leaveRecord = filteredRows.find(r => r.note === "系統請假記錄" && r.audit === "v");
         if (leaveRecord && leaveRecord.type) {
@@ -383,11 +383,11 @@ function checkAttendance(attendanceRows) {
           reason = "STATUS_LEAVE_APPROVED"; // 預設為請假
         }
       }
-      // 其次检查已批准的補卡
+      // 其次檢查已批准的補卡
       else if (hasApprovedRepair) {
         reason = "STATUS_REPAIR_APPROVED";
       }
-      // 然後检查待審核的請求
+      // 然後檢查待審核的請求
       else if (hasPendingRequest) {
         if (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests) {
           const leaveRecord = filteredRows.find(r => r.note === "系統請假記錄");
