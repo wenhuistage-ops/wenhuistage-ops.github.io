@@ -514,11 +514,13 @@ function checkAttendanceCalendar(attendanceRows) {
         item.hasAdjustment = true;
         item.totalAdjustments++;
         if (row.audit === "v") item.approvedAdjustmentCount++;
+        Logger.log(`📝 [${item.date}] 發現補打卡: audit=${row.audit}`);
       }
       if (row.note === "系統請假記錄") {
         item.hasLeaveRequest = true;
         item.totalLeaveRequests++;
         if (row.audit === "v") item.approvedLeaveCount++;
+        Logger.log(`📝 [${item.date}] 發現請假記錄: type=${row.type}, audit=${row.audit}`);
       }
       
       item.records.push(row);
@@ -549,10 +551,12 @@ function checkAttendanceCalendar(attendanceRows) {
       } else {
         reason = "STATUS_LEAVE_APPROVED"; // 預設為請假
       }
+      Logger.log(`🔍 [${item.date}] 已批准請假: ${reason}`);
     }
     // 其次檢查已批准的補卡
     else if (hasApprovedRepair) {
       reason = "STATUS_REPAIR_APPROVED";
+      Logger.log(`🔍 [${item.date}] 已批准補卡: STATUS_REPAIR_APPROVED`);
     }
     // 然後檢查待審核的請求
     else if (hasPendingRequest) {
@@ -563,21 +567,27 @@ function checkAttendanceCalendar(attendanceRows) {
         } else {
           reason = "STATUS_LEAVE_PENDING"; // 預設為請假
         }
+        Logger.log(`🔍 [${item.date}] 請假待審核: ${reason}`);
       } else {
         reason = "STATUS_REPAIR_PENDING";
+        Logger.log(`🔍 [${item.date}] 補卡待審核: STATUS_REPAIR_PENDING`);
       }
     }
     // 最後判斷打卡情況
     else if (!hasPair) {
       if (item.punchInCount === 0 && item.punchOutCount === 0) {
         reason = "STATUS_BOTH_MISSING";
+        Logger.log(`🔍 [${item.date}] 本日未打卡: STATUS_BOTH_MISSING`);
       } else if (item.punchInCount > 0) {
         reason = "STATUS_PUNCH_OUT_MISSING";
+        Logger.log(`🔍 [${item.date}] 缺下班卡: STATUS_PUNCH_OUT_MISSING`);
       } else {
         reason = "STATUS_PUNCH_IN_MISSING";
+        Logger.log(`🔍 [${item.date}] 缺上班卡: STATUS_PUNCH_IN_MISSING`);
       }
     } else {
       reason = "STATUS_PUNCH_NORMAL";
+      Logger.log(`🔍 [${item.date}] 打卡正常: STATUS_PUNCH_NORMAL`);
     }
     
     // 計算工時
