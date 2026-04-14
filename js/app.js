@@ -53,6 +53,7 @@ async function ensureLogin() {
                     localStorage.setItem("sessionUserId", res.user.userId);
                     localStorage.setItem("userName", res.user.name);
                     localStorage.setItem("userPicture", res.user.picture || res.user.rate);
+                    localStorage.setItem("userDept", res.user.dept); // 保存用戶部門信息用於後續管理員驗證
                     userId = res.user.userId;
                     showNotification(t("LOGIN_SUCCESS"));
 

@@ -207,8 +207,23 @@ async function callApifetch(params, loadingId = "loading") {
  */
 async function verifyAdminPermission() {
     try {
-        const res = await callApifetch({ action: 'checkAdminStatus' });
-        return res && res.ok && res.isAdmin === true;
+        // 首先檢查 localStorage 中是否有用戶部門信息
+        const userDept = localStorage.getItem("userDept");
+        if (userDept === "管理員") {
+            return true;
+        }
+
+        // 如果沒有部門信息，調用 checkSession API 驗證
+        const res = await callApifetch({ action: 'checkSession' });
+        if (res && res.ok && res.user) {
+            const isAdmin = res.user.dept === "管理員";
+            // 保存部門信息供後續使用
+            if (isAdmin) {
+                localStorage.setItem("userDept", res.user.dept);
+            }
+            return isAdmin;
+        }
+        return false;
     } catch (error) {
         console.error("驗證管理員權限失敗:", error);
         return false;
