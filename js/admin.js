@@ -1433,7 +1433,7 @@ function setupAdminExport() {
 
             const response = await callApifetch({
                 action: 'getCompleteAttendanceRecords',
-                month: apiMonthParam,
+                month: monthParam,
                 userId: userId,
                 token: token
             });
