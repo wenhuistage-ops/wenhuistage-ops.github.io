@@ -1443,7 +1443,7 @@ function setupAdminExport() {
             }
 
             // allRecords 是該月份該員工的所有打卡記錄
-            const allRecords = Array.isArray(response.records) ? data.records : [];
+            const allRecords = Array.isArray(response.records) ? response.records : [];
 
             // Sheet 1: 所有完整打卡紀錄
             const completeRecordRows = [
