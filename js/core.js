@@ -245,14 +245,14 @@ function showConfirmDialog(message) {
         }
 
         messageEl.textContent = message;
-        dialog.classList.remove('hidden');
+        dialog.style.display = 'flex';
 
         // 防止背景滾動，避免對話框偏移
         document.body.style.overflow = 'hidden';
 
         // 定義一個函數來清理事件監聽器和恢復滾動
         const cleanup = () => {
-            dialog.classList.add('hidden');
+            dialog.style.display = 'none';
             okBtn.removeEventListener('click', onOk);
             cancelBtn.removeEventListener('click', onCancel);
             dialog.removeEventListener('keydown', onKeyDown);
