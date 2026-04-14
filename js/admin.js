@@ -1431,7 +1431,7 @@ function setupAdminExport() {
         try {
             const token = localStorage.getItem('sessionToken');
             const response = await fetch(
-                `${BASE_URL}?action=getCompleteAttendanceRecords&month=${monthParam}&userId=${userId}&token=${token}`,
+                `${API_CONFIG.apiUrl}?action=getCompleteAttendanceRecords&month=${monthParam}&userId=${userId}&token=${token}`,
                 { method: 'GET', mode: 'cors', credentials: 'include' }
             );
             const data = await response.json();
