@@ -1430,10 +1430,13 @@ function setupAdminExport() {
         // 從後端直接取得所有該月份的打卡記錄（完整紀錄）
         try {
             const token = localStorage.getItem('sessionToken');
-            const response = await fetch(
-                `${API_CONFIG.apiUrl}?action=getCompleteAttendanceRecords&month=${monthParam}&userId=${userId}&token=${token}`,
-                { method: 'GET', mode: 'cors', credentials: 'include' }
-            );
+
+            const response = await callApifetch({
+                action: 'getCompleteAttendanceRecords',
+                month: apiMonthParam,
+                userId: userId,
+                token: token
+            });
             const data = await response.json();
             if (!data || !data.ok || !data.records) {
                 alert('無法取得完整的打卡記錄');
