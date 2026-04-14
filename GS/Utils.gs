@@ -156,11 +156,13 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
           hasAdjustment = true;
           totalAdjustments++;
           if (r.audit === "v") approvedAdjustmentCount++;
+          Logger.log("  ✓ 發現補打卡記錄: audit=" + r.audit);
         }
         if (r.note === "系統請假記錄") {
           hasLeaveRequest = true;
           totalLeaveRequests++;
           if (r.audit === "v") approvedLeaveCount++;
+          Logger.log("  ✓ 發現請假記錄: type=" + r.type + ", audit=" + r.audit);
         }
       });
 
@@ -175,15 +177,10 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
       const hasPendingRequest = (hasAdjustment && approvedAdjustmentCount < totalAdjustments) ||
                                (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests);
 
-      if (!hasPair) {
-        if (punchInCount === 0 && punchOutCount === 0) {
-          reason = "STATUS_BOTH_MISSING";
-        } else if (punchInCount > 0) {
-          reason = "STATUS_PUNCH_OUT_MISSING";
-        } else {
-          reason = "STATUS_PUNCH_IN_MISSING";
-        }
-      } else if (hasApprovedLeave) {
+      Logger.log("  📊 檢查條件: hasPair=" + hasPair + ", hasApprovedRepair=" + hasApprovedRepair + ", hasApprovedLeave=" + hasApprovedLeave + ", hasPendingRequest=" + hasPendingRequest);
+
+      // ✅ 優先檢查是否有已批准的請假/休假（無論是否有打卡）
+      if (hasApprovedLeave) {
         // 有已批准的請假/休假
         const leaveRecord = filteredRows.find(r => r.note === "系統請假記錄" && r.audit === "v");
         if (leaveRecord && leaveRecord.type) {
@@ -191,10 +188,16 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
         } else {
           reason = "STATUS_LEAVE_APPROVED"; // 預設為請假
         }
-      } else if (hasApprovedRepair) {
+        Logger.log("  ✅ 已批准請假: " + reason);
+      }
+      // 其次檢查是否有已批准的補卡
+      else if (hasApprovedRepair) {
         // 有已批准的補卡
         reason = "STATUS_REPAIR_APPROVED";
-      } else if (hasPendingRequest) {
+        Logger.log("  ✅ 已批准補卡: STATUS_REPAIR_APPROVED");
+      }
+      // 然後檢查是否有待審核的請求
+      else if (hasPendingRequest) {
         // 檢查是否有請假記錄的待審核請求
         if (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests) {
           // 找到請假記錄的類型
@@ -204,11 +207,27 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
           } else {
             reason = "STATUS_LEAVE_PENDING"; // 預設為請假
           }
+          Logger.log("  ⏳ 請假待審核: " + reason);
         } else {
           reason = "STATUS_REPAIR_PENDING";
+          Logger.log("  ⏳ 補卡待審核: STATUS_REPAIR_PENDING");
+        }
+      }
+      // 最後檢查打卡情況
+      else if (!hasPair) {
+        if (punchInCount === 0 && punchOutCount === 0) {
+          reason = "STATUS_BOTH_MISSING";
+          Logger.log("  ❌ 本日未打卡: STATUS_BOTH_MISSING");
+        } else if (punchInCount > 0) {
+          reason = "STATUS_PUNCH_OUT_MISSING";
+          Logger.log("  ❌ 缺下班卡: STATUS_PUNCH_OUT_MISSING");
+        } else {
+          reason = "STATUS_PUNCH_IN_MISSING";
+          Logger.log("  ❌ 缺上班卡: STATUS_PUNCH_IN_MISSING");
         }
       } else {
         reason = "STATUS_PUNCH_NORMAL";
+        Logger.log("  ✓ 打卡正常: STATUS_PUNCH_NORMAL");
       }
 
       // 只記錄異常記錄（非正常狀態和已批准狀態）
@@ -225,7 +244,9 @@ function checkAttendanceAbnormal(attendanceRows, targetMonth = null) {
           reason: reason,
           id: `abnormal-${abnormalIdCounter}`
         });
-        Logger.log("發現異常記錄: " + dateStr + " - " + reason);
+        Logger.log("  📋 新增異常記錄: " + dateStr + " - " + reason);
+      } else if (normalStatuses.includes(reason)) {
+        Logger.log("  ✓ 排除: " + reason + " (正常狀態)");
       }
     }
   }
