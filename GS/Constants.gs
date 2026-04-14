@@ -26,7 +26,11 @@ const LINE_CHANNEL_ID     = PropertiesService.getScriptProperties().getProperty(
 const LINE_CHANNEL_SECRET = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_SECRET");
 const LINE_CHANNEL_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
 // 新增你的前端回呼網址
-const LINE_REDIRECT_URL   = "https://0rigind1865-bit.github.io/Attendance-System/";
+const LINE_REDIRECT_URL   = "https://wenhuistage-ops.github.io/";
+
+// LINE Bot API URLs
+const LINE_MESSAGING_API_URL = "https://api.line.me/v2/bot/message/push";
+const LINE_ACCESS_TOKEN = LINE_CHANNEL_ACCESS_TOKEN; // 為了向後相容
 
 const SHEET_EMPLOYEES = '員工名單';
 const SHEET_ATTENDANCE = '打卡紀錄';

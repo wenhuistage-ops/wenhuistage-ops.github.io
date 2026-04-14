@@ -1424,169 +1424,234 @@ function setupAdminExport() {
             month = d.getMonth();
         }
 
-        const monthKey = `${userId}-${year}-${pad(month + 1)}`;
-        let monthData = adminMonthDataCache && adminMonthDataCache[monthKey];
-        if (!monthData) {
-            try {
-                await renderAdminCalendar(userId, new Date(year, month, 1));
-                monthData = adminMonthDataCache && adminMonthDataCache[monthKey];
-            } catch (e) {
-                console.error('載入月資料失敗', e);
-            }
-        }
-
-        if (!monthData) {
-            alert('找不到該月份的資料，請先載入該員工的月曆。');
-            return;
-        }
-
-        const records = Array.isArray(monthData) ? monthData : (monthData.records || monthData.days || monthData.dailyStatus || []);
-        // 建立以日期 key 為索引的 map，使用 normalizeDateKey
-        const recordMap = {};
-        records.forEach(r => {
-            const key = normalizeDateKey(r.date || r.dateKey || r.day || r.dayKey || '');
-            if (key) recordMap[key] = r;
-        });
-
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const monthParam = `${year}-${pad(month + 1)}`;
         const { baseMonthly, hourlyRate } = resolveHourlyRateForExport();
 
-        const sheetRows = [
-            ['日期', '星期', '上班時間', '上班地點', '下班時間', '下班地點',
-                '原始時數(小時)', '淨工時(小時)',
-                '休息扣除(小時)', '正常工時(小時)', '加班工時(小時)', // <-- 新增欄位
-                '日薪(NTD)', '備註']
-        ];
-        const calcRows = [['日期', '計算過程說明', '日薪 (NTD)']];
-
-        let totalHours = 0, totalRawHours = 0, totalBreakMinutes = 0, totalSalary = 0;
-        let totalNormalHours = 0;
-        let totalOvertimeHours = 0;
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateKey = `${year}-${pad(month + 1)}-${pad(d)}`;
-            const dateObj = new Date(year, month, d);
-            const weekday = dateObj.toLocaleDateString(currentLang || 'zh-TW', { weekday: 'short' });
-
-            const r = recordMap[dateKey] || null;
-            const punches = getPunchesFromRecord(r);
-            const { inPunch, outPunch } = pickInOutPunches(punches);
-
-            const inTime = inPunch ? (inPunch.time || inPunch.timeString || inPunch.clockTime || inPunch.t || inPunch.ts || '') : '';
-            const inLoc = inPunch ? (inPunch.location || inPunch.loc || inPunch.place || inPunch.geo || '') : '';
-            const outTime = outPunch ? (outPunch.time || outPunch.timeString || outPunch.clockTime || outPunch.t || outPunch.ts || '') : '';
-            const outLoc = outPunch ? (outPunch.location || outPunch.loc || outPunch.place || outPunch.geo || '') : '';
-
-            const dayOfWeek = dateObj.getDay(); // 必須從 dateObj 取得
-            const isNationalHoliday = r && r.isHoliday || false; // 必須從 r 紀錄或 map 取得
-            const dayType = determineDayType(dayOfWeek, isNationalHoliday); // 假設 determineDayType 函式在全域可用
-            // 原始時數
-            let rawHours = 0;
-            if (r && (r.hours != null)) rawHours = Number(r.hours);
-            else if (r && (r.totalHours != null)) rawHours = Number(r.totalHours);
-            else rawHours = computeRawHoursFromPunches(inPunch, outPunch, dateKey) || 0;
-
-            // 使用 calculateDailySalaryFromPunches（包含休息扣除）或 fallback
-            let effectiveHours = 0, breakMinutes = 0, dailySalary = 0, calcDesc = '';
-            let normalHours = 0, overtimeHours = 0, restHours = 0;
-            if (inTime && outTime && typeof calculateDailySalaryFromPunches === 'function') {
-                const res = calculateDailySalaryFromPunches(inTime, outTime, hourlyRate, dayType);
-                effectiveHours = Number(res.effectiveHours || 0);
-                breakMinutes = Number(res.totalBreakMinutes || 0);
-                dailySalary = Number(res.dailySalary || 0);
-                calcDesc = res.calculation || `${effectiveHours} × ${hourlyRate.toFixed(2)} = ${dailySalary.toFixed(2)}`;
-                if (res.laborHoursDetails) {
-                    normalHours = Number(res.laborHoursDetails.normalHours || 0);
-                    overtimeHours = Number(res.laborHoursDetails.overtimeHours || 0);
-                    // restHours 已經在 calculateDailySalaryFromPunches 中被計算，這裡是從結果物件中再次取得小時數
-                    restHours = Number(res.laborHoursDetails.restHours || 0);
-                }
-            } else {
-                effectiveHours = rawHours;
-                breakMinutes = 0;
-                if (typeof calculateDailySalary === 'function') {
-
-                    const rcalc = calculateDailySalary(effectiveHours, hourlyRate, dayType);
-                    dailySalary = rcalc && rcalc.dailySalary ? Number(rcalc.dailySalary) : Number((effectiveHours * hourlyRate) || 0);
-                    calcDesc = rcalc && rcalc.calculation ? rcalc.calculation : `${effectiveHours} × ${hourlyRate.toFixed(2)} = ${dailySalary.toFixed(2)}`;
-                } else {
-                    dailySalary = effectiveHours * hourlyRate;
-                    calcDesc = `${effectiveHours} × ${hourlyRate.toFixed(2)} = ${dailySalary.toFixed(2)}`;
-                }
-            }
-
-            const note = r ? (r.note || r.remark || r.comment || '') : '';
-
-            sheetRows.push([
-                dateKey, weekday, inTime, inLoc, outTime, outLoc,
-                Number(rawHours.toFixed ? rawHours.toFixed(2) : rawHours),
-                Number(effectiveHours.toFixed(2)),
-                Number((breakMinutes / 60).toFixed(2)),
-                Number(restHours.toFixed(2)), // 休息扣除
-                Number(normalHours.toFixed(2)), // 正常工時
-                Number(overtimeHours.toFixed(2)), // 加班工時
-                Number(dailySalary.toFixed(2)),
-                note
-            ]);
-            calcRows.push([dateKey, calcDesc, Number(dailySalary.toFixed(2))]);
-
-            totalRawHours += Number(rawHours || 0);
-            totalHours += Number(effectiveHours || 0);
-            totalBreakMinutes += Number(breakMinutes || 0);
-            totalSalary += Number(dailySalary || 0);
-            totalNormalHours += normalHours;
-            totalOvertimeHours += overtimeHours;
-        }
-
-        const summaryRows = [
-            ['員工', (currentManagingEmployee && currentManagingEmployee.name) || userId],
-            ['年度', year],
-            ['月份', pad(month + 1)],
-            ['基本薪資 (NTD/月)', baseMonthly],
-            ['時薪 (NTD/小時)', Number(hourlyRate.toFixed(4))],
-            ['總原始時數 (小時)', Number(totalRawHours.toFixed(2))],
-            ['總淨工時 (小時)', Number(totalHours.toFixed(2))],
-            ['總休息時間 (小時)', Number((totalBreakMinutes / 60).toFixed(2))],
-            ['總薪資 (NTD)', Number(totalSalary.toFixed(2))],
-            ['總原始時數 (小時)', Number(totalRawHours.toFixed(2))],
-            ['總淨工時 (小時)', Number(totalHours.toFixed(2))],
-            ['總休息時間 (小時)', Number((totalBreakMinutes / 60).toFixed(2))],
-            ['總正常工時 (小時)', Number(totalNormalHours.toFixed(2))], // <-- 新增
-            ['總加班工時 (小時)', Number(totalOvertimeHours.toFixed(2))], // <-- 新增
-            ['總薪資 (NTD)', Number(totalSalary.toFixed(2))]
-        ];
-
+        // 從後端直接取得所有該月份的打卡記錄（完整紀錄）
         try {
-            const ws1 = XLSX.utils.aoa_to_sheet(sheetRows);
-            const ws2 = XLSX.utils.aoa_to_sheet(calcRows);
-            const ws3 = XLSX.utils.aoa_to_sheet(summaryRows);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws1, '月曆');
-            XLSX.utils.book_append_sheet(wb, ws2, '計算過程');
-            XLSX.utils.book_append_sheet(wb, ws3, '總結');
-            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-            const blob = new Blob([wbout], { type: 'application/octet-stream' });
-
-            // 檔名使用員工姓名或 userId（簡單過濾）
-            let employeeName = (currentManagingEmployee && currentManagingEmployee.name) || '';
-            if (!employeeName && Array.isArray(allEmployeeList)) {
-                const found = allEmployeeList.find(e => e.userId === userId);
-                if (found) employeeName = found.name || '';
+            const token = localStorage.getItem('sessionToken');
+            const response = await fetch(
+                `${BASE_URL}?action=getCompleteAttendanceRecords&month=${monthParam}&userId=${userId}&token=${token}`,
+                { method: 'GET', mode: 'cors', credentials: 'include' }
+            );
+            const data = await response.json();
+            if (!data || !data.ok || !data.records) {
+                alert('無法取得完整的打卡記錄');
+                return;
             }
-            if (!employeeName) employeeName = userId ? userId.slice(0, 8) : 'unknown';
-            employeeName = String(employeeName).replace(/[\/\\:\*\?"<>\|]/g, '').replace(/\s+/g, '_');
 
-            const filename = `${employeeName}-${year}-${pad(month + 1)}.xlsx`;
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
+            // allRecords 是該月份該員工的所有打卡記錄
+            const allRecords = Array.isArray(data.records) ? data.records : [];
+
+            // Sheet 1: 所有完整打卡紀錄
+            const completeRecordRows = [
+                ['日期', '時間', '打卡類型', '地點', '備註', '審核狀態']
+            ];
+
+            // Sheet 2: 日摘要（用於薪資計算）
+            const summaryRows = [
+                ['日期', '星期', '上班時間', '上班地點', '下班時間', '下班地點',
+                    '原始時數(小時)', '淨工時(小時)',
+                    '休息扣除(小時)', '正常工時(小時)', '加班工時(小時)',
+                    '日薪(NTD)', '備註']
+            ];
+
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // ===== 處理完整紀錄 =====
+            allRecords.forEach(record => {
+                if (!record.date) return;
+
+                const dateStr = normalizeDateKey(record.date);
+                if (!dateStr) return;
+
+                // 提取時間字串（處理各種日期格式）
+                let timeStr = '';
+                if (typeof record.date === 'string') {
+                    if (record.date.includes('T')) {
+                        // ISO 格式：2024-01-15T09:30:00
+                        timeStr = record.date.split('T')[1].substring(0, 5);
+                    } else if (record.date.includes(' ')) {
+                        // 空格格式：2024-01-15 09:30:00
+                        timeStr = record.date.split(' ')[1].substring(0, 5);
+                    }
+                } else if (record.date instanceof Date) {
+                    // Date 物件
+                    const h = String(record.date.getHours()).padStart(2, '0');
+                    const m = String(record.date.getMinutes()).padStart(2, '0');
+                    timeStr = `${h}:${m}`;
+                }
+
+                const punchType = record.type || '未知';
+                const location = record.location || '';
+                const recordNote = record.note || '';
+                const auditStatus = record.audit === '?' ? '審核中' : (record.audit === 'v' ? '已批准' : (record.audit === 'x' ? '已拒絕' : ''));
+
+                completeRecordRows.push([
+                    dateStr,
+                    timeStr,
+                    punchType,
+                    location,
+                    recordNote,
+                    auditStatus
+                ]);
+            });
+
+            // ===== 處理日摘要（含薪資計算）=====
+            let totalHours = 0, totalRawHours = 0, totalBreakMinutes = 0, totalSalary = 0;
+            let totalNormalHours = 0, totalOvertimeHours = 0;
+
+            // 根據日期分組打卡記錄
+            const dailyGroupMap = {};
+            allRecords.forEach(record => {
+                if (!record.date) return;
+                const dateKey = normalizeDateKey(record.date);
+                if (!dateKey) return;
+                if (!dailyGroupMap[dateKey]) {
+                    dailyGroupMap[dateKey] = [];
+                }
+                dailyGroupMap[dateKey].push(record);
+            });
+
+            // 遍歷該月份的每一天
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateKey = `${year}-${pad(month + 1)}-${pad(d)}`;
+                const dateObj = new Date(year, month, d);
+                const weekday = dateObj.toLocaleDateString(currentLang || 'zh-TW', { weekday: 'short' });
+
+                const dayRecords = dailyGroupMap[dateKey] || [];
+
+                // 挑出上班和下班記錄
+                const inRecord = dayRecords.find(r => /上班|IN|in/i.test(String(r.type || '')));
+                const outRecord = dayRecords.find(r => /下班|OUT|out/i.test(String(r.type || '')));
+
+                // 補打卡或請假記錄
+                const specialRecord = dayRecords.find(r => /補打卡|系統請假記錄/i.test(String(r.note || '')));
+
+                // 提取時間的輔助函式
+                const extractTime = (dateVal) => {
+                    if (!dateVal) return '';
+                    if (typeof dateVal === 'string') {
+                        if (dateVal.includes('T')) {
+                            return dateVal.split('T')[1].substring(0, 5);
+                        } else if (dateVal.includes(' ')) {
+                            return dateVal.split(' ')[1].substring(0, 5);
+                        }
+                    } else if (dateVal instanceof Date) {
+                        const h = String(dateVal.getHours()).padStart(2, '0');
+                        const m = String(dateVal.getMinutes()).padStart(2, '0');
+                        return `${h}:${m}`;
+                    }
+                    return '';
+                };
+
+                const inTime = inRecord ? extractTime(inRecord.date) : '';
+                const inLoc = inRecord?.location || '';
+
+                const outTime = outRecord ? extractTime(outRecord.date) : '';
+                const outLoc = outRecord?.location || '';
+
+                // 計算工時
+                const dayOfWeek = dateObj.getDay();
+                const dayType = determineDayType(dayOfWeek, false);
+
+                let rawHours = 0, effectiveHours = 0, breakMinutes = 0, dailySalary = 0;
+                let normalHours = 0, overtimeHours = 0, restHours = 0;
+
+                if (inTime && outTime && typeof calculateDailySalaryFromPunches === 'function') {
+                    const res = calculateDailySalaryFromPunches(inTime, outTime, hourlyRate, dayType);
+                    rawHours = computeRawHoursFromPunches({ time: inTime }, { time: outTime }, dateKey) || 0;
+                    effectiveHours = Number(res.effectiveHours || 0);
+                    breakMinutes = Number(res.totalBreakMinutes || 0);
+                    dailySalary = Number(res.dailySalary || 0);
+                    if (res.laborHoursDetails) {
+                        normalHours = Number(res.laborHoursDetails.normalHours || 0);
+                        overtimeHours = Number(res.laborHoursDetails.overtimeHours || 0);
+                        restHours = Number(res.laborHoursDetails.restHours || 0);
+                    }
+                } else if (inTime && outTime) {
+                    rawHours = computeRawHoursFromPunches({ time: inTime }, { time: outTime }, dateKey) || 0;
+                    effectiveHours = rawHours;
+                    if (typeof calculateDailySalary === 'function') {
+                        const rcalc = calculateDailySalary(effectiveHours, hourlyRate, dayType);
+                        dailySalary = rcalc?.dailySalary ? Number(rcalc.dailySalary) : (effectiveHours * hourlyRate);
+                    } else {
+                        dailySalary = effectiveHours * hourlyRate;
+                    }
+                }
+
+                const remark = specialRecord ? (specialRecord.note || specialRecord.audit) : '';
+
+                summaryRows.push([
+                    dateKey, weekday, inTime, inLoc, outTime, outLoc,
+                    Number(rawHours.toFixed(2)),
+                    Number(effectiveHours.toFixed(2)),
+                    Number((breakMinutes / 60).toFixed(2)),
+                    Number(restHours.toFixed(2)),
+                    Number(normalHours.toFixed(2)),
+                    Number(overtimeHours.toFixed(2)),
+                    Number(dailySalary.toFixed(2)),
+                    remark
+                ]);
+
+                totalRawHours += Number(rawHours || 0);
+                totalHours += Number(effectiveHours || 0);
+                totalBreakMinutes += Number(breakMinutes || 0);
+                totalSalary += Number(dailySalary || 0);
+                totalNormalHours += normalHours;
+                totalOvertimeHours += overtimeHours;
+            }
+
+            const outerSummaryRows = [
+                ['員工', (currentManagingEmployee && currentManagingEmployee.name) || userId],
+                ['年度', year],
+                ['月份', pad(month + 1)],
+                ['基本薪資 (NTD/月)', baseMonthly],
+                ['時薪 (NTD/小時)', Number(hourlyRate.toFixed(4))],
+                ['總原始時數 (小時)', Number(totalRawHours.toFixed(2))],
+                ['總淨工時 (小時)', Number(totalHours.toFixed(2))],
+                ['總休息時間 (小時)', Number((totalBreakMinutes / 60).toFixed(2))],
+                ['總正常工時 (小時)', Number(totalNormalHours.toFixed(2))],
+                ['總加班工時 (小時)', Number(totalOvertimeHours.toFixed(2))],
+                ['總薪資 (NTD)', Number(totalSalary.toFixed(2))]
+            ];
+
+            try {
+                const ws1 = XLSX.utils.aoa_to_sheet(completeRecordRows);
+                const ws2 = XLSX.utils.aoa_to_sheet(summaryRows);
+                const ws3 = XLSX.utils.aoa_to_sheet(outerSummaryRows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws1, '完整打卡紀錄');
+                XLSX.utils.book_append_sheet(wb, ws2, '日摘要');
+                XLSX.utils.book_append_sheet(wb, ws3, '月份統計');
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+                // 檔名使用員工姓名或 userId（簡單過濾）
+                let employeeName = (currentManagingEmployee && currentManagingEmployee.name) || '';
+                if (!employeeName && Array.isArray(allEmployeeList)) {
+                    const found = allEmployeeList.find(e => e.userId === userId);
+                    if (found) employeeName = found.name || '';
+                }
+                if (!employeeName) employeeName = userId ? userId.slice(0, 8) : 'unknown';
+                employeeName = String(employeeName).replace(/[\/\\:\*\?"<>\|]/g, '').replace(/\s+/g, '_');
+
+                const filename = `${employeeName}-${year}-${pad(month + 1)}.xlsx`;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error('Excel 匯出失敗', err);
+                alert('匯出失敗，請看 console 取得詳細錯誤訊息。');
+            }
         } catch (err) {
-            console.error('Excel 匯出失敗', err);
-            alert('匯出失敗，請看 console 取得詳細錯誤訊息。');
+            console.error('取得打卡記錄失敗', err);
+            alert('無法取得打卡記錄，請重試。');
         }
     });
 }

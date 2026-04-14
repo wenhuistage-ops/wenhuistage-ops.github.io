@@ -268,6 +268,9 @@ function checkAttendance(attendanceRows) {
       let hasAdjustment = false;
       let approvedAdjustmentCount = 0;
       let totalAdjustments = 0;
+      let hasLeaveRequest = false;
+      let approvedLeaveCount = 0;
+      let totalLeaveRequests = 0;
       
       record.forEach(r => {
         if (r.type === "上班") punchInCount++;
@@ -276,6 +279,11 @@ function checkAttendance(attendanceRows) {
           hasAdjustment = true;
           totalAdjustments++;
           if (r.audit === "v") approvedAdjustmentCount++;
+        }
+        if (r.note === "系統請假記錄") {
+          hasLeaveRequest = true;
+          totalLeaveRequests++;
+          if (r.audit === "v") approvedLeaveCount++;
         }
       });
 
@@ -303,7 +311,10 @@ function checkAttendance(attendanceRows) {
 
       // 使用預計算的計數器進行判斷
       const hasPair = punchInCount > 0 && punchOutCount > 0;
-      const isAllApproved = totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments;
+      const isAllApproved = (totalAdjustments > 0 && approvedAdjustmentCount === totalAdjustments) || 
+                           (totalLeaveRequests > 0 && approvedLeaveCount === totalLeaveRequests);
+      const hasPendingRequest = (hasAdjustment && approvedAdjustmentCount < totalAdjustments) || 
+                               (hasLeaveRequest && approvedLeaveCount < totalLeaveRequests);
 
       if (!hasPair) {
         if (punchInCount === 0 && punchOutCount === 0) {
@@ -315,7 +326,7 @@ function checkAttendance(attendanceRows) {
         }
       } else if (isAllApproved) {
         reason = "STATUS_REPAIR_APPROVED";
-      } else if (hasAdjustment) {
+      } else if (hasPendingRequest) {
         reason = "STATUS_REPAIR_PENDING";
       } else {
         reason = "STATUS_PUNCH_NORMAL";
@@ -403,6 +414,9 @@ function checkAttendanceCalendar(attendanceRows) {
           hasAdjustment: false,
           approvedAdjustmentCount: 0,
           totalAdjustments: 0,
+          hasLeaveRequest: false,
+          approvedLeaveCount: 0,
+          totalLeaveRequests: 0,
           records: []
         };
       }
@@ -420,6 +434,11 @@ function checkAttendanceCalendar(attendanceRows) {
         item.totalAdjustments++;
         if (row.audit === "v") item.approvedAdjustmentCount++;
       }
+      if (row.note === "系統請假記錄") {
+        item.hasLeaveRequest = true;
+        item.totalLeaveRequests++;
+        if (row.audit === "v") item.approvedLeaveCount++;
+      }
       
       item.records.push(row);
     } catch (err) {
@@ -436,8 +455,10 @@ function checkAttendanceCalendar(attendanceRows) {
     
     // 使用預計算的計數器，而不是 some/every（O(1) vs O(n)）
     const hasPair = item.punchInCount > 0 && item.punchOutCount > 0;
-    const isAllApproved = item.totalAdjustments > 0 && 
-                          item.approvedAdjustmentCount === item.totalAdjustments;
+    const isAllApproved = (item.totalAdjustments > 0 && item.approvedAdjustmentCount === item.totalAdjustments) || 
+                         (item.totalLeaveRequests > 0 && item.approvedLeaveCount === item.totalLeaveRequests);
+    const hasPendingRequest = (item.hasAdjustment && item.approvedAdjustmentCount < item.totalAdjustments) || 
+                             (item.hasLeaveRequest && item.approvedLeaveCount < item.totalLeaveRequests);
     
     // 判斷狀態邏輯（簡化版）
     if (!hasPair) {
@@ -450,7 +471,7 @@ function checkAttendanceCalendar(attendanceRows) {
       }
     } else if (isAllApproved) {
       reason = "STATUS_REPAIR_APPROVED";
-    } else if (item.hasAdjustment) {
+    } else if (hasPendingRequest) {
       reason = "STATUS_REPAIR_PENDING";
     } else {
       reason = "STATUS_PUNCH_NORMAL";

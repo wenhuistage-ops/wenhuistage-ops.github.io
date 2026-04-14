@@ -44,13 +44,42 @@ function validateCoordinates(lat, lng) {
   return { valid: true };
 }
 
+/**
+ * 檢查管理員標記值的輔助函式
+ * 支援多種格式：'admin', '管理員', '是', '1', 'true' 等
+ * @param {string} value - 管理員欄位的值
+ * @return {boolean} 是否為管理員
+ */
+function isAdminValue(value) {
+  if (!value) return false;
+
+  const normalized = value.trim().toLowerCase();
+
+  // 支援的格式
+  const adminValues = ['admin', '管理員', 'administrator', '是', 'yes', '1', 'true', 'y'];
+
+  return adminValues.includes(normalized);
+}
+
 function writeEmployee_(profile) {
   const sheet  = SpreadsheetApp.getActive().getSheetByName(SHEET_EMPLOYEES);
   const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     if (values[i][0] === profile.userId) return values[i]; // 已存在
   }
-  const row = [ profile.userId, profile.email, profile.displayName, profile.pictureUrl, new Date(), "", "", "未啟用" ];
+  // 欄位順序: userId, email, name, picture, firstLoginTime, dept, salary, status, preferredLanguage, lastLoginTime
+  const row = [
+    profile.userId,
+    profile.email,
+    profile.displayName,
+    profile.pictureUrl,
+    new Date(), // 首次登入時間
+    "", // 職位
+    0, // 薪資
+    "未啟用", // 狀態
+    "", // 偏好語言
+    new Date() // 最後登錄時間
+  ];
   sheet.appendRow(row);
   return row;
 }
@@ -69,8 +98,12 @@ function findEmployeeByLineUserId_(userId) {
         email: values[i][1],
         name: values[i][2],
         picture: values[i][3],
+        firstLoginTime: values[i][4],
         dept: values[i][5],
-        status
+        salary: Number(values[i][6] || 0),
+        status,
+        preferredLanguage: values[i][8],
+        lastLoginTime: values[i][9]
       };
     }
   }
@@ -89,10 +122,14 @@ function getEmployeeList() {
     email: String(row[1] || '').trim(),
     name: String(row[2] || '').trim(),
     picture: String(row[3] || '').trim(),
+    firstLoginTime: row[4] || null,
     dept: String(row[5] || '').trim(),
+    salary: Number(row[6] || 0),
     status: String(row[7] || '啟用').trim(),
-    isAdmin: String(row[8] || '').trim().toLowerCase() === 'admin', // 第8欄：管理員標記
-    lineUserId: String(row[9] || '').trim() // 第9欄：LINE 用戶 ID
+    preferredLanguage: String(row[8] || '').trim(),
+    lastLoginTime: row[9] || null,
+    isAdmin: isAdminValue(String(row[5] || '').trim()), // 職位欄位用於判斷管理員
+    lineUserId: String(row[0] || '').trim() // userId 欄位即為 LINE 用戶 ID
   })).filter(e => e.userId);
 
   return { ok: true, employeesList: employees };
@@ -109,7 +146,15 @@ function getAdminList() {
     return [];
   }
 
-  return employeeResult.employeesList.filter(employee => employee.isAdmin && employee.lineUserId);
+  Logger.log("所有員工列表: " + JSON.stringify(employeeResult.employeesList));
+  const admins = employeeResult.employeesList.filter(employee => {
+    const isAdminCheck = employee.isAdmin && employee.lineUserId;
+    Logger.log(`員工 ${employee.name}: isAdmin=${employee.isAdmin}, lineUserId=${employee.lineUserId}, 通過檢查=${isAdminCheck}`);
+    return isAdminCheck;
+  });
+  Logger.log("過濾後的管理員列表: " + JSON.stringify(admins));
+
+  return admins;
 }
 
 function writeSession_(userId) {

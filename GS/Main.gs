@@ -70,6 +70,8 @@ function doGet(e) {
         return respond(handleSubmitLeave(e.parameter));
       case "getAttendanceDetails":
         return respond(handleGetAttendanceDetails(e.parameter));
+      case "getCompleteAttendanceRecords":
+        return respond(handleGetCompleteAttendanceRecords(e.parameter));
       case "getEmployeeList":
         return respond(handleGetEmployeeList(e.parameter));
       case "getCalendarSummary":
@@ -86,6 +88,8 @@ function doGet(e) {
         return respond(handleRejectReview(e.parameter));
       case "testEndpoint": // 新增一個測試用的 action
         return respond({ ok: true, msg: "CORS 測試成功!" });
+      case "testNotification": // 測試通知功能
+        return respond(handleTestNotification(e.parameter));
       default:
         return HtmlService.createHtmlOutputFromFile('index')
                .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);

@@ -159,7 +159,10 @@ function handleSubmitLeave(params) {
       `🕒 申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}\n` +
       `📍 部門: ${userDept || '未設定'}`;
     
+    Logger.log("準備發送管理員通知: " + notificationMessage);
     const notifyResult = notifyAdmins(notificationMessage);
+    Logger.log("管理員通知結果: " + JSON.stringify(notifyResult));
+    
     if (notifyResult.ok) {
       Logger.log("管理員通知發送成功: " + notifyResult.msg);
     } else {
@@ -185,6 +188,33 @@ function handleGetAttendanceDetails(params) {
   const records = getAttendanceRecords(month, userId);
   const results = checkAttendance(records);
   return { ok: true, records: { dailyStatus: results } };
+}
+
+/**
+ * 取得所有原始打卡記錄（用於 Excel 匯出）
+ * @param {object} params - 包含 month 和 userId
+ * @return {object} 返回該月該用戶的所有打卡記錄
+ */
+function handleGetCompleteAttendanceRecords(params) {
+  const { month } = params;
+  const userId = params.userId || params.targetUserId;
+  if (!month) return { ok: false, code: "ERR_MISSING_MONTH" };
+  
+  // 直接調用 API 驗證
+  const employee = checkSession_(params.token);
+  if (!employee.ok) return { ok: false, code: "ERR_SESSION_INVALID" };
+  
+  // 取得所有原始打卡記錄
+  const records = getAttendanceRecords(month, userId);
+  
+  // 排序記錄（按日期和時間）
+  records.sort((a, b) => {
+    const dateA = new Date(a.date || 0);
+    const dateB = new Date(b.date || 0);
+    return dateA - dateB;
+  });
+  
+  return { ok: true, records: records };
 }
 
 function handleGetEmployeeList(params) {
@@ -257,4 +287,54 @@ function handleRejectReview(params) {
     return { ok: false, msg: "缺少審核 ID" };
   }
   return updateReviewStatus(recordId, "x", "拒絕");
+}
+
+/**
+ * 測試通知功能
+ * @param {object} params - 包含請求參數的物件。
+ * @return {object} 回傳測試結果。
+ */
+function handleTestNotification(params) {
+  try {
+    Logger.log("開始測試通知功能...");
+    
+    // 檢查 LINE API 常數
+    const channelAccessToken = LINE_CHANNEL_ACCESS_TOKEN;
+    Logger.log("LINE_CHANNEL_ACCESS_TOKEN 是否設定: " + (channelAccessToken ? "是" : "否"));
+    
+    if (!channelAccessToken) {
+      return { ok: false, msg: "LINE_CHANNEL_ACCESS_TOKEN 未設定" };
+    }
+    
+    // 獲取管理員列表
+    const admins = getAdminList();
+    Logger.log("獲取到的管理員列表: " + JSON.stringify(admins));
+    
+    if (!admins || admins.length === 0) {
+      return { ok: false, msg: "沒有找到管理員" };
+    }
+    
+    // 發送測試訊息
+    const testMessage = "🧪 這是測試通知訊息\n" +
+      "📅 測試時間: " + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss") + "\n" +
+      "👥 管理員數量: " + admins.length;
+    
+    Logger.log("準備發送測試訊息: " + testMessage);
+    const notifyResult = notifyAdmins(testMessage);
+    Logger.log("測試通知結果: " + JSON.stringify(notifyResult));
+    
+    return {
+      ok: notifyResult.ok,
+      msg: notifyResult.ok ? "測試通知發送成功" : "測試通知發送失敗",
+      details: {
+        adminCount: admins.length,
+        admins: admins.map(a => ({ name: a.name, hasLineId: !!a.lineUserId })),
+        notifyResult: notifyResult
+      }
+    };
+    
+  } catch (error) {
+    Logger.log("測試通知時發生錯誤: " + error.message);
+    return { ok: false, msg: "測試失敗: " + error.message };
+  }
 }

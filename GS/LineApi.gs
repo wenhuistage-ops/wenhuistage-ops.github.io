@@ -129,7 +129,10 @@ function sendLinePushMessage(userId, message) {
  */
 function notifyAdmins(message) {
   try {
+    Logger.log("開始獲取管理員列表...");
     const admins = getAdminList();
+    Logger.log("獲取到的管理員列表: " + JSON.stringify(admins));
+    
     if (!admins || admins.length === 0) {
       Logger.log("沒有找到管理員，無法發送通知");
       return { ok: false, msg: "沒有管理員" };
@@ -139,10 +142,12 @@ function notifyAdmins(message) {
     let failCount = 0;
 
     for (const admin of admins) {
+      Logger.log("處理管理員: " + admin.name + ", LINE ID: " + admin.lineUserId);
       if (admin.lineUserId) {
         const result = sendLinePushMessage(admin.lineUserId, message);
         if (result.ok) {
           successCount++;
+          Logger.log("成功發送給管理員: " + admin.name);
         } else {
           failCount++;
           Logger.log("發送給管理員 " + admin.name + " 失敗: " + result.msg);
