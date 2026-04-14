@@ -536,24 +536,46 @@ function checkAttendanceCalendar(attendanceRows) {
     
     // 使用預計算的計數器，而不是 some/every（O(1) vs O(n)）
     const hasPair = item.punchInCount > 0 && item.punchOutCount > 0;
-    const isAllApproved = (item.totalAdjustments > 0 && item.approvedAdjustmentCount === item.totalAdjustments) || 
-                         (item.totalLeaveRequests > 0 && item.approvedLeaveCount === item.totalLeaveRequests);
-    const hasPendingRequest = (item.hasAdjustment && item.approvedAdjustmentCount < item.totalAdjustments) || 
+    const hasApprovedRepair = item.totalAdjustments > 0 && item.approvedAdjustmentCount === item.totalAdjustments;
+    const hasApprovedLeave = item.hasLeaveRequest && item.approvedLeaveCount === item.totalLeaveRequests;
+    const hasPendingRequest = (item.hasAdjustment && item.approvedAdjustmentCount < item.totalAdjustments) ||
                              (item.hasLeaveRequest && item.approvedLeaveCount < item.totalLeaveRequests);
-    
-    // 判斷狀態邏輯（簡化版）
-    if (!hasPair) {
+
+    // ✅ 優先檢查是否有已批准的請假/休假
+    if (hasApprovedLeave) {
+      const leaveRecord = item.records.find(r => r.note === "系統請假記錄" && r.audit === "v");
+      if (leaveRecord && leaveRecord.type) {
+        reason = leaveRecord.type === "請假" ? "STATUS_LEAVE_APPROVED" : "STATUS_VACATION_APPROVED";
+      } else {
+        reason = "STATUS_LEAVE_APPROVED"; // 預設為請假
+      }
+    }
+    // 其次檢查已批准的補卡
+    else if (hasApprovedRepair) {
+      reason = "STATUS_REPAIR_APPROVED";
+    }
+    // 然後檢查待審核的請求
+    else if (hasPendingRequest) {
+      if (item.hasLeaveRequest && item.approvedLeaveCount < item.totalLeaveRequests) {
+        const leaveRecord = item.records.find(r => r.note === "系統請假記錄");
+        if (leaveRecord && leaveRecord.type) {
+          reason = leaveRecord.type === "請假" ? "STATUS_LEAVE_PENDING" : "STATUS_VACATION_PENDING";
+        } else {
+          reason = "STATUS_LEAVE_PENDING"; // 預設為請假
+        }
+      } else {
+        reason = "STATUS_REPAIR_PENDING";
+      }
+    }
+    // 最後判斷打卡情況
+    else if (!hasPair) {
       if (item.punchInCount === 0 && item.punchOutCount === 0) {
-        reason = "STATUS_PUNCH_IN_MISSING";
+        reason = "STATUS_BOTH_MISSING";
       } else if (item.punchInCount > 0) {
         reason = "STATUS_PUNCH_OUT_MISSING";
       } else {
         reason = "STATUS_PUNCH_IN_MISSING";
       }
-    } else if (isAllApproved) {
-      reason = "STATUS_REPAIR_APPROVED";
-    } else if (hasPendingRequest) {
-      reason = "STATUS_REPAIR_PENDING";
     } else {
       reason = "STATUS_PUNCH_NORMAL";
     }
