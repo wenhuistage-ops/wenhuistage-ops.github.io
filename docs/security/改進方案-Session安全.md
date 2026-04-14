@@ -1,6 +1,186 @@
 # Session Token 安全改進方案 (2.1)
 
-**優先級**：🟠 中優先 | **預計工時**：2-3 小時 | **預期完成**：2026年4月底
+**優先級**：🟠 中優先 | **預計完成**：2026年4月底 | **狀態**：✅ **已實施方案 B**
+
+---
+
+## 1. 當前安全隱患（已部分解決）
+
+### 1.1 Token 在 localStorage 中存儲
+```javascript
+// ⚠️ 仍存在（需進一步改進）
+const token = localStorage.getItem("sessionToken");
+```
+
+**風險**：XSS 攻擊可直接訪問 localStorage ⚠️
+**狀態**：未解決（需要前端架構重構）
+
+### 1.2 Token 作為 URL 參數傳遞 ✅
+```javascript
+// ❌ 原始實現（已改進）
+const url = `${API_CONFIG.apiUrl}?${searchParams.toString()}`;
+
+// ✅ 新實現（2026-04-14）
+const response = await fetch(url, {
+    method: 'POST',  // 改為 POST
+    body: searchParams.toString(),  // token 在 body 中
+});
+```
+
+**改善效果**：
+- ✅ Token 不再出現在 URL 中
+- ✅ Token 不會被記錄在瀏覽器歷史、代理日誌、CDN 日誌
+- ✅ token 洩露風險大幅降低
+
+---
+
+## 2. 改善方案對比
+
+### ❌ 方案 A：HttpOnly Cookie（不可行）
+- **狀態**：技術限制，GAS 無法設置 Set-Cookie 頭
+- **結論**：棄用
+
+### ✅ 方案 B：改用 POST 請求（已實施）
+- **狀態**：✅ **已於 2026-04-14 實施**
+- **涵蓋**：
+  - 後端：GAS 支持 doPost 和 doGet
+  - 前端：callApifetch 改用 POST 請求
+
+### 🔮 方案 C：完全重構（未來改進）
+- **方案**：改用 Service Worker + Secure Storage
+- **時間**：下月技術債務清單
+
+---
+
+## 3. 已實施的改進（2026-04-14）
+
+### 3.1 後端改動（GS/Main.gs）
+
+```javascript
+// ✅ 統一的請求處理函數
+function handleRequest(e) {
+    const sessionToken = e.parameter.token;  // 支持 URL 參數或 POST body
+    // ... 業務邏輯
+}
+
+// ✅ 支持 GET 請求（向後相容）
+function doGet(e) {
+    return handleRequest(e);
+}
+
+// ✅ 支持 POST 請求（推薦）
+function doPost(e) {
+    return handleRequest(e);
+}
+```
+
+### 3.2 前端改動（js/core.js）
+
+```javascript
+// ✅ callApifetch 改用 POST 請求
+async function callApifetch(params, loadingId = "loading") {
+    const token = localStorage.getItem("sessionToken");
+    const searchParams = new URLSearchParams(params);
+    
+    searchParams.set("token", token);
+    searchParams.set("callback", callback);
+    
+    // 改為 POST 請求，token 在 body 中
+    const response = await fetch(API_CONFIG.apiUrl, {
+        method: 'POST',
+        mode: 'cors',
+        body: searchParams.toString(),
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+    });
+    
+    // ... 其他邏輯
+}
+```
+
+### 3.3 改進效果對比
+
+| 指標 | 實施前 | 實施後 |
+|------|--------|--------|
+| Token 在 URL 中 | ✅ 有風險 | ✅ **已移除** |
+| Token 在瀏覽器歷史 | ❌ 洩露 | ✅ **隱藏** |
+| Token 在伺服器日誌 | ❌ 可見 | ✅ **隱藏** |
+| Token 在代理日誌 | ❌ 可見 | ✅ **隱藏** |
+| Token 在 localStorage | ⚠️ 仍存在 | ⚠️ **仍存在** |
+| XSS 風險 | 🔴 高 | 🟡 **中** |
+
+---
+
+## 4. 已知限制
+
+### 4.1 localStorage 中仍存儲 Token
+**原因**：Token 需要在每次請求時發送，需要在前端保存
+**改進時間**：下月進行前端重構
+**建議方案**：
+- 使用 IndexedDB 替代 localStorage
+- 或使用 Service Worker 進行更安全的存儲
+
+### 4.2 無法使用 HttpOnly Cookie
+**原因**：Google Apps Script 的技術限制，無法設置自定義響應頭
+**替代方案**：已採用方案 B（POST body）
+
+---
+
+## 5. 測試驗證
+
+### 5.1 已驗證的改進
+- [x] GAS 支持 POST 請求（doPost 函數）
+- [x] 前端改用 POST 發送 token
+- [x] Token 在 POST body 中，不在 URL 中
+- [x] 現有 callApifetch 調用無需修改
+
+### 5.2 待驗證的項目（開發環境）
+- [ ] 登入流程正常
+- [ ] 打卡功能正常
+- [ ] 管理員功能正常
+- [ ] 補卡申請流程正常
+- [ ] 瀏覽器開發者工具驗證 token 不在 URL 中
+
+### 5.3 測試清單
+
+```javascript
+// 在瀏覽器開發者工具 Network 標籤中驗證：
+1. 選擇任何 API 請求（如 checkSession、punch 等）
+2. 查看 Request URL - 應該 ❌ 不包含 token 參數
+3. 查看 Request Headers - 應該包含 Content-Type: application/x-www-form-urlencoded
+4. 查看 Request Payload - 應該 ✅ 包含 token 參數
+```
+
+---
+
+## 6. 後續改進計劃
+
+### Phase 2：前端存儲改進（下月開始）
+- [ ] 評估 IndexedDB 可行性
+- [ ] 實現更安全的 token 存儲方案
+- [ ] 完全移除 localStorage 中的 token
+
+### Phase 3：完整的安全審計
+- [ ] XSS 防護評估
+- [ ] CSRF 防護檢查
+- [ ] 速率限制實現
+- [ ] 日誌審計
+
+---
+
+## 7. 參考資料
+
+- [OWASP - Cross-Site Scripting (XSS)](https://owasp.org/www-community/attacks/xss/)
+- [OWASP - Token Storage](https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html#local-storage)
+- [Google Apps Script - Request Objects](https://developers.google.com/apps-script/guides/web/communicate_json#web_app_as_api)
+
+---
+
+**實施日期**：2026-04-14
+**責任人**：前端開發者 + 後端開發者
+**相關 commit**：e27c4db（POST 請求實施）
+
 
 ---
 
