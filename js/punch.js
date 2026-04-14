@@ -132,7 +132,7 @@ async function doPunch(type) {
             generalButtonState(button, 'idle');
 
             if (res.ok) {
-                checkAbnormal();
+                checkAbnormal(1, true);
             }
         } catch (err) {
             console.error(err);
@@ -211,7 +211,7 @@ async function submitPunchWithoutLocation(button) {
         generalButtonState(button, 'idle');
 
         if (res.ok) {
-            checkAbnormal();
+            checkAbnormal(1, true);
         }
     } catch (err) {
         console.error('無定位打卡失敗:', err);
@@ -361,18 +361,29 @@ function checkAutoPunch() {
 // #region 3. 異常紀錄檢查
 // ===================================
 
-async function checkAbnormal(monthsToCheck = 1) {
-    const now = new Date();
-    const currentMonth = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
-    const userId = localStorage.getItem("sessionUserId");
+async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
+    // 檢查快取是否有效（問題 8.4：性能優化）
+    const now = Date.now();
+    if (!forceRefresh && abnormalRecordsCache && abnormalRecordsCacheTime) {
+        const cacheAge = now - abnormalRecordsCacheTime;
+        if (cacheAge < ABNORMAL_RECORDS_CACHE_DURATION) {
+            console.log(`使用快取的異常記錄（快取年齡: ${Math.floor(cacheAge / 1000)}秒）`);
+            renderAbnormalRecords(abnormalRecordsCache);
+            return;
+        }
+    }
 
-    console.log("檢查異常記錄 - 當前月份:", currentMonth, "檢查月份數:", monthsToCheck, "用戶ID:", userId);
+    const currentDate = new Date();
+    const currentMonth = currentDate.getFullYear() + "-" + String(currentDate.getMonth() + 1).padStart(2, "0");
+    const sessionUserId = localStorage.getItem("sessionUserId");
+
+    console.log("檢查異常記錄 - 當前月份:", currentMonth, "檢查月份數:", monthsToCheck, "用戶ID:", sessionUserId);
 
     // 收集多個月份的異常記錄
     let allAbnormalRecords = [];
 
     for (let i = 0; i < monthsToCheck; i++) {
-        const checkDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const checkDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
         const month = checkDate.getFullYear() + "-" + String(checkDate.getMonth() + 1).padStart(2, "0");
 
         console.log(`檢查第 ${i + 1} 個月: ${month}`);
@@ -381,7 +392,7 @@ async function checkAbnormal(monthsToCheck = 1) {
             const res = await callApifetch({
                 action: 'getAbnormalRecords',
                 month: month,
-                userId: userId
+                userId: sessionUserId
             });
 
             if (res.ok && res.records) {
@@ -407,6 +418,11 @@ async function checkAbnormal(monthsToCheck = 1) {
     // 隱藏載入動畫
     const recordsLoading = recordsLoadingEl;
     if (recordsLoading) recordsLoading.style.display = 'none';
+
+    // 保存到快取
+    abnormalRecordsCache = allAbnormalRecords;
+    abnormalRecordsCacheTime = now;
+    console.log("異常記錄已快取");
 
     // 查詢待審核申請，並將狀態合併到異常記錄中
     await enrichAbnormalRecordsWithApplicationStatus(allAbnormalRecords);
@@ -831,7 +847,7 @@ function bindPunchEvents() {
 
                         if (outRes.ok) {
                             adjustmentFormContainer.innerHTML = '';
-                            checkAbnormal(); // 補打卡成功後，重新檢查異常紀錄
+                            checkAbnormal(1, true); // 補打卡成功後，重新檢查異常紀錄
                         }
                     } else {
                         // 單次打卡
@@ -849,7 +865,7 @@ function bindPunchEvents() {
 
                         if (res.ok) {
                             adjustmentFormContainer.innerHTML = '';
-                            checkAbnormal(); // 補打卡成功後，重新檢查異常紀錄
+                            checkAbnormal(1, true); // 補打卡成功後，重新檢查異常紀錄
                         }
                     }
 
@@ -897,7 +913,7 @@ function bindPunchEvents() {
 
                     if (res.ok) {
                         adjustmentFormContainer.innerHTML = '';
-                        checkAbnormal(); // 請假成功後，重新檢查異常紀錄
+                        checkAbnormal(1, true); // 請假成功後，重新檢查異常紀錄
                     }
 
                 } catch (err) {
@@ -944,7 +960,7 @@ function bindPunchEvents() {
 
                     if (res.ok) {
                         adjustmentFormContainer.innerHTML = '';
-                        checkAbnormal(); // 休假成功後，重新檢查異常紀錄
+                        checkAbnormal(1, true); // 休假成功後，重新檢查異常紀錄
                     }
 
                 } catch (err) {

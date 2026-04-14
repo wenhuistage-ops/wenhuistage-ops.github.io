@@ -34,6 +34,11 @@ let adminMonthNavigationHistory = []; // 管理員月曆翻頁行為記錄
 let isApiCalled = false; // 新增：用於追蹤 API 呼叫狀態，避免重複呼叫
 let userId = localStorage.getItem("sessionUserId");
 
+// 異常記錄快取相關（問題 8.4）
+let abnormalRecordsCache = null; // 快取的異常記錄
+let abnormalRecordsCacheTime = null; // 快取時間
+const ABNORMAL_RECORDS_CACHE_DURATION = 5 * 60 * 1000; // 5 分鐘快取
+
 // 新增用於管理員日曆檢視的狀態變數
 let adminSelectedUserId = null;
 let adminCurrentDate = new Date(); // 初始化為當前月份
