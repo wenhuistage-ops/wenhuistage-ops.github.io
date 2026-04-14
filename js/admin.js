@@ -916,28 +916,40 @@ function renderReviewRequests(requests) {
     requests.forEach((req, index) => {
         const li = document.createElement('li');
         li.className = 'p-4 bg-gray-50 rounded-lg shadow-sm flex flex-col space-y-2 dark:bg-gray-700';
-        // ... (HTML 結構不變) ...
+        
+        // 判斷是補打卡還是請假/休假
+        const isLeaveRequest = req.remark && req.remark !== "補打卡";
+        
+        // 構建詳情文字
+        let detailText = req.name || "（未知）";
+        if (isLeaveRequest) {
+            // 請假/休假記錄：顯示 "姓名 - 原因"
+            detailText = `${req.name || "（未知）"} - ${req.remark || "（無原因）"}`;
+        }
+        
         li.innerHTML = `
              <div class="flex flex-col space-y-1">
-
-                        <div class="flex items-center justify-between w-full">
-                            <p class="text-sm font-semibold text-gray-800 dark:text-white">${req.name} - ${req.remark}</p>
-                            <span class="text-xs text-gray-500">${req.applicationPeriod}</span>
-                        </div>
+                <div class="flex items-center justify-between w-full">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">申請時間: ${req.applicationPeriod || "（未知）"}</p>
                     </div>
-                    
-                <div class="flex items-center justify-between w-full mt-2">
-                    <p 
-                        data-i18n-key="${req.type}" 
-                        class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
-                    </p> 
-                    
-                    <div class="flex space-x-2"> 
-                        <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
-                        <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
-                    </div>
+                    <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
                 </div>
-            `;
+            </div>
+                
+            <div class="flex items-center justify-between w-full mt-2">
+                <p 
+                    data-i18n-key="${req.type}" 
+                    class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+                </p> 
+                
+                <div class="flex space-x-2"> 
+                    <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
+                    <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
+                </div>
+            </div>
+        `;
         listEl.appendChild(li);
         renderTranslations(li); // 來自 core.js
     });

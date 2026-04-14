@@ -462,12 +462,20 @@ function getReviewRequest() {
     const values = sheet.getDataRange().getValues();
     const headers = values[0]; // 取得標頭列
 
+    // 取得固定列的索引
+    const remarkColIdx = 7;       // 備註：補打卡 或 系統請假記錄
+    const auditColIdx = 8;        // 管理員審核
+    const nameColIdx = 3;         // 打卡人員 (員工名稱)
+    const typeColIdx = 4;         // 打卡類別 (上班/下班 或 請假/休假)
+    const locationColIdx = 6;     // 地點名稱 (原因存放位置)
+    const dateColIdx = 0;         // 打卡時間
+
     const reviewRequest = values.filter((row, index) => {
         // 跳過標頭列
         if (index === 0) return false;
 
-        const remark = row[headers.indexOf('備註')];
-        const audit = row[headers.indexOf('管理員審核')];
+        const remark = row[remarkColIdx];
+        const audit = row[auditColIdx];
         
         // 包含補打卡和請假/休假記錄
         const isPendingReview = audit === "?";
@@ -477,23 +485,32 @@ function getReviewRequest() {
         return isPendingReview && (isAdjustPunch || isLeaveRequest);
     }).map(row => {
         const actualRowNumber = values.indexOf(row) + 1; // 取得原始陣列中的索引並轉換為行號
-        const remark = row[headers.indexOf('備註')];
-        const type = row[headers.indexOf('打卡類別')];
+        const remark = row[remarkColIdx];
+        const type = row[typeColIdx];
+        const punchDate = row[dateColIdx];
         
         // 對於請假記錄，顯示類型和原因
         let displayType = type;
         let displayRemark = remark;
         if (remark === "系統請假記錄") {
-            displayType = type; // 請假或休假
-            displayRemark = row[headers.indexOf('地點名稱')]; // 原因存放在地點名稱欄位
+            // 請假/休假類型
+            displayType = type; // 請假 或 休假
+            // 原因存放在地點名稱欄位
+            displayRemark = row[locationColIdx] || ""; 
+        }
+        
+        // 格式化申請時間 (yyyy-MM-dd HH:mm)
+        let formattedDate = "";
+        if (punchDate instanceof Date) {
+            formattedDate = Utilities.formatDate(punchDate, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
         }
         
         return {
             id: actualRowNumber,
-            name: row[headers.indexOf('打卡人員')],
+            name: row[nameColIdx] || "",
             type: displayType,
             remark: displayRemark,
-            applicationPeriod: row[headers.indexOf('打卡時間')]
+            applicationPeriod: formattedDate
         };
     });
     
