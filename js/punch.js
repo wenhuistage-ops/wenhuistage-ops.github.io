@@ -426,7 +426,7 @@ function renderAbnormalRecords(records) {
         abnormalList.innerHTML = '';
 
         records.forEach(record => {
-            console.log("Abnormal Record:", record.displayDate, record.reason);
+            console.log("Abnormal Record:", record.displayDate, record.reason, "Status:", record.status);
 
             // 判斷異常類型
             const displayReason = record.reason; // 直接使用 reason 作為顯示鍵
@@ -434,32 +434,47 @@ function renderAbnormalRecords(records) {
             // 只有當上班和下班都沒有打卡時，才顯示請假和休假按鈕
             const showLeaveButtons = record.reason === "STATUS_BOTH_MISSING";
 
+            // 檢查是否有待審核申請（status: 'pending' 或 'reviewing'）
+            const hasPendingApplication = record.status === 'pending' || record.status === 'reviewing';
+
             const li = document.createElement('li');
             li.className = 'p-3 bg-gray-50 rounded-lg flex justify-between items-center dark:bg-gray-700';
 
-            // 動態生成按鈕HTML
-            let buttonsHtml = `
-                <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.displayDate}" data-reason="${record.reason}"
-                        class="adjust-btn text-sm font-semibold
-                               text-indigo-600 dark:text-indigo-400
-                               hover:text-indigo-800 dark:hover:text-indigo-300 mr-2">
-                    補打卡
-                </button>`;
+            // 動態生成按鈕HTML - 只在沒有待審核申請時顯示
+            let buttonsHtml = '';
+            if (!hasPendingApplication) {
+                buttonsHtml = `
+                    <button data-i18n="ADJUST_BUTTON_TEXT" data-date="${record.displayDate}" data-reason="${record.reason}"
+                            class="adjust-btn text-sm font-semibold
+                                   text-indigo-600 dark:text-indigo-400
+                                   hover:text-indigo-800 dark:hover:text-indigo-300 mr-2">
+                        補打卡
+                    </button>`;
+            }
 
-            if (showLeaveButtons) {
+            if (showLeaveButtons && !hasPendingApplication) {
                 buttonsHtml += `
-                <button data-i18n="BTN_LEAVE" data-date="${record.displayDate}" data-reason="${record.reason}"
-                        class="leave-btn text-sm font-semibold
-                               text-orange-600 dark:text-orange-400
-                               hover:text-orange-800 dark:hover:text-orange-300 mr-2">
-                    請假
-                </button>
-                <button data-i18n="BTN_VACATION" data-date="${record.displayDate}" data-reason="${record.reason}"
-                        class="vacation-btn text-sm font-semibold
-                               text-green-600 dark:text-green-400
-                               hover:text-green-800 dark:hover:text-green-300">
-                    休假
-                </button>`;
+                    <button data-i18n="BTN_LEAVE" data-date="${record.displayDate}" data-reason="${record.reason}"
+                            class="leave-btn text-sm font-semibold
+                                   text-orange-600 dark:text-orange-400
+                                   hover:text-orange-800 dark:hover:text-orange-300 mr-2">
+                        請假
+                    </button>
+                    <button data-i18n="BTN_VACATION" data-date="${record.displayDate}" data-reason="${record.reason}"
+                            class="vacation-btn text-sm font-semibold
+                                   text-green-600 dark:text-green-400
+                                   hover:text-green-800 dark:hover:text-green-300">
+                        休假
+                    </button>`;
+            }
+
+            // 如果有待審核申請，顯示狀態標籤
+            let statusBadge = '';
+            if (hasPendingApplication) {
+                statusBadge = `
+                    <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs rounded-full font-medium">
+                        <i class="fas fa-hourglass-half mr-1"></i>審核中
+                    </span>`;
             }
 
             li.innerHTML = `
@@ -470,7 +485,8 @@ function renderAbnormalRecords(records) {
                        data-i18n-key="${displayReason}">
                    </p>
                 </div>
-                <div class="flex flex-wrap gap-1">
+                <div class="flex flex-wrap gap-1 items-center">
+                    ${statusBadge}
                     ${buttonsHtml}
                 </div>
             `;
