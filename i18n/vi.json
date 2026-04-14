@@ -71,6 +71,7 @@
   "REQUEST_REJECTED": "Yêu cầu đã bị từ chối!",
   "REVIEW_FAILED": "Duyệt thất bại: {msg}",
   "REVIEW_NETWORK_ERROR": "Duyệt thất bại, vui lòng kiểm tra mạng.",
+  "FAILED_TO_LOAD_EMPLOYEES": "Không thể tải danh sách nhân viên.",
   "SELECT_DATETIME_LABEL": "Chọn ngày và giờ:",
   "BTN_ADJUST_IN": "Bổ sung vào",
   "BTN_ADJUST_OUT": "Bổ sung ra",

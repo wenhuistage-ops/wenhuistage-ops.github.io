@@ -71,6 +71,7 @@
   "REQUEST_REJECTED": "Permintaan ditolak!",
   "REVIEW_FAILED": "Peninjauan gagal: {msg}",
   "REVIEW_NETWORK_ERROR": "Peninjauan gagal, periksa jaringan Anda.",
+  "FAILED_TO_LOAD_EMPLOYEES": "Gagal memuat daftar karyawan.",
   "SELECT_DATETIME_LABEL": "Pilih tanggal dan waktu:",
   "BTN_ADJUST_IN": "Absen Masuk Susulan",
   "BTN_ADJUST_OUT": "Absen Keluar Susulan",

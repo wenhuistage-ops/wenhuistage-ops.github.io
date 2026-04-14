@@ -188,6 +188,11 @@ function handleGetAttendanceDetails(params) {
 }
 
 function handleGetEmployeeList(params) {
+  if (typeof getEmployeeList !== 'function') {
+    Logger.log("handleGetEmployeeList: getEmployeeList is not defined");
+    return { ok: false, msg: "getEmployeeList is not defined" };
+  }
+
   const employees = getEmployeeList();
   if (!employees.ok) return employees;
   return employees;
@@ -201,9 +206,12 @@ function handleGetEmployeeList(params) {
 function handleGetCalendarSummary(params) {
   const { month, userId } = params;
   if (!month) return { ok: false, code: "ERR_MISSING_MONTH" };
-  
+  if (typeof getCachedAttendanceSummary !== 'function') {
+    Logger.log("handleGetCalendarSummary: getCachedAttendanceSummary is not defined");
+    return { ok: false, msg: "getCachedAttendanceSummary is not defined" };
+  }
+
   const summary = getCachedAttendanceSummary(month, userId);
-  
   return { ok: true, records: { dailyStatus: summary } };
 }
 function handleAddLocation(params) {
@@ -211,9 +219,17 @@ function handleAddLocation(params) {
   return addLocation(name, lat, lng);
 }
 function handleGetLocation() {
+  if (typeof getLocation !== 'function') {
+    Logger.log("handleGetLocation: getLocation is not defined");
+    return { ok: false, msg: "getLocation is not defined" };
+  }
   return getLocation();
 }
 function handleGetReviewRequest() {
+  if (typeof getReviewRequest !== 'function') {
+    Logger.log("handleGetReviewRequest: getReviewRequest is not defined");
+    return { ok: false, msg: "getReviewRequest is not defined" };
+  }
   return getReviewRequest();
 }
 // 新增這兩個函式到你的檔案中

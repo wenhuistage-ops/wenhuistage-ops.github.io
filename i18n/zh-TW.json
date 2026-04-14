@@ -71,6 +71,7 @@
     "REQUEST_REJECTED": "請求已拒絕！",
     "REVIEW_FAILED": "審核失敗：{msg}",
     "REVIEW_NETWORK_ERROR": "審核失敗，請檢查網路。",
+    "FAILED_TO_LOAD_EMPLOYEES": "載入員工列表失敗。",
     "SELECT_DATETIME_LABEL": "選擇日期與時間：",
     "BTN_ADJUST_IN": "補上班打卡",
     "BTN_ADJUST_OUT": "補下班打卡",

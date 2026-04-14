@@ -71,6 +71,7 @@
   "REQUEST_REJECTED": "Request Rejected!",
   "REVIEW_FAILED": "Review Failed: {msg}",
   "REVIEW_NETWORK_ERROR": "Review failed. Please check your network.",
+  "FAILED_TO_LOAD_EMPLOYEES": "Failed to load employee list.",
   "SELECT_DATETIME_LABEL": "Select Date and Time:",
   "BTN_ADJUST_IN": "Make-up In",
   "BTN_ADJUST_OUT": "Make-up Out",

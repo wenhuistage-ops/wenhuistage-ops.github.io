@@ -71,6 +71,7 @@
   "REQUEST_REJECTED": "リクエストを却下しました！",
   "REVIEW_FAILED": "承認失敗：{msg}",
   "REVIEW_NETWORK_ERROR": "承認失敗、ネットワークを確認してください。",
+  "FAILED_TO_LOAD_EMPLOYEES": "従業員リストの読み込みに失敗しました。",
   "SELECT_DATETIME_LABEL": "日付と時間を選択：",
   "BTN_ADJUST_IN": "出勤修正",
   "BTN_ADJUST_OUT": "退勤修正",
