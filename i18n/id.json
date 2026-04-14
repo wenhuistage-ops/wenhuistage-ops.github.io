@@ -54,7 +54,7 @@
   "API_TEST_BTN": "Uji API",
   "FOOTER_VERSION": "Sistem Absensi 0 v1.0",
   "FOOTER_CREDITS_PREFIX": "Dibuat oleh",
-  "FOOTER_CREDITS_SUFFIX": "",
+  "FOOTER_CREDITS_SUFFIX": "Dibuat oleh",
   "FOOTER_SPONSOR": "Sponsori proyek ini",
   "FOOTER_OPEN_SOURCE": "Ini adalah proyek sumber terbuka, kontribusi dipersilakan.",
   "LOGIN_INFO": "Silakan klik masuk untuk melanjutkan.",
@@ -187,5 +187,6 @@
   "STATUS_LEAVE_PENDING": "Cuti (Tertunda)",
   "STATUS_VACATION_PENDING": "Liburan (Tertunda)",
   "PUNCH_IN": "Absen Masuk",
-  "PUNCH_OUT": "Absen Keluar"
+  "PUNCH_OUT": "Absen Keluar",
+  "STATUS_PUNCH_NORMAL": "Punch Normal"
 }

@@ -54,7 +54,7 @@
   "API_TEST_BTN": "Test API",
   "FOOTER_VERSION": "Zero-point Attendance v1.0",
   "FOOTER_CREDITS_PREFIX": "Made by",
-  "FOOTER_CREDITS_SUFFIX": "",
+  "FOOTER_CREDITS_SUFFIX": "Made",
   "FOOTER_SPONSOR": "Sponsor this project",
   "FOOTER_OPEN_SOURCE": "This is an open-source project. Contributions welcome.",
   "LOGIN_INFO": "Click login to continue.",
@@ -187,5 +187,6 @@
   "STATUS_LEAVE_PENDING": "Leave (Pending)",
   "STATUS_VACATION_PENDING": "Vacation (Pending)",
   "PUNCH_IN": "Punch In",
-  "PUNCH_OUT": "Punch Out"
+  "PUNCH_OUT": "Punch Out",
+  "STATUS_PUNCH_NORMAL": "Punch Normal"
 }

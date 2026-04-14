@@ -54,7 +54,7 @@
   "API_TEST_BTN": "APIをテスト",
   "FOOTER_VERSION": "ゼロ勤怠システム v1.0",
   "FOOTER_CREDITS_PREFIX": "制作：",
-  "FOOTER_CREDITS_SUFFIX": "",
+  "FOOTER_CREDITS_SUFFIX": "作成",
   "FOOTER_SPONSOR": "このプロジェクトを支援する",
   "FOOTER_OPEN_SOURCE": "このプロジェクトはオープンソースです。貢献を歓迎します。",
   "LOGIN_INFO": "続けるにはログインをクリックしてください。",
@@ -187,5 +187,6 @@
   "STATUS_LEAVE_PENDING": "休暇（承認待ち）",
   "STATUS_VACATION_PENDING": "休暇（承認待ち）",
   "PUNCH_IN": "出勤",
-  "PUNCH_OUT": "退勤"
+  "PUNCH_OUT": "退勤",
+  "STATUS_PUNCH_NORMAL": "パンチ正常"
 }
