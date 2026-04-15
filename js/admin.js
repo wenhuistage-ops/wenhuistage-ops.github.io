@@ -1823,6 +1823,151 @@ function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo
     return sheetRows;
 }
 
+/**
+ * 生成對齊「外籍薪資範例 Excel」版型的試算表資料
+ * @param {Array} summaryRows - 日摘要的行數據
+ * @param {number} baseMonthly - 基本月薪
+ * @param {number} hourlyRate - 時薪
+ * @param {object} employeeInfo - 員工資訊
+ * @param {number} year - 西元年
+ * @returns {Array} 範例版型工作表行資料
+ */
+function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo, year) {
+    const rows = [];
+    const rocYear = Number(year) - 1911;
+
+    const categories = [
+        { key: '平日2H以內', idx: 11, rate: 1.34, multiplierLabel: '1又1/3' },
+        { key: '平日3~4H以上', idx: 12, rate: 1.67, multiplierLabel: '1又2/3' },
+        { key: '休息日2H以內', idx: 13, rate: 1.34, multiplierLabel: '1又1/3' },
+        { key: '休息日3~8H', idx: 14, rate: 1.67, multiplierLabel: '1又2/3' },
+        { key: '休息日9H以上', idx: 15, rate: 2.67, multiplierLabel: '2又2/3' },
+        { key: '例假日8H以上', idx: 17, rate: 2.0, multiplierLabel: '2' },
+        { key: '國定假日9~10H', idx: 18, rate: 1.34, multiplierLabel: '1又1/3' },
+        { key: '國定假日11~12H以上', idx: 19, rate: 1.67, multiplierLabel: '1又2/3' }
+    ];
+
+    const categoryTotals = {};
+    categories.forEach(c => {
+        categoryTotals[c.key] = 0;
+    });
+
+    let totalEffectiveHours = 0;
+    let workedRegularOffDays = 0;
+    let workedHolidayDays = 0;
+
+    rows.push([
+        '',
+        employeeInfo?.name || '',
+        `${rocYear}年`,
+        '上班',
+        '下班',
+        '上班',
+        '下班',
+        '加班時數',
+        '平日2H以內',
+        '平日3~4H以上',
+        '休息日2H以內',
+        '休息日3~8H',
+        '休息日9H以上',
+        '例假日8H以上',
+        '國定假日9~10H',
+        '國定假日11~12H以上'
+    ]);
+
+    summaryRows.slice(1).forEach(row => {
+        if (!row || !row[0]) return;
+
+        const dateStr = String(row[0] || '');
+        const parts = dateStr.split('-');
+        const md = parts.length === 3 ? `${Number(parts[1])}/${Number(parts[2])}` : dateStr;
+
+        const rawDayType = String(row[2] || '');
+        const dayType = rawDayType === '國' ? '國定假日' : rawDayType;
+        const weekday = String(row[1] || '').replace('週', '');
+        const inTime = row[3] || '休';
+        const outTime = row[5] || '休';
+        const effectiveHours = Number(row[8] || 0);
+
+        const categoryValues = categories.map(c => {
+            const v = Number(row[c.idx] || 0);
+            categoryTotals[c.key] += v;
+            return Number(v.toFixed(2));
+        });
+
+        totalEffectiveHours += effectiveHours;
+        if (rawDayType === '例' && effectiveHours > 0) workedRegularOffDays += 1;
+        if (rawDayType === '國' && effectiveHours > 0) workedHolidayDays += 1;
+
+        rows.push([
+            dayType,
+            weekday,
+            md,
+            inTime,
+            outTime,
+            '',
+            '',
+            Number(effectiveHours.toFixed(2)),
+            ...categoryValues
+        ]);
+    });
+
+    const overtimeHourValues = categories.map(c => Number(categoryTotals[c.key].toFixed(2)));
+    const overtimeRateValues = categories.map(c => Number((hourlyRate * c.rate).toFixed(0)));
+    const overtimeFeeValues = categories.map(c => Number((categoryTotals[c.key] * hourlyRate * c.rate).toFixed(0)));
+    const totalOvertimeHours = overtimeHourValues.reduce((sum, v) => sum + Number(v || 0), 0);
+    const totalOvertimeFee = overtimeFeeValues.reduce((sum, v) => sum + Number(v || 0), 0);
+
+    rows.push(['', '', '', '', '', '', Number(totalEffectiveHours.toFixed(2)), '加班時數', ...overtimeHourValues, Number(totalOvertimeHours.toFixed(2))]);
+    rows.push(['', '', '', '', '', '', '', '加班時薪', ...overtimeRateValues]);
+    rows.push(['', '', '', '', '', '', '', '加班費', ...overtimeFeeValues, Number(totalOvertimeFee.toFixed(0))]);
+    rows.push([]);
+    rows.push([]);
+
+    const regularOffAllowancePerDay = 1000;
+    const holidayAllowancePerDay = 1000;
+    const regularOffAllowance = workedRegularOffDays * regularOffAllowancePerDay;
+    const holidayAllowance = workedHolidayDays * holidayAllowancePerDay;
+
+    rows.push(['', '應發項目']);
+    rows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
+    rows.push(['', '本薪', Number(baseMonthly.toFixed(0)), '平日加班', '', categories[0].multiplierLabel, overtimeHourValues[0], overtimeFeeValues[0]]);
+    rows.push(['', `例假日${workedRegularOffDays}天`, regularOffAllowance, '', '', categories[1].multiplierLabel, overtimeHourValues[1], overtimeFeeValues[1]]);
+    rows.push(['', `國定假日${workedHolidayDays}天`, holidayAllowance, '休息日加班', '8小時以內', categories[2].multiplierLabel, overtimeHourValues[2], overtimeFeeValues[2]]);
+    rows.push(['', '', '', '', '', categories[3].multiplierLabel, overtimeHourValues[3], overtimeFeeValues[3]]);
+    rows.push(['', '', '', '', '逾8小時', categories[4].multiplierLabel, overtimeHourValues[4], overtimeFeeValues[4]]);
+    rows.push(['', '', '', '例假日出勤', '逾8小時', categories[5].multiplierLabel, overtimeHourValues[5], overtimeFeeValues[5]]);
+    rows.push(['', '', '', '國定假日出勤', '9~10小時', categories[6].multiplierLabel, overtimeHourValues[6], overtimeFeeValues[6]]);
+    rows.push(['', '', '', '', '11~12小時', categories[7].multiplierLabel, overtimeHourValues[7], overtimeFeeValues[7]]);
+
+    const totalIncome = Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance + Number(totalOvertimeFee.toFixed(0));
+    rows.push(['', '合計', Number((Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance).toFixed(0)), '', '', '合計', '', Number(totalOvertimeFee.toFixed(0))]);
+    rows.push([]);
+    rows.push(['', '應扣金額', '', '', '', '', Number(totalIncome.toFixed(0))]);
+
+    const leaveInsuranceLevel = String(employeeInfo?.leaveInsurance || '第2級').trim();
+    const healthInsuranceLevel = String(employeeInfo?.healthInsurance || '第2級').trim();
+    const laborInsuranceFee = Number((totalIncome * (INSURANCE_RATES['勞保'][leaveInsuranceLevel] || 0.0225)).toFixed(0));
+    const healthInsuranceFee = Number((totalIncome * (INSURANCE_RATES['健保'][healthInsuranceLevel] || 0.0130)).toFixed(0));
+    const housingExpense = Number(employeeInfo?.housingExpense || 1000);
+    const incomeTax = Number((totalIncome * 0.06).toFixed(0));
+
+    rows.push(['', `勞保費29500`, '', -laborInsuranceFee]);
+    rows.push(['', `健保費29500`, '', -healthInsuranceFee]);
+    rows.push(['', '住宿', '', -housingExpense]);
+    rows.push(['', '所得稅', '', -incomeTax]);
+    rows.push([]);
+
+    const totalDeductions = laborInsuranceFee + healthInsuranceFee + housingExpense + incomeTax;
+    const netPay = totalIncome - totalDeductions;
+    rows.push(['', '合計', '', -totalDeductions]);
+    rows.push([]);
+    rows.push(['', '小計', '', netPay]);
+    rows.push(['', '實支額', '', netPay]);
+
+    return rows;
+}
+
 function setupAdminExport() {
     const btn = document.getElementById('export-admin-month-excel-btn');
     if (!btn) return;
@@ -2104,33 +2249,15 @@ function setupAdminExport() {
                 totalOvertimeHours += overtimeHours;
             }
 
-            const outerSummaryRows = [
-                ['員工', (currentManagingEmployee && currentManagingEmployee.name) || userId],
-                ['年度', year],
-                ['月份', pad(month + 1)],
-                ['基本薪資 (NTD/月)', baseMonthly],
-                ['時薪 (NTD/小時)', Number(hourlyRate.toFixed(4))],
-                ['總原始時數 (小時)', Number(totalRawHours.toFixed(2))],
-                ['總淨工時 (小時)', Number(totalHours.toFixed(2))],
-                ['總休息時間 (小時)', Number((totalBreakMinutes / 60).toFixed(2))],
-                ['總正常工時 (小時)', Number(totalNormalHours.toFixed(2))],
-                ['總加班工時 (小時)', Number(totalOvertimeHours.toFixed(2))],
-                ['總薪資 (NTD)', Number(totalSalary.toFixed(2))]
-            ];
-
-            // 生成薪資明細表 Sheet（Phase 4）
-            const payrollSheetRows = generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, currentManagingEmployee, year, pad(month + 1));
+            // 生成「範例 Excel 格式」工作表
+            const samplePayrollSheetRows = generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, currentManagingEmployee, year);
 
             try {
                 const ws1 = XLSX.utils.aoa_to_sheet(completeRecordRows);
-                const ws2 = XLSX.utils.aoa_to_sheet(summaryRows);
-                const ws3 = XLSX.utils.aoa_to_sheet(outerSummaryRows);
-                const ws4 = XLSX.utils.aoa_to_sheet(payrollSheetRows);
+                const ws2 = XLSX.utils.aoa_to_sheet(samplePayrollSheetRows);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws1, '完整打卡紀錄');
-                XLSX.utils.book_append_sheet(wb, ws2, '日摘要');
-                XLSX.utils.book_append_sheet(wb, ws3, '月份統計');
-                XLSX.utils.book_append_sheet(wb, ws4, '薪資明細表');
+                XLSX.utils.book_append_sheet(wb, ws2, '薪資明細(範例格式)');
                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                 const blob = new Blob([wbout], { type: 'application/octet-stream' });
 
