@@ -1106,14 +1106,14 @@ const DAY_TYPE = {
  * @returns {string} - 回傳 DAY_TYPE 中的常數
  */
 function determineDayType(dayOfWeek, isNationalHoliday) {
-    if (isNationalHoliday && dayOfWeek === 0) {
+    if (dayOfWeek === 0) {
         return DAY_TYPE.REGULAR_OFF; // 週日 (例假日)
     }
-    if (isNationalHoliday && dayOfWeek === 6) {
+    if (dayOfWeek === 6) {
         return DAY_TYPE.REST_DAY; // 週六 (休息日)
     }
     if (isNationalHoliday) {
-        return DAY_TYPE.HOLIDAY; // 國定假日
+        return DAY_TYPE.HOLIDAY; // 國定假日（平日遇國定假日）
     }
     return DAY_TYPE.NORMAL; // 週一到週五 (平日)
 }
@@ -1836,6 +1836,29 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
     const rows = [];
     const rocYear = Number(year) - 1911;
 
+    const normalizeSheetTime = (rawTime) => {
+        if (!rawTime) return '休';
+        if (typeof rawTime !== 'string') return String(rawTime);
+
+        // 若已是 HH:MM，直接返回
+        if (/^\d{1,2}:\d{2}$/.test(rawTime)) {
+            return rawTime;
+        }
+
+        // 處理格式不標準的空白（將 "2026-02-01 06:31" 轉為 "2026-02-01T06:31" 讓 Date 好讀取）
+        const standardFormat = rawTime.replace(' ', 'T');
+        const dt = new Date(standardFormat);
+        if (!isNaN(dt.getTime())) {
+            const h = String(dt.getHours()).padStart(2, '0');
+            const m = String(dt.getMinutes()).padStart(2, '0');
+            return `${h}:${m}`;
+        }
+
+        if (rawTime.includes('T')) return rawTime.split('T')[1].substring(0, 5);
+        if (rawTime.includes(' ')) return rawTime.split(' ')[1].substring(0, 5);
+        return rawTime;
+    };
+
     const categories = [
         { key: '平日2H以內', idx: 11, rate: 1.34, multiplierLabel: '1又1/3' },
         { key: '平日3~4H以上', idx: 12, rate: 1.67, multiplierLabel: '1又2/3' },
@@ -1885,8 +1908,8 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
         const rawDayType = String(row[2] || '');
         const dayType = rawDayType === '國' ? '國定假日' : rawDayType;
         const weekday = String(row[1] || '').replace('週', '');
-        const inTime = row[3] || '休';
-        const outTime = row[5] || '休';
+        const inTime = normalizeSheetTime(row[3]);
+        const outTime = normalizeSheetTime(row[5]);
         const effectiveHours = Number(row[8] || 0);
 
         const categoryValues = categories.map(c => {
@@ -2119,6 +2142,18 @@ function setupAdminExport() {
                 dailyGroupMap[dateKey].push(record);
             });
 
+            // 由月曆快取建立國定假日日期集合，避免無打卡日無法判斷日期類型
+            const monthCacheKey = `${userId}-${year}-${pad(month + 1)}`;
+            const monthCacheRecords = (typeof adminMonthDataCache !== 'undefined' && adminMonthDataCache[monthCacheKey])
+                ? adminMonthDataCache[monthCacheKey]
+                : [];
+            const nationalHolidaySet = new Set(
+                (Array.isArray(monthCacheRecords) ? monthCacheRecords : [])
+                    .filter(r => r && (r.isHoliday === true || String(r.isHoliday).toLowerCase() === 'true' || String(r.isHoliday) === '1'))
+                    .map(r => normalizeDateKey(r.date))
+                    .filter(Boolean)
+            );
+
             // 遍歷該月份的每一天
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateKey = `${year}-${pad(month + 1)}-${pad(d)}`;
@@ -2134,34 +2169,39 @@ function setupAdminExport() {
                 // 補打卡或請假記錄
                 const specialRecord = dayRecords.find(r => /補打卡|系統請假記錄/i.test(String(r.note || '')));
 
-                // 提取時間的輔助函式（處理時區問題）
+                // 提取時間的輔助函式：統一走本地時區，避免與完整打卡紀錄出現 8 小時差
                 const extractTime = (dateVal) => {
                     if (!dateVal) return '';
+
+                    const formatLocalHM = (dt) => {
+                        const h = String(dt.getHours()).padStart(2, '0');
+                        const m = String(dt.getMinutes()).padStart(2, '0');
+                        return `${h}:${m}`;
+                    };
+
+                    if (dateVal instanceof Date) {
+                        return isNaN(dateVal.getTime()) ? '' : formatLocalHM(dateVal);
+                    }
+
                     if (typeof dateVal === 'string') {
-                        // 字符串情況：直接提取時間部分（避免誤解時區）
+                        const normalized = dateVal.includes(' ') ? dateVal.replace(' ', 'T') : dateVal;
+                        const parsed = new Date(normalized);
+                        if (!isNaN(parsed.getTime())) {
+                            return formatLocalHM(parsed);
+                        }
+
+                        // 無法被 Date 正確解析時，退回字串提取（例如僅 HH:MM）
+                        if (/^\d{1,2}:\d{2}/.test(dateVal)) {
+                            return dateVal.substring(0, 5);
+                        }
                         if (dateVal.includes('T')) {
-                            const timePart = dateVal.split('T')[1];
-                            // 🔧 修復：對於 UTC 時間（包含 Z），直接提取時間部分
-                            // 不進行時區轉換，因為字符串中的時間已經正確
-                            if (timePart.includes('Z')) {
-                                // 直接返回 HH:MM 部分，無時區轉換
-                                return timePart.substring(0, 5);
-                            }
-                            // 對於帶有時區標記的格式 (+08:00 或 -05:00)，也直接提取
-                            if (timePart.includes('+') || timePart.includes('-')) {
-                                const baseTime = timePart.split(/[+\-]/)[0];
-                                return baseTime.substring(0, 5);
-                            }
-                            // 對於無時區標記的 ISO 格式，視為本地時間
-                            return timePart.substring(0, 5);
-                        } else if (dateVal.includes(' ')) {
+                            return dateVal.split('T')[1].substring(0, 5);
+                        }
+                        if (dateVal.includes(' ')) {
                             return dateVal.split(' ')[1].substring(0, 5);
                         }
-                    } else if (dateVal instanceof Date) {
-                        const h = String(dateVal.getHours()).padStart(2, '0');
-                        const m = String(dateVal.getMinutes()).padStart(2, '0');
-                        return `${h}:${m}`;
                     }
+
                     return '';
                 };
 
@@ -2173,7 +2213,17 @@ function setupAdminExport() {
 
                 // 計算工時
                 const dayOfWeek = dateObj.getDay();
-                const dayType = determineDayType(dayOfWeek, false);
+                const isNationalHoliday = nationalHolidaySet.has(dateKey) || dayRecords.some(r => {
+                    const flag = (r && (r.isHoliday === true || r.holiday === true));
+                    if (flag) return true;
+
+                    const rawHoliday = String((r && (r.isHoliday || r.holiday || r.holidayType || r.dayType)) || '').toLowerCase();
+                    if (rawHoliday === 'true' || rawHoliday === '1') return true;
+
+                    const hint = `${r?.note || ''}${r?.type || ''}${r?.tag || ''}${r?.dayType || ''}`;
+                    return /國定假日|national\s*holiday|holiday/i.test(hint);
+                });
+                const dayType = determineDayType(dayOfWeek, isNationalHoliday);
 
                 let rawHours = 0, effectiveHours = 0, breakMinutes = 0, dailySalary = 0;
                 let normalHours = 0, overtimeHours = 0, restHours = 0;
