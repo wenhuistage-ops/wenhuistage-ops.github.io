@@ -273,8 +273,16 @@ function calculateAndDisplayMonthlySalary(records) {
             const dayOfWeek = dateObject.getDay(); // 0=週日, 6=週六
 
             const isNationalHoliday = dailyRecord.isHoliday || false;
+            const hasHolidayField = Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'isHoliday')
+                || Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'holiday');
+            const holidayRawValue = hasHolidayField
+                ? (dailyRecord?.isHoliday ?? dailyRecord?.holiday)
+                : undefined;
+            const isWeekendWorkday = (dayOfWeek === 0 || dayOfWeek === 6)
+                && hasHolidayField
+                && isExplicitNonHolidayValue(holidayRawValue);
 
-            const dayType = determineDayType(dayOfWeek, isNationalHoliday);
+            const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
             //console.log(`計算日期: ${dailyRecord.date},dayOfWeek:${dayOfWeek}, 類型: ${dayType}`);
             // 🚨 步驟 1：使用新函數計算淨工時與扣除分鐘數
             const {
@@ -971,8 +979,16 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     const dayOfWeek = dateObject.getDay(); // 0=週日, 6=週六
 
                     const isNationalHoliday = dailyRecord.isHoliday || false;
+                    const hasHolidayField = Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'isHoliday')
+                        || Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'holiday');
+                    const holidayRawValue = hasHolidayField
+                        ? (dailyRecord?.isHoliday ?? dailyRecord?.holiday)
+                        : undefined;
+                    const isWeekendWorkday = (dayOfWeek === 0 || dayOfWeek === 6)
+                        && hasHolidayField
+                        && isExplicitNonHolidayValue(holidayRawValue);
 
-                    const dayType = determineDayType(dayOfWeek, isNationalHoliday);
+                    const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
                     console.log(`計算日期: ${dailyRecord.date},dayOfWeek:${dayOfWeek}, 類型: ${dayType}`);
                     const hourlyRateDisplay = hourlyRate.toFixed(2); // 用於顯示
 
@@ -1092,17 +1108,28 @@ const DAY_TYPE = {
  * 根據星期幾和是否為國定假日，判斷該日子的類型。
  * @param {number} dayOfWeek - 星期幾 (0=日, 6=六)
  * @param {boolean} isNationalHoliday - 是否為國定假日 (來自 holiday map)
+ * @param {boolean} isWeekendWorkday - 是否為週末補班日（是否假日=否）
  * @returns {string} - 回傳 DAY_TYPE 中的常數
  */
-function determineDayType(dayOfWeek, isNationalHoliday) {
-    if (isNationalHoliday) {
-        return DAY_TYPE.HOLIDAY; // 國定假日優先（含落在週末的國定假日）
+function isExplicitNonHolidayValue(value) {
+    if (value === false || value === 0) return true;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return normalized === 'false' || normalized === '0' || normalized === '否' || normalized === 'no' || normalized === 'n';
+}
+
+function determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday = false) {
+    if (isWeekendWorkday && (dayOfWeek === 0 || dayOfWeek === 6)) {
+        return DAY_TYPE.NORMAL; // 週末補班視為平日
     }
     if (dayOfWeek === 0) {
         return DAY_TYPE.REGULAR_OFF; // 週日 (例假日)
     }
     if (dayOfWeek === 6) {
         return DAY_TYPE.REST_DAY; // 週六 (休息日)
+    }
+    // 只有平日且標記為假日時，才判定為國定假日
+    if (isNationalHoliday) {
+        return DAY_TYPE.HOLIDAY; // 國定假日（平日遇國定假日）
     }
     return DAY_TYPE.NORMAL; // 週一到週五 (平日)
 }
@@ -2172,9 +2199,30 @@ function setupAdminExport() {
                 return /國定假日|national\s*holiday|holiday|春節|農曆年|農曆新年|除夕/i.test(hint);
             };
 
+            const isWeekendWorkdayRecord = (r) => {
+                if (!r) return false;
+                const hasHolidayField = Object.prototype.hasOwnProperty.call(r, 'isHoliday')
+                    || Object.prototype.hasOwnProperty.call(r, 'holiday')
+                    || Object.prototype.hasOwnProperty.call(r, 'is_holiday');
+                const rawHoliday = r?.isHoliday ?? r?.holiday ?? r?.is_holiday;
+                if (hasHolidayField && isExplicitNonHolidayValue(rawHoliday)) {
+                    return true;
+                }
+
+                const hint = `${r?.note || ''}${r?.type || ''}${r?.tag || ''}${r?.dayType || ''}${r?.holidayName || ''}${r?.holidayType || ''}${r?.caption || ''}`;
+                return /補班|補上班|make\s*up\s*work/i.test(hint);
+            };
+
             const nationalHolidaySet = new Set(
                 (Array.isArray(monthCacheRecords) ? monthCacheRecords : [])
                     .filter(isNationalHolidayRecord)
+                    .map(r => normalizeDateKey(r?.date || r?.day || r?.workDate || r?.dateKey || ''))
+                    .filter(Boolean)
+            );
+
+            const weekendWorkdaySet = new Set(
+                (Array.isArray(monthCacheRecords) ? monthCacheRecords : [])
+                    .filter(isWeekendWorkdayRecord)
                     .map(r => normalizeDateKey(r?.date || r?.day || r?.workDate || r?.dateKey || ''))
                     .filter(Boolean)
             );
@@ -2239,7 +2287,8 @@ function setupAdminExport() {
                 // 計算工時
                 const dayOfWeek = dateObj.getDay();
                 const isNationalHoliday = nationalHolidaySet.has(dateKey) || dayRecords.some(isNationalHolidayRecord);
-                const dayType = determineDayType(dayOfWeek, isNationalHoliday);
+                const isWeekendWorkday = weekendWorkdaySet.has(dateKey) || dayRecords.some(isWeekendWorkdayRecord);
+                const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
 
                 let rawHours = 0, effectiveHours = 0, breakMinutes = 0, dailySalary = 0;
                 let normalHours = 0, overtimeHours = 0, restHours = 0;
