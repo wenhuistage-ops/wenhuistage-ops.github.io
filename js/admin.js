@@ -1686,54 +1686,98 @@ function setupAdminSalaryToggle() {
  * @param {number} baseMonthly - 基本月薪
  * @param {number} hourlyRate - 時薪
  * @param {object} employeeInfo - 員工信息
+ * @param {string} year - 年度
+ * @param {string} month - 月份
  * @returns {Array} 薪資明細表的所有行數據
  */
-function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo) {
+function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo, year, month) {
     const sheetRows = [];
 
-    // 第一部分：日期明細區（直接使用summaryRows，但簡化列）
-    // summaryRows 結構: [日期, 星期, 上班時間, 上班地點, 下班時間, 下班地點, 原始時數, 淨工時, 休息扣除, 正常工時, 加班工時, 日薪, 備註]
-    const headers = ['日期', '周次', '上班', '下班', '全時時數', '加班時數'];
-    sheetRows.push(headers);
+    // 第一部分：員工基本信息
+    sheetRows.push(['', employeeInfo?.name || '']);
+    sheetRows.push([year + '年', '', '', '']);
+    sheetRows.push([month + '月', '', '', '']);
+    sheetRows.push(['本薪', baseMonthly, '', '']);
 
-    // 直接複製日期明細（使用summaryRows的數據，簡化版本）
+    // 空行分隔
+    sheetRows.push([]);
+
+    // 第二部分：日期明細區
+    // summaryRows 結構: [日期, 星期, 上班時間, 上班地點, 下班時間, 下班地點, 原始時數, 淨工時, 休息扣除, 正常工時, 加班工時, 日薪, 備註]
+    sheetRows.push(['例', '日', '年月日', '上班', '下班', '', '加班時數']);
+
+    // 遍歷summaryRows，添加日期明細（跳過標題行）
+    let totalOvertimeHours = 0;
+
     summaryRows.slice(1).forEach(row => {
-        if (row.length === 0) return; // 跳過空行
-        sheetRows.push([
-            row[0],      // 日期
-            row[1],      // 周次
-            row[2],      // 上班時間
-            row[4],      // 下班時間
-            row[6] || 0, // 全時時數（原始時數）
-            row[10] || 0 // 加班時數（加班工時）
-        ]);
+        if (row.length === 0 || !row[0]) return; // 跳過空行和沒有日期的行
+
+        const dateStr = row[0]; // 日期 (YYYY-MM-DD)
+        const weekday = row[1]; // 星期
+        const inTime = row[2]; // 上班時間
+        const outTime = row[4]; // 下班時間
+        const overtimeHours = row[10] || 0; // 加班工時
+
+        // 確保使用正確的時間格式（保持為字符串，直接來自summaryRows，避免Date解析時區問題）
+        const inTimeStr = typeof inTime === 'string' ? inTime : (inTime ? String(inTime) : '');
+        const outTimeStr = typeof outTime === 'string' ? outTime : (outTime ? String(outTime) : '');
+
+        // 只添加有打卡記錄的日期
+        if (inTimeStr || outTimeStr) {
+            sheetRows.push([
+                '',          // 例休
+                weekday,     // 日期星期
+                dateStr,     // 日期
+                inTimeStr,   // 上班時間
+                outTimeStr,  // 下班時間
+                '',          // 空
+                overtimeHours > 0 ? overtimeHours : ''
+            ]);
+            totalOvertimeHours += overtimeHours || 0;
+        }
     });
 
-    // 第二部分：應發項目區
-    sheetRows.push([]); // 空行分隔
-    sheetRows.push(['應發項目']);
-    sheetRows.push(['項目', '金額']);
-    sheetRows.push(['本薪', baseMonthly]);
-    sheetRows.push(['加班費', 0]);
-    sheetRows.push(['小計應發', baseMonthly]);
+    // 空行分隔
+    sheetRows.push([]);
 
-    // 第三部分：應扣金額區
-    sheetRows.push([]); // 空行分隔
-    sheetRows.push(['應扣金額']);
-    sheetRows.push(['項目', '金額']);
-    sheetRows.push(['勞保費', 0]);
-    sheetRows.push(['健保費', 0]);
-    sheetRows.push(['住宿費', employeeInfo?.housingExpense || 1000]);
-    sheetRows.push(['所得稅', 0]);
-    sheetRows.push(['小計應扣', (employeeInfo?.housingExpense || 1000)]);
+    // 第三部分：應發項目區
+    sheetRows.push(['', '應發項目']);
+    sheetRows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
+    sheetRows.push(['', '本薪', baseMonthly]);
 
-    // 第四部分：最終結果區
-    sheetRows.push([]); // 空行分隔
-    sheetRows.push(['結算']);
-    sheetRows.push(['項目', '金額']);
-    sheetRows.push(['應發', baseMonthly]);
-    sheetRows.push(['應扣', (employeeInfo?.housingExpense || 1000)]);
-    sheetRows.push(['實支額', baseMonthly - (employeeInfo?.housingExpense || 1000)]);
+    // 最簡化版本：直接顯示總加班費（在實際應用中可以細分）
+    const overtimeFee = totalOvertimeHours * hourlyRate * 1.34; // 簡化計算，使用平均倍率
+    sheetRows.push(['', '加班費', overtimeFee > 0 ? Number(overtimeFee.toFixed(2)) : 0]);
+
+    const totalIncome = baseMonthly + (overtimeFee > 0 ? Number(overtimeFee.toFixed(2)) : 0);
+    sheetRows.push(['', '合計', totalIncome]);
+
+    // 空行分隔
+    sheetRows.push([]);
+
+    // 第四部分：應扣金額區
+    sheetRows.push(['', '應扣金額']);
+    sheetRows.push(['', '項目', '金額']);
+
+    const laborInsuranceFee = totalIncome * (INSURANCE_RATES["勞保"]["第2級"] || 0.0225);
+    const healthInsuranceFee = totalIncome * (INSURANCE_RATES["健保"]["第2級"] || 0.0130);
+    const housingExpense = employeeInfo?.housingExpense || 1000;
+    const incomeTax = totalIncome * 0.06;
+
+    sheetRows.push(['', '勞保費', Number(laborInsuranceFee.toFixed(0)), '', '', '', '', '']);
+    sheetRows.push(['', '健保費', Number(healthInsuranceFee.toFixed(0))]);
+    sheetRows.push(['', '住宿', housingExpense]);
+    sheetRows.push(['', '所得稅', Number(incomeTax.toFixed(0))]);
+
+    const totalDeductions = Number(laborInsuranceFee.toFixed(0)) + Number(healthInsuranceFee.toFixed(0)) + housingExpense + Number(incomeTax.toFixed(0));
+    sheetRows.push(['', '合計', -totalDeductions]);
+
+    // 空行分隔
+    sheetRows.push([]);
+
+    // 第五部分：最終結算
+    sheetRows.push(['', '小計', totalIncome]);
+    sheetRows.push(['', '實支額', totalIncome - totalDeductions]);
 
     return sheetRows;
 }
@@ -1900,12 +1944,24 @@ function setupAdminExport() {
                 // 補打卡或請假記錄
                 const specialRecord = dayRecords.find(r => /補打卡|系統請假記錄/i.test(String(r.note || '')));
 
-                // 提取時間的輔助函式
+                // 提取時間的輔助函式（處理時區問題）
                 const extractTime = (dateVal) => {
                     if (!dateVal) return '';
                     if (typeof dateVal === 'string') {
+                        // 字符串情況：直接提取時間部分（避免誤解時區）
                         if (dateVal.includes('T')) {
-                            return dateVal.split('T')[1].substring(0, 5);
+                            const timePart = dateVal.split('T')[1];
+                            // 如果是 UTC 時間（包含 Z），需要轉換；否則直接使用
+                            if (timePart.includes('Z') || timePart.includes('+')) {
+                                // ISO 8601 UTC 時間，轉為本地時間後提取
+                                const d = new Date(dateVal);
+                                if (!isNaN(d.getTime())) {
+                                    const h = String(d.getHours()).padStart(2, '0');
+                                    const m = String(d.getMinutes()).padStart(2, '0');
+                                    return `${h}:${m}`;
+                                }
+                            }
+                            return timePart.substring(0, 5);
                         } else if (dateVal.includes(' ')) {
                             return dateVal.split(' ')[1].substring(0, 5);
                         }
@@ -1959,7 +2015,6 @@ function setupAdminExport() {
                     Number(rawHours.toFixed(2)),
                     Number(effectiveHours.toFixed(2)),
                     Number((breakMinutes / 60).toFixed(2)),
-                    Number(restHours.toFixed(2)),
                     Number(normalHours.toFixed(2)),
                     Number(overtimeHours.toFixed(2)),
                     Number(dailySalary.toFixed(2)),
@@ -1989,7 +2044,7 @@ function setupAdminExport() {
             ];
 
             // 生成薪資明細表 Sheet（Phase 4）
-            const payrollSheetRows = generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, currentManagingEmployee);
+            const payrollSheetRows = generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, currentManagingEmployee, year, pad(month + 1));
 
             try {
                 const ws1 = XLSX.utils.aoa_to_sheet(completeRecordRows);
