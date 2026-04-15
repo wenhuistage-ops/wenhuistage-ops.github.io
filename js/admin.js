@@ -1095,14 +1095,14 @@ const DAY_TYPE = {
  * @returns {string} - 回傳 DAY_TYPE 中的常數
  */
 function determineDayType(dayOfWeek, isNationalHoliday) {
+    if (isNationalHoliday) {
+        return DAY_TYPE.HOLIDAY; // 國定假日優先（含落在週末的國定假日）
+    }
     if (dayOfWeek === 0) {
         return DAY_TYPE.REGULAR_OFF; // 週日 (例假日)
     }
     if (dayOfWeek === 6) {
         return DAY_TYPE.REST_DAY; // 週六 (休息日)
-    }
-    if (isNationalHoliday) {
-        return DAY_TYPE.HOLIDAY; // 國定假日（平日遇國定假日）
     }
     return DAY_TYPE.NORMAL; // 週一到週五 (平日)
 }
@@ -1932,7 +1932,7 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
     const totalOvertimeHours = overtimeHourValues.reduce((sum, v) => sum + Number(v || 0), 0);
     const totalOvertimeFee = overtimeFeeValues.reduce((sum, v) => sum + Number(v || 0), 0);
 
-    rows.push(['', '', '', '', '', '', Number(totalEffectiveHours.toFixed(2)), '加班時數', ...overtimeHourValues, Number(totalOvertimeHours.toFixed(2))]);
+    rows.push(['', '', '', '', '', '', Number(totalOvertimeHours.toFixed(2)), '加班時數', ...overtimeHourValues, Number(totalOvertimeHours.toFixed(2))]);
     rows.push(['', '', '', '', '', '', '', '加班時薪', ...overtimeRateValues]);
     rows.push(['', '', '', '', '', '', '', '加班費', ...overtimeFeeValues, Number(totalOvertimeFee.toFixed(0))]);
     rows.push([]);
@@ -2136,13 +2136,46 @@ function setupAdminExport() {
 
             // 由月曆快取建立國定假日日期集合，避免無打卡日無法判斷日期類型
             const monthCacheKey = `${userId}-${year}-${pad(month + 1)}`;
-            const monthCacheRecords = (typeof adminMonthDataCache !== 'undefined' && adminMonthDataCache[monthCacheKey])
+            let monthCacheRecords = (typeof adminMonthDataCache !== 'undefined' && adminMonthDataCache[monthCacheKey])
                 ? adminMonthDataCache[monthCacheKey]
                 : [];
+
+            // 匯出時若該月快取不存在，主動補抓月摘要，避免國定假日（例如春節）漏判。
+            if ((!Array.isArray(monthCacheRecords) || monthCacheRecords.length === 0) && typeof callApifetch === 'function') {
+                try {
+                    const monthSummaryRes = await callApifetch({
+                        action: 'getCalendarSummary',
+                        month: monthParam,
+                        userId: userId
+                    });
+                    if (monthSummaryRes && monthSummaryRes.ok) {
+                        monthCacheRecords = monthSummaryRes.records?.dailyStatus || [];
+                        if (typeof cacheAdminMonthData === 'function') {
+                            cacheAdminMonthData(monthCacheKey, monthCacheRecords);
+                        } else if (typeof adminMonthDataCache !== 'undefined') {
+                            adminMonthDataCache[monthCacheKey] = monthCacheRecords;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('匯出時取得月份摘要失敗，改用既有資料判斷國定假日:', e?.message || e);
+                }
+            }
+
+            const isNationalHolidayRecord = (r) => {
+                if (!r) return false;
+                if (r.isHoliday === true || r.holiday === true) return true;
+
+                const rawHoliday = String(r.isHoliday ?? r.holiday ?? r.holidayType ?? r.dayType ?? '').toLowerCase();
+                if (rawHoliday === 'true' || rawHoliday === '1') return true;
+
+                const hint = `${r?.note || ''}${r?.type || ''}${r?.tag || ''}${r?.dayType || ''}${r?.holidayName || ''}${r?.holidayType || ''}`;
+                return /國定假日|national\s*holiday|holiday|春節|農曆年|農曆新年|除夕/i.test(hint);
+            };
+
             const nationalHolidaySet = new Set(
                 (Array.isArray(monthCacheRecords) ? monthCacheRecords : [])
-                    .filter(r => r && (r.isHoliday === true || String(r.isHoliday).toLowerCase() === 'true' || String(r.isHoliday) === '1'))
-                    .map(r => normalizeDateKey(r.date))
+                    .filter(isNationalHolidayRecord)
+                    .map(r => normalizeDateKey(r?.date || r?.day || r?.workDate || r?.dateKey || ''))
                     .filter(Boolean)
             );
 
@@ -2205,16 +2238,7 @@ function setupAdminExport() {
 
                 // 計算工時
                 const dayOfWeek = dateObj.getDay();
-                const isNationalHoliday = nationalHolidaySet.has(dateKey) || dayRecords.some(r => {
-                    const flag = (r && (r.isHoliday === true || r.holiday === true));
-                    if (flag) return true;
-
-                    const rawHoliday = String((r && (r.isHoliday || r.holiday || r.holidayType || r.dayType)) || '').toLowerCase();
-                    if (rawHoliday === 'true' || rawHoliday === '1') return true;
-
-                    const hint = `${r?.note || ''}${r?.type || ''}${r?.tag || ''}${r?.dayType || ''}`;
-                    return /國定假日|national\s*holiday|holiday/i.test(hint);
-                });
+                const isNationalHoliday = nationalHolidaySet.has(dateKey) || dayRecords.some(isNationalHolidayRecord);
                 const dayType = determineDayType(dayOfWeek, isNationalHoliday);
 
                 let rawHours = 0, effectiveHours = 0, breakMinutes = 0, dailySalary = 0;
