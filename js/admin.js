@@ -694,7 +694,7 @@ function classifyOvertimeHours(totalHours, dayType, isHoliday, baseHours = 8) {
 
         case '例假日': {
             // 例假日前 8 小時比照國定假日給薪，超過 8 小時部分另按 2 倍計。
-            overtimeDetails['例假日8H以內'] = Math.min(workedHours, baseHours);
+            overtimeDetails['例假日8H以內'] = workedHours > 0 ? baseHours : 0;
             overtimeDetails['例假日8H以上'] = Math.max(workedHours - baseHours, 0);
             break;
         }
