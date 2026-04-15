@@ -464,28 +464,28 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
 
     if (dayType === DAY_TYPE.REGULAR_OFF) {
         // =========================================================
-        // 例假日 (週日) 計算 (不得要求出勤，違者重罰)
-        // 假設：此出勤為合法，工資照給 + 額外一日工資。
-        // 計薪公式：(8小時) × 2倍 + (超過8小時) × 2.66倍
+        // 例假日 (週日) 計算
+        // 前 8 小時至少給一日工資，另補休一日；此處依目前匯出口徑直接折現。
+        // 超過 8 小時部分按 2 倍計。
         // =========================================================
         dailyHours.overtimeHours = hours; // 例假日出勤，所有工時皆為加班性質（特休/例假性質）
-        // 額外發給的工資（不論工時長短，至少給予一日工資，即 8 小時薪資）
         const extraPay = hourlyRate * 8;
         dailySalary += extraPay;
-        calculation += `${hourlyRate} × 8 (不論工時長短，至少給予一日工資，即 8 小時薪資) = ${extraPay.toFixed(2)}; `;
+        calculation += `${hourlyRate} × 8 (例假日前 8 小時，至少給 8 小時薪資) = ${extraPay.toFixed(2)}; `;
 
         let hWorked = hours;
         let hOver8 = Math.max(0, hWorked - 8);
 
-        // 例假日超時部分（超 8 小時）：按2倍 計
+        // 例假日超時部分（超 8 小時）：按 2 倍計
         if (hOver8 > 0) {
             const payOver = hourlyRate * hOver8 * 2;
             dailySalary += payOver;
             calculation += `${hourlyRate} × ${hOver8} × 2 (例假日 >8h 加班) = ${payOver.toFixed(2)}; `;
         }
-        // 例假日上班補休一天-折現
+
+        // 例假日補休一天，依目前匯出口徑直接折現。
         dailySalary += extraPay;
-        calculation += `${hourlyRate} × 8 (例假日上班補休一天-折現) = ${extraPay.toFixed(2)}; `;
+        calculation += `${hourlyRate} × 8 (例假日補休折現) = ${extraPay.toFixed(2)}; `;
     } else if (dayType === DAY_TYPE.HOLIDAY) {
         // =========================================================
         // 國定假日 (特別休假) 計算
@@ -666,57 +666,46 @@ function classifyOvertimeHours(totalHours, dayType, isHoliday, baseHours = 8) {
         "國定假日11~12H以上": 0
     };
 
-    if (totalHours <= baseHours) {
-        // 未超過基準工時，不計加班
-        return overtimeDetails;
-    }
+    const workedHours = Math.max(0, Number(totalHours) || 0);
+    const normalizedDayType = (() => {
+        if (dayType === DAY_TYPE.NORMAL || dayType === 'NORMAL' || dayType === '平日') return '平日';
+        if (dayType === DAY_TYPE.REST_DAY || dayType === 'REST_DAY' || dayType === '休息日') return '休息日';
+        if (dayType === DAY_TYPE.REGULAR_OFF || dayType === 'REGULAR_OFF' || dayType === '例假日') return '例假日';
+        if (dayType === DAY_TYPE.HOLIDAY || dayType === 'HOLIDAY' || dayType === '國定假日') return '國定假日';
+        return String(dayType || '');
+    })();
 
-    const overtimeHours = totalHours - baseHours;
-
-    switch (dayType) {
-        case "平日":
-            // 平日加班分類：<=2H為1.34倍，>2H為1.67倍
-            if (overtimeHours <= 2) {
-                overtimeDetails["平日2H以內"] = overtimeHours;
-            } else {
-                overtimeDetails["平日2H以內"] = 2;
-                overtimeDetails["平日3~4H以上"] = overtimeHours - 2;
-            }
+    switch (normalizedDayType) {
+        case '平日': {
+            // 依勞基法第24條：平日延長工時前2小時與再2小時倍率不同
+            const overtimeHours = Math.max(0, workedHours - baseHours);
+            overtimeDetails['平日2H以內'] = Math.min(overtimeHours, 2);
+            overtimeDetails['平日3~4H以上'] = Math.min(Math.max(overtimeHours - 2, 0), 2);
             break;
+        }
 
-        case "休息日":
-            // 休息日（周六）加班分類：<=2H為1.34倍，2-8H為1.67倍，>8H為2.67倍
-            if (overtimeHours <= 2) {
-                overtimeDetails["休息日2H以內"] = overtimeHours;
-            } else if (overtimeHours <= 8) {
-                overtimeDetails["休息日2H以內"] = 2;
-                overtimeDetails["休息日3~8H"] = overtimeHours - 2;
-            } else {
-                overtimeDetails["休息日2H以內"] = 2;
-                overtimeDetails["休息日3~8H"] = 6;
-                overtimeDetails["休息日9H以上"] = overtimeHours - 8;
-            }
+        case '休息日': {
+            // 休息日按總出勤時數分段
+            overtimeDetails['休息日2H以內'] = Math.min(workedHours, 2);
+            overtimeDetails['休息日3~8H'] = Math.min(Math.max(workedHours - 2, 0), 6);
+            overtimeDetails['休息日9H以上'] = Math.max(workedHours - 8, 0);
             break;
+        }
 
-        case "例假日":
-            // 例假日（周日）加班分類：<=8H為1倍，>8H為2倍
-            if (overtimeHours <= 8) {
-                overtimeDetails["例假日8H以內"] = overtimeHours;
-            } else {
-                overtimeDetails["例假日8H以內"] = 8;
-                overtimeDetails["例假日8H以上"] = overtimeHours - 8;
-            }
+        case '例假日': {
+            // 例假日前 8 小時比照國定假日給薪，超過 8 小時部分另按 2 倍計。
+            overtimeDetails['例假日8H以內'] = Math.min(workedHours, baseHours);
+            overtimeDetails['例假日8H以上'] = Math.max(workedHours - baseHours, 0);
             break;
+        }
 
-        case "國定假日":
-            // 國定假日加班分類：<=10H為1.34倍，>10H為1.67倍
-            if (overtimeHours <= 10) {
-                overtimeDetails["國定假日9~10H"] = overtimeHours;
-            } else {
-                overtimeDetails["國定假日9~10H"] = 10;
-                overtimeDetails["國定假日11~12H以上"] = overtimeHours - 10;
-            }
+        case '國定假日': {
+            // 國定假日以超過 8 小時部分分為 9~10H 與 11~12H 以上
+            const overtimeHours = Math.max(0, workedHours - baseHours);
+            overtimeDetails['國定假日9~10H'] = Math.min(overtimeHours, 2);
+            overtimeDetails['國定假日11~12H以上'] = Math.max(overtimeHours - 2, 0);
             break;
+        }
 
         default:
             console.warn(`未知的日期類型: ${dayType}`);
@@ -1865,6 +1854,7 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
         { key: '休息日2H以內', idx: 13, rate: 1.34, multiplierLabel: '1又1/3' },
         { key: '休息日3~8H', idx: 14, rate: 1.67, multiplierLabel: '1又2/3' },
         { key: '休息日9H以上', idx: 15, rate: 2.67, multiplierLabel: '2又2/3' },
+        { key: '例假日8H以內', idx: 16, rate: 1.0, multiplierLabel: '1' },
         { key: '例假日8H以上', idx: 17, rate: 2.0, multiplierLabel: '2' },
         { key: '國定假日9~10H', idx: 18, rate: 1.34, multiplierLabel: '1又1/3' },
         { key: '國定假日11~12H以上', idx: 19, rate: 1.67, multiplierLabel: '1又2/3' }
@@ -1893,6 +1883,7 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
         '休息日2H以內',
         '休息日3~8H',
         '休息日9H以上',
+        '例假日8H以內',
         '例假日8H以上',
         '國定假日9~10H',
         '國定假日11~12H以上'
@@ -1947,21 +1938,22 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
     rows.push([]);
     rows.push([]);
 
-    const regularOffAllowancePerDay = 1000;
-    const holidayAllowancePerDay = 1000;
+    const regularOffAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
+    const holidayAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
     const regularOffAllowance = workedRegularOffDays * regularOffAllowancePerDay;
     const holidayAllowance = workedHolidayDays * holidayAllowancePerDay;
 
     rows.push(['', '應發項目']);
     rows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
     rows.push(['', '本薪', Number(baseMonthly.toFixed(0)), '平日加班', '', categories[0].multiplierLabel, overtimeHourValues[0], overtimeFeeValues[0]]);
-    rows.push(['', `例假日${workedRegularOffDays}天`, regularOffAllowance, '', '', categories[1].multiplierLabel, overtimeHourValues[1], overtimeFeeValues[1]]);
+    rows.push(['', `例假日補休折現${workedRegularOffDays}天`, regularOffAllowance, '', '', categories[1].multiplierLabel, overtimeHourValues[1], overtimeFeeValues[1]]);
     rows.push(['', `國定假日${workedHolidayDays}天`, holidayAllowance, '休息日加班', '8小時以內', categories[2].multiplierLabel, overtimeHourValues[2], overtimeFeeValues[2]]);
     rows.push(['', '', '', '', '', categories[3].multiplierLabel, overtimeHourValues[3], overtimeFeeValues[3]]);
     rows.push(['', '', '', '', '逾8小時', categories[4].multiplierLabel, overtimeHourValues[4], overtimeFeeValues[4]]);
-    rows.push(['', '', '', '例假日出勤', '逾8小時', categories[5].multiplierLabel, overtimeHourValues[5], overtimeFeeValues[5]]);
-    rows.push(['', '', '', '國定假日出勤', '9~10小時', categories[6].multiplierLabel, overtimeHourValues[6], overtimeFeeValues[6]]);
-    rows.push(['', '', '', '', '11~12小時', categories[7].multiplierLabel, overtimeHourValues[7], overtimeFeeValues[7]]);
+    rows.push(['', '', '', '例假日出勤', '8小時以內', categories[5].multiplierLabel, overtimeHourValues[5], overtimeFeeValues[5]]);
+    rows.push(['', '', '', '', '逾8小時', categories[6].multiplierLabel, overtimeHourValues[6], overtimeFeeValues[6]]);
+    rows.push(['', '', '', '國定假日出勤', '9~10小時', categories[7].multiplierLabel, overtimeHourValues[7], overtimeFeeValues[7]]);
+    rows.push(['', '', '', '', '11~12小時', categories[8].multiplierLabel, overtimeHourValues[8], overtimeFeeValues[8]]);
 
     const totalIncome = Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance + Number(totalOvertimeFee.toFixed(0));
     rows.push(['', '合計', Number((Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance).toFixed(0)), '', '', '合計', '', Number(totalOvertimeFee.toFixed(0))]);
