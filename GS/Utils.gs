@@ -609,13 +609,89 @@ function checkAttendanceCalendar(attendanceRows) {
       }
     }
     
-    // ✅ 簡化返回：只保留必要的三個字段
+    // ✅ 簡化返回：包含假日標記
     dailyStatus.push({
       date: item.date,
       reason: reason,
-      hours: parseFloat(hours) || 0
+      hours: parseFloat(hours) || 0,
+      isHoliday: checkIfHoliday(item.date)
     });
   }
   
   return dailyStatus;
+}
+
+/**
+ * 判斷指定日期是否為台灣國定假日或周末
+ * 從 Google Sheet '假日表' 工作表讀取假日資料
+ * 注意：'假日表' 每年一月一日凌晨由時間驅動觸發器自動更新
+ * @param {string} dateStr - 日期字符串，格式為 'yyyy-MM-dd'
+ * @return {boolean} 若為假日或周末則返回 true
+ */
+function checkIfHoliday(dateStr) {
+  try {
+    // 檢查周末（周六、周日）
+    const date = new Date(dateStr + 'T00:00:00');
+    const dayOfWeek = date.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // 0 = 周日，6 = 周六
+    
+    if (isWeekend) {
+      return true;
+    }
+    
+    // 嘗試從 '假日表' 讀取國定假日資料
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('假日表');
+    
+    if (!sheet) {
+      Logger.log("⚠️ checkIfHoliday: '假日表' 工作表不存在，請先執行 fetchTaiwanHolidaysWithWeek()");
+      return isWeekend; // 如果表不存在，只返回周末判斷
+    }
+    
+    const values = sheet.getDataRange().getValues();
+    if (values.length < 2) {
+      Logger.log("⚠️ checkIfHoliday: '假日表' 工作表為空");
+      return isWeekend;
+    }
+    
+    // 表頭：['日期', '星期(英文)', '星期(中文)', '是否假日', '假日名稱']
+    const headers = values[0];
+    const dateColIdx = headers.indexOf('日期');
+    const isHolidayColIdx = headers.indexOf('是否假日');
+    
+    if (dateColIdx === -1 || isHolidayColIdx === -1) {
+      Logger.log("⚠️ checkIfHoliday: '假日表' 列標題不符，請檢查工作表結構");
+      return isWeekend;
+    }
+    
+    // 逐行查找並比對日期
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const cellDate = row[dateColIdx];
+      const isHolidayValue = row[isHolidayColIdx];
+      
+      // 比對日期（支援字符串或 Date 物件）
+      let cellDateStr = "";
+      if (cellDate instanceof Date) {
+        cellDateStr = Utilities.formatDate(cellDate, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      } else {
+        cellDateStr = String(cellDate).trim();
+      }
+      
+      if (cellDateStr === dateStr) {
+        // 找到匹配的日期，檢查是否為假日
+        return isHolidayValue === '是' || isHolidayValue === true;
+      }
+    }
+    
+    // 如果未在表中找到，只返回周末判斷
+    return isWeekend;
+    
+  } catch (err) {
+    Logger.log("❌ checkIfHoliday 錯誤: " + err.message);
+    // 發生錯誤時，回退到簡單的周末判斷
+    const date = new Date(dateStr + 'T00:00:00');
+    const dayOfWeek = date.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6;
+  }
 }

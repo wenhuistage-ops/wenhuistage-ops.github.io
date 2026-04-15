@@ -67,7 +67,7 @@ function writeEmployee_(profile) {
   for (let i = 1; i < values.length; i++) {
     if (values[i][0] === profile.userId) return values[i]; // 已存在
   }
-  // 欄位順序: userId, email, name, picture, firstLoginTime, dept, salary, status, preferredLanguage, lastLoginTime
+  // 欄位順序: userId, email, name, picture, firstLoginTime, dept, salary, leaveInsurance, healthInsurance, housingExpense, status, preferredLanguage, lastLoginTime
   const row = [
     profile.userId,
     profile.email,
@@ -76,6 +76,9 @@ function writeEmployee_(profile) {
     new Date(), // 首次登入時間
     "", // 職位
     0, // 薪資
+    "第2級", // 勳保等級（新增，預設第2級）
+    "第2級", // 健保等級（新增，預設第2級）
+    1000, // 住宿費（新增，預設1000 NTD/月）
     "未啟用", // 狀態
     "", // 偏好語言
     new Date() // 最後登錄時間
@@ -90,7 +93,7 @@ function findEmployeeByLineUserId_(userId) {
 
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][0]).trim() === userId) {
-      const status = values[i][7] ? String(values[i][7]).trim() : "啟用";
+      const status = values[i][10] ? String(values[i][10]).trim() : "啟用";
       if (status !== '啟用') return { ok: false, code: "ERR_ACCOUNT_DISABLED" };
       return {
         ok: true,
@@ -101,9 +104,12 @@ function findEmployeeByLineUserId_(userId) {
         firstLoginTime: values[i][4],
         dept: values[i][5],
         salary: Number(values[i][6] || 0),
+        leaveInsurance: String(values[i][7] || "第2級").trim(),
+        healthInsurance: String(values[i][8] || "第2級").trim(),
+        housingExpense: Number(values[i][9] || 1000),
         status,
-        preferredLanguage: values[i][8],
-        lastLoginTime: values[i][9]
+        preferredLanguage: values[i][11],
+        lastLoginTime: values[i][12]
       };
     }
   }
@@ -125,9 +131,12 @@ function getEmployeeList() {
     firstLoginTime: row[4] || null,
     dept: String(row[5] || '').trim(),
     salary: Number(row[6] || 0),
-    status: String(row[7] || '啟用').trim(),
-    preferredLanguage: String(row[8] || '').trim(),
-    lastLoginTime: row[9] || null,
+    leaveInsurance: String(row[7] || "第2級").trim(),
+    healthInsurance: String(row[8] || "第2級").trim(),
+    housingExpense: Number(row[9] || 1000),
+    status: String(row[10] || '啟用').trim(),
+    preferredLanguage: String(row[11] || '').trim(),
+    lastLoginTime: row[12] || null,
     isAdmin: isAdminValue(String(row[5] || '').trim()), // 職位欄位用於判斷管理員
     lineUserId: String(row[0] || '').trim() // userId 欄位即為 LINE 用戶 ID
   })).filter(e => e.userId);
