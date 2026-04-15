@@ -46,7 +46,7 @@ const OVERTIME_RATES = {
  * 員工等級：第1級、第2級等
  */
 const INSURANCE_RATES = {
-    "勳保": {
+    "勞保": {
         "第1級": 0.0225,
         "第2級": 0.0225
     },
@@ -863,6 +863,9 @@ function generatePayrollSummary(monthRecords, baseHourlyRate, employeeInfo) {
 
 /**
  * 渲染管理員視圖中，某一天點擊後的打卡紀錄
+ * @param {string} dateKey - 點擊的日期 (YYYY-MM-DD)
+ * @param {string} userId - 管理員選定的員工 ID
+ */
 async function renderAdminDailyRecords(dateKey, userId) {
     // 確保使用全域變數，而非 document.getElementById
     adminDailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", { dateKey: dateKey });
@@ -1688,72 +1691,48 @@ function setupAdminSalaryToggle() {
 function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo) {
     const sheetRows = [];
 
-    // 第一部分：日期明細區（使用summaryRows的數據）
-    const headers = ['日期', '周次', '類型', '上班', '下班', '全時時數',
-        '平日2H以內', '平日3~4H以上', '休息日2H以內', '休息日3~8H', '休息日9H以上',
-        '例假日8H以內', '例假日8H以上', '國定假日9~10H', '國定假日11~12H以上'];
-
+    // 第一部分：日期明細區（直接使用summaryRows，但簡化列）
+    // summaryRows 結構: [日期, 星期, 上班時間, 上班地點, 下班時間, 下班地點, 原始時數, 淨工時, 休息扣除, 正常工時, 加班工時, 日薪, 備註]
+    const headers = ['日期', '周次', '上班', '下班', '全時時數', '加班時數'];
     sheetRows.push(headers);
 
-    // 示例數據行（在summaryRows基礎上擴展，添加加班分類）
-    // 由於summaryRows中沒有加班分類數據，這裡先用佔位符
-    // 實際生產環境應在計算階段就添加這些數據
+    // 直接複製日期明細（使用summaryRows的數據，簡化版本）
     summaryRows.slice(1).forEach(row => {
-        // row結構: [dateKey, weekday, inTime, inLoc, outTime, outLoc, rawHours, effectiveHours, breakHours, restHours, normalHours, overtimeHours, dailySalary, remark]
-        const dateKey = row[0];
-        const weekday = row[1];
-        const inTime = row[2];
-        const outTime = row[4];
-        const rawHours = row[6] || 0;
-
-        // 佔位符加班分類（實際應使用 classifyOvertimeHours 計算）
-        const overtimeDetails = classifyOvertimeHours(rawHours, '平日', false);
-
+        if (row.length === 0) return; // 跳過空行
         sheetRows.push([
-            dateKey, weekday, '', inTime, outTime, rawHours,
-            overtimeDetails['平日2H以內'] || 0,
-            overtimeDetails['平日3~4H以上'] || 0,
-            overtimeDetails['休息日2H以內'] || 0,
-            overtimeDetails['休息日3~8H'] || 0,
-            overtimeDetails['休息日9H以上'] || 0,
-            overtimeDetails['例假日8H以內'] || 0,
-            overtimeDetails['例假日8H以上'] || 0,
-            overtimeDetails['國定假日9~10H'] || 0,
-            overtimeDetails['國定假日11~12H以上'] || 0
+            row[0],      // 日期
+            row[1],      // 周次
+            row[2],      // 上班時間
+            row[4],      // 下班時間
+            row[6] || 0, // 全時時數（原始時數）
+            row[10] || 0 // 加班時數（加班工時）
         ]);
     });
 
-    // 第二部分：加班統計匯總區
-    sheetRows.push([]); // 空行分隔
-    sheetRows.push(['加班統計匯總']);
-    sheetRows.push(['類型', '時數', '時薪', '倍率', '加班費']);
-
-    const overtimeCategories = Object.keys(OVERTIME_RATES);
-    overtimeCategories.forEach(category => {
-        sheetRows.push([category, 0, hourlyRate, OVERTIME_RATES[category], 0]);
-    });
-
-    // 第三部分：應發項目區
+    // 第二部分：應發項目區
     sheetRows.push([]); // 空行分隔
     sheetRows.push(['應發項目']);
+    sheetRows.push(['項目', '金額']);
     sheetRows.push(['本薪', baseMonthly]);
-    sheetRows.push(['例假日津貼', 0]);
-    sheetRows.push(['國定假日津貼', 0]);
     sheetRows.push(['加班費', 0]);
     sheetRows.push(['小計應發', baseMonthly]);
 
-    // 第四部分：應扣金額區
+    // 第三部分：應扣金額區
     sheetRows.push([]); // 空行分隔
     sheetRows.push(['應扣金額']);
-    sheetRows.push(['勳保費', 0]);
+    sheetRows.push(['項目', '金額']);
+    sheetRows.push(['勞保費', 0]);
     sheetRows.push(['健保費', 0]);
     sheetRows.push(['住宿費', employeeInfo?.housingExpense || 1000]);
     sheetRows.push(['所得稅', 0]);
     sheetRows.push(['小計應扣', (employeeInfo?.housingExpense || 1000)]);
 
-    // 第五部分：最終結果區
+    // 第四部分：最終結果區
     sheetRows.push([]); // 空行分隔
-    sheetRows.push(['小計', baseMonthly - (employeeInfo?.housingExpense || 1000)]);
+    sheetRows.push(['結算']);
+    sheetRows.push(['項目', '金額']);
+    sheetRows.push(['應發', baseMonthly]);
+    sheetRows.push(['應扣', (employeeInfo?.housingExpense || 1000)]);
     sheetRows.push(['實支額', baseMonthly - (employeeInfo?.housingExpense || 1000)]);
 
     return sheetRows;
