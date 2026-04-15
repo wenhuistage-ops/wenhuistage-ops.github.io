@@ -1703,20 +1703,36 @@ function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo
     sheetRows.push([]);
 
     // 第二部分：日期明細區
-    // summaryRows 結構: [日期, 星期, 上班時間, 上班地點, 下班時間, 下班地點, 原始時數, 淨工時, 休息扣除, 正常工時, 加班工時, 日薪, 備註]
+    // 🔧 更新：新的 summaryRows 結構包含22列（增加日期類型和9種加班分類）
+    // [日期, 星期, 日期類型, 上班時間, 上班地點, 下班時間, 下班地點,
+    //  原始時數, 淨工時, 休息扣除, 正常工時,
+    //  平日2H以內, 平日3~4H以上, 休息日2H以內, 休息日3~8H, 休息日9H以上,
+    //  例假日8H以內, 例假日8H以上, 國定假日9~10H, 國定假日11~12H以上,
+    //  日薪, 備註]
     sheetRows.push(['例', '日', '年月日', '上班', '下班', '', '加班時數']);
 
     // 遍歷summaryRows，添加日期明細（跳過標題行）
-    let totalOvertimeHours = 0;
+    // 新增：收集各類加班時數用於計算加班費
+    const overtimeByCategory = {
+        '平日2H以內': { hours: 0, rate: 1.34 },
+        '平日3~4H以上': { hours: 0, rate: 1.67 },
+        '休息日2H以內': { hours: 0, rate: 1.34 },
+        '休息日3~8H': { hours: 0, rate: 1.67 },
+        '休息日9H以上': { hours: 0, rate: 2.67 },
+        '例假日8H以內': { hours: 0, rate: 1.0 },
+        '例假日8H以上': { hours: 0, rate: 2.0 },
+        '國定假日9~10H': { hours: 0, rate: 1.34 },
+        '國定假日11~12H以上': { hours: 0, rate: 1.67 }
+    };
 
     summaryRows.slice(1).forEach(row => {
         if (row.length === 0 || !row[0]) return; // 跳過空行和沒有日期的行
 
         const dateStr = row[0]; // 日期 (YYYY-MM-DD)
         const weekday = row[1]; // 星期
-        const inTime = row[2]; // 上班時間
-        const outTime = row[4]; // 下班時間
-        const overtimeHours = row[10] || 0; // 加班工時
+        const dateType = row[2]; // 日期類型
+        const inTime = row[3]; // 上班時間
+        const outTime = row[5]; // 下班時間
 
         // 確保使用正確的時間格式（保持為字符串，直接來自summaryRows，避免Date解析時區問題）
         const inTimeStr = typeof inTime === 'string' ? inTime : (inTime ? String(inTime) : '');
@@ -1725,15 +1741,27 @@ function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo
         // 只添加有打卡記錄的日期
         if (inTimeStr || outTimeStr) {
             sheetRows.push([
-                '',          // 例休
-                weekday,     // 日期星期
-                dateStr,     // 日期
-                inTimeStr,   // 上班時間
-                outTimeStr,  // 下班時間
-                '',          // 空
-                overtimeHours > 0 ? overtimeHours : ''
+                dateType || '',  // 例休
+                weekday,         // 日期星期
+                dateStr,         // 日期
+                inTimeStr,       // 上班時間
+                outTimeStr,      // 下班時間
+                '',              // 空
+                ''               // 加班時數（這裡不再使用簡單的總數）
             ]);
-            totalOvertimeHours += overtimeHours || 0;
+        }
+
+        // 🔧 新增：收集各類加班時數
+        if (row.length >= 20) {
+            overtimeByCategory['平日2H以內'].hours += Number(row[11] || 0);
+            overtimeByCategory['平日3~4H以上'].hours += Number(row[12] || 0);
+            overtimeByCategory['休息日2H以內'].hours += Number(row[13] || 0);
+            overtimeByCategory['休息日3~8H'].hours += Number(row[14] || 0);
+            overtimeByCategory['休息日9H以上'].hours += Number(row[15] || 0);
+            overtimeByCategory['例假日8H以內'].hours += Number(row[16] || 0);
+            overtimeByCategory['例假日8H以上'].hours += Number(row[17] || 0);
+            overtimeByCategory['國定假日9~10H'].hours += Number(row[18] || 0);
+            overtimeByCategory['國定假日11~12H以上'].hours += Number(row[19] || 0);
         }
     });
 
@@ -1745,11 +1773,22 @@ function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo
     sheetRows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
     sheetRows.push(['', '本薪', baseMonthly]);
 
-    // 最簡化版本：直接顯示總加班費（在實際應用中可以細分）
-    const overtimeFee = totalOvertimeHours * hourlyRate * 1.34; // 簡化計算，使用平均倍率
-    sheetRows.push(['', '加班費', overtimeFee > 0 ? Number(overtimeFee.toFixed(2)) : 0]);
+    // 🔧 改進：按各類加班費率計算加班費
+    let totalOvertimeFee = 0;
+    for (const [category, data] of Object.entries(overtimeByCategory)) {
+        if (data.hours > 0) {
+            const fee = data.hours * hourlyRate * data.rate;
+            totalOvertimeFee += fee;
+            // 可選：添加詳細的加班費行（如需要在 Excel 中顯示）
+            // sheetRows.push(['', category, Number(fee.toFixed(0)), '', '', data.rate, data.hours]);
+        }
+    }
 
-    const totalIncome = baseMonthly + (overtimeFee > 0 ? Number(overtimeFee.toFixed(2)) : 0);
+    if (totalOvertimeFee > 0) {
+        sheetRows.push(['', '加班費', Number(totalOvertimeFee.toFixed(0))]);
+    }
+
+    const totalIncome = baseMonthly + Number(totalOvertimeFee.toFixed(0));
     sheetRows.push(['', '合計', totalIncome]);
 
     // 空行分隔
@@ -1759,8 +1798,10 @@ function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo
     sheetRows.push(['', '應扣金額']);
     sheetRows.push(['', '項目', '金額']);
 
-    const laborInsuranceFee = totalIncome * (INSURANCE_RATES["勞保"]["第2級"] || 0.0225);
-    const healthInsuranceFee = totalIncome * (INSURANCE_RATES["健保"]["第2級"] || 0.0130);
+    const leaveInsuranceLevel = String(employeeInfo?.leaveInsurance || '第2級').trim();
+    const healthInsuranceLevel = String(employeeInfo?.healthInsurance || '第2級').trim();
+    const laborInsuranceFee = totalIncome * (INSURANCE_RATES["勞保"][leaveInsuranceLevel] || 0.0225);
+    const healthInsuranceFee = totalIncome * (INSURANCE_RATES["健保"][healthInsuranceLevel] || 0.0130);
     const housingExpense = employeeInfo?.housingExpense || 1000;
     const incomeTax = totalIncome * 0.06;
 
@@ -1864,9 +1905,13 @@ function setupAdminExport() {
 
             // Sheet 2: 日摘要（用於薪資計算）
             const summaryRows = [
-                ['日期', '星期', '上班時間', '上班地點', '下班時間', '下班地點',
+                ['日期', '星期', '日期類型', '上班時間', '上班地點', '下班時間', '下班地點',
                     '原始時數(小時)', '淨工時(小時)',
-                    '休息扣除(小時)', '正常工時(小時)', '加班工時(小時)',
+                    '休息扣除(小時)', '正常工時(小時)',
+                    '平日2H以內', '平日3~4H以上',
+                    '休息日2H以內', '休息日3~8H', '休息日9H以上',
+                    '例假日8H以內', '例假日8H以上',
+                    '國定假日9~10H', '國定假日11~12H以上',
                     '日薪(NTD)', '備註']
             ];
 
@@ -1951,16 +1996,18 @@ function setupAdminExport() {
                         // 字符串情況：直接提取時間部分（避免誤解時區）
                         if (dateVal.includes('T')) {
                             const timePart = dateVal.split('T')[1];
-                            // 如果是 UTC 時間（包含 Z），需要轉換；否則直接使用
-                            if (timePart.includes('Z') || timePart.includes('+')) {
-                                // ISO 8601 UTC 時間，轉為本地時間後提取
-                                const d = new Date(dateVal);
-                                if (!isNaN(d.getTime())) {
-                                    const h = String(d.getHours()).padStart(2, '0');
-                                    const m = String(d.getMinutes()).padStart(2, '0');
-                                    return `${h}:${m}`;
-                                }
+                            // 🔧 修復：對於 UTC 時間（包含 Z），直接提取時間部分
+                            // 不進行時區轉換，因為字符串中的時間已經正確
+                            if (timePart.includes('Z')) {
+                                // 直接返回 HH:MM 部分，無時區轉換
+                                return timePart.substring(0, 5);
                             }
+                            // 對於帶有時區標記的格式 (+08:00 或 -05:00)，也直接提取
+                            if (timePart.includes('+') || timePart.includes('-')) {
+                                const baseTime = timePart.split(/[+\-]/)[0];
+                                return baseTime.substring(0, 5);
+                            }
+                            // 對於無時區標記的 ISO 格式，視為本地時間
                             return timePart.substring(0, 5);
                         } else if (dateVal.includes(' ')) {
                             return dateVal.split(' ')[1].substring(0, 5);
@@ -2010,13 +2057,41 @@ function setupAdminExport() {
 
                 const remark = specialRecord ? (specialRecord.note || specialRecord.audit) : '';
 
+                // 🔧 新增：計算日期類型字符串和加班分類
+                let dateTypeStr = '';
+                switch (dayType) {
+                    case DAY_TYPE.REGULAR_OFF:
+                        dateTypeStr = '例';
+                        break;
+                    case DAY_TYPE.REST_DAY:
+                        dateTypeStr = '休';
+                        break;
+                    case DAY_TYPE.HOLIDAY:
+                        dateTypeStr = '國';
+                        break;
+                    default:
+                        dateTypeStr = '';
+                }
+
+                // 計算9種加班分類
+                const overtimeDetails = classifyOvertimeHours(effectiveHours, dayType, false);
+
                 summaryRows.push([
-                    dateKey, weekday, inTime, inLoc, outTime, outLoc,
+                    dateKey, weekday, dateTypeStr, inTime, inLoc, outTime, outLoc,
                     Number(rawHours.toFixed(2)),
                     Number(effectiveHours.toFixed(2)),
                     Number((breakMinutes / 60).toFixed(2)),
                     Number(normalHours.toFixed(2)),
-                    Number(overtimeHours.toFixed(2)),
+                    // 9種加班分類
+                    Number((overtimeDetails["平日2H以內"] || 0).toFixed(2)),
+                    Number((overtimeDetails["平日3~4H以上"] || 0).toFixed(2)),
+                    Number((overtimeDetails["休息日2H以內"] || 0).toFixed(2)),
+                    Number((overtimeDetails["休息日3~8H"] || 0).toFixed(2)),
+                    Number((overtimeDetails["休息日9H以上"] || 0).toFixed(2)),
+                    Number((overtimeDetails["例假日8H以內"] || 0).toFixed(2)),
+                    Number((overtimeDetails["例假日8H以上"] || 0).toFixed(2)),
+                    Number((overtimeDetails["國定假日9~10H"] || 0).toFixed(2)),
+                    Number((overtimeDetails["國定假日11~12H以上"] || 0).toFixed(2)),
                     Number(dailySalary.toFixed(2)),
                     remark
                 ]);
