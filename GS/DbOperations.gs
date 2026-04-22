@@ -208,8 +208,19 @@ function verifyOneTimeToken_(otoken) {
 }
 
 // 檢查 Session
+// 🚀 P5-2 優化：會話快取（內存緩存，有效期 5 分鐘）
+const SESSION_CACHE = {};
+const SESSION_CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分鐘
+
 function checkSession_(sessionToken) {
   if (!sessionToken) return { ok: false, code: "MISSING_SESSION_TOKEN " };
+
+  // 🚀 P5-2 優化：檢查內存快取
+  const cached = SESSION_CACHE[sessionToken];
+  if (cached && Date.now() - cached.timestamp < SESSION_CACHE_TIMEOUT) {
+    console.log("✓ 使用快取會話: " + sessionToken);
+    return { ok: true, user: cached.user, code: "WELCOME_BACK", params: { name: cached.user.name } };
+  }
 
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_SESSION);
   if (!sh) return { ok: false, code: "SESSION_SHEET_NOT_FOUND" };
@@ -222,11 +233,54 @@ function checkSession_(sessionToken) {
         return { ok: false, code: "ERR_SESSION_EXPIRED" };
       }
       const employee = findEmployeeByLineUserId_(userId);
-      if (!employee.ok) {Logger.log("測試"+employee); return { ok: employee.ok ,code:employee.code };}
-      return { ok: true, user: employee ,code:"WELCOME_BACK",params: { name: employee.name },};
+      if (!employee.ok) { Logger.log("測試" + employee); return { ok: employee.ok, code: employee.code }; }
+
+      // 🚀 P5-2 優化：快取會話信息
+      SESSION_CACHE[sessionToken] = {
+        user: employee,
+        timestamp: Date.now()
+      };
+
+      return { ok: true, user: employee, code: "WELCOME_BACK", params: { name: employee.name } };
     }
   }
   return { ok: false, code: "ERR_SESSION_INVALID" };
+}
+
+// 🚀 P5-2 優化：地點快取（30 分鐘）
+const LOCATION_CACHE = {
+  data: null,
+  timestamp: null,
+  TIMEOUT: 30 * 60 * 1000 // 30 分鐘
+};
+
+function getLocationsCached() {
+  // 檢查快取是否有效
+  if (LOCATION_CACHE.data && Date.now() - LOCATION_CACHE.timestamp < LOCATION_CACHE.TIMEOUT) {
+    console.log("✓ 使用快取地點數據");
+    return LOCATION_CACHE.data;
+  }
+
+  // 讀取地點數據
+  const shLoc = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LOCATIONS);
+  const values = shLoc.getRange(2, 1, shLoc.getLastRow() - 1, 5).getValues();
+
+  // 預處理：將數據轉換為數字以加快循環
+  const locations = values.map(row => ({
+    name: row[0],
+    lat: Number(row[1]),
+    lng: Number(row[2]),
+    radius: Number(row[3])
+  })).filter(loc =>
+    !isNaN(loc.lat) && !isNaN(loc.lng) && !isNaN(loc.radius) &&
+    loc.lat >= -90 && loc.lat <= 90 && loc.lng >= -180 && loc.lng <= 180
+  );
+
+  // 🚀 P5-2 優化：緩存地點數據
+  LOCATION_CACHE.data = locations;
+  LOCATION_CACHE.timestamp = Date.now();
+
+  return locations;
 }
 
 // 打卡功能
@@ -241,42 +295,30 @@ function punch(sessionToken, type, lat, lng, note) {
     return { ok: false, code: validation.error };
   }
 
-  // === 讀取打卡地點 ===
-  const shLoc = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LOCATIONS);
-  const values = shLoc.getRange(2, 1, shLoc.getLastRow() - 1, 5).getValues();
+  // 🚀 P5-2 優化：使用快取的地點數據
+  const locations = getLocationsCached();
 
   let locationName = null;
   let minDistance = Infinity;
   let bestLocation = null;
 
   // 遍歷所有地點，找到最近且在範圍內的地點
-  for (let [ , name, locLat, locLng, radius ] of values) {
-    // 快速檢查是否為有效數字（效能優化）
-    const locLatNum = Number(locLat);
-    const locLngNum = Number(locLng);
-    const radiusNum = Number(radius);
-
-    // 跳過無效數據（簡化檢查）
-    if (isNaN(locLatNum) || isNaN(locLngNum) || isNaN(radiusNum) ||
-        locLatNum < -90 || locLatNum > 90 || locLngNum < -180 || locLngNum > 180) {
-      continue;
-    }
-
-    const dist = getDistanceMeters_(lat, lng, locLatNum, locLngNum);
+  for (let location of locations) {
+    const dist = getDistanceMeters_(lat, lng, location.lat, location.lng);
 
     // 記錄最近的地點（無論是否在範圍內）
     if (dist < minDistance) {
       minDistance = dist;
       bestLocation = {
-        name: name,
+        name: location.name,
         distance: dist,
-        radius: radiusNum
+        radius: location.radius
       };
     }
 
     // 檢查是否在允許範圍內
-    if (dist <= radiusNum) {
-      locationName = name;
+    if (dist <= location.radius) {
+      locationName = location.name;
       break; // 找到第一個合法地點就停
     }
   }
@@ -308,8 +350,8 @@ function punch(sessionToken, type, lat, lng, note) {
   sh.getRange(sh.getLastRow() + 1, 1, 1, row.length).setValues([row]);
   // ⚡ 用 setValues() 取代 appendRow()
 
-  // 🚀 效能優化：確保資料按日期排序
-  ensureDataSorted(sh);
+  // 🚀 P5-2 優化：禁用每次排序，改用後台定時排序
+  // ensureDataSorted(sh);  // 已註釋：降低打卡延遲
   clearAttendanceSummaryCache(Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM"), user.userId);
 
   return { ok: true, code: `PUNCH_SUCCESS`,params: { type: type }, };
