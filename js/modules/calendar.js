@@ -202,19 +202,5 @@ function clearAllMonthCache() {
   cacheManager.clear('month');
 }
 
-// 導出
-export {
-  generateCalendarGrid,
-  formatMonthKey,
-  renderCalendar,
-  renderAdminCalendar,
-  handleCalendarNavigation,
-  getPredictedMonthKeys,
-  generateMonthTitle,
-  cacheMonthData,
-  getCachedMonthData,
-  clearMonthCache,
-  clearAllMonthCache
-};
 
-console.log('✓ Calendar 模塊已加載');
+console.log('✓ calendar 模塊已加載');

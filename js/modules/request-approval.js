@@ -162,13 +162,5 @@ function setupRequestApprovalListeners(adminUserId, container) {
   });
 }
 
-// 導出
-export {
-  loadPendingRequests,
-  renderPendingRequests,
-  approveRequest,
-  rejectRequest,
-  setupRequestApprovalListeners
-};
 
-console.log('✓ Request Approval 模塊已加載');
+console.log('✓ request-approval 模塊已加載');

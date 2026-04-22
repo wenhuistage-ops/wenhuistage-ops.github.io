@@ -108,14 +108,11 @@ const mgmtPlaceholder = document.getElementById('mgmt-placeholder');
 const mgmtEmployeeName = document.getElementById('mgmt-employee-name');
 const mgmtEmployeeId = document.getElementById('mgmt-employee-id');
 const mgmtEmployeeAvatar = document.getElementById('mgmt-employee-avatar');
-const mgmtEmployeeSeniority = document.getElementById('mgmt-employee-seniority');
-const mgmtEmployeeJoinDate = document.getElementById('mgmt-employee-join-date');
+// P2-3 優化: mgmtEmployeeSeniority 和 mgmtEmployeeJoinDate 現在由 JavaScript 動態生成
 
-// 權限與狀態 Toggle
-const toggleAdmin = document.getElementById('toggle-admin');
-const adminStatusSpan = document.getElementById('admin-status');
-const toggleActive = document.getElementById('toggle-active');
-const activeStatusSpan = document.getElementById('active-status');
+// 權限與狀態 Toggle（P2-3 優化: 現在由 JavaScript 動態生成）
+let toggleAdmin = null;
+let toggleActive = null;
 
 // 薪資與政策
 const basicSalaryInput = document.getElementById('basic-salary');

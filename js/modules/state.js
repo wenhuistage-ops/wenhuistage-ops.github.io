@@ -142,25 +142,5 @@ function getUserId() {
 }
 
 // ===================================
-// 導出
-// ===================================
 
-// 導出 AppState 本身（用於調試和高級訪問）
-export { AppState };
-
-// 導出訪問器函數
-export {
-  getUserState,
-  setUserInfo,
-  clearUserState,
-  setLanguage,
-  getLanguage,
-  setTranslations,
-  getTranslations,
-  setEmployeeList,
-  getEmployeeList,
-  isUserAdmin,
-  getUserId
-};
-
-console.log('✓ AppState 已初始化');
+console.log('✓ state 模塊已加載');

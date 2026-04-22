@@ -30,6 +30,7 @@ let _mapInitialized = false;
  * 供其他模塊調用（如 ui.js 的 switchTab）
  */
 function ensureMapInitialized() {
+    console.log('🔍 [DEBUG] ensureMapInitialized() 被調用，_mapInitialized =', _mapInitialized);
     if (_mapInitialized) {
         console.log('📍 地圖已初始化，復用實例');
         return;
@@ -82,18 +83,29 @@ async function fetchAndRenderLocationsOnMap() {
     } catch (error) {
         showNotification("取得地點清單失敗，請檢查網路。", "error");
         console.error("Failed to fetch locations:", error);
+    } finally {
+        // 確保地圖加載文本被隱藏（即使 API 失敗）
+        if (mapLoadingText) {
+            mapLoadingText.style.display = 'none';
+            console.log('✅ 地圖加載文本已隱藏（在 fetchAndRenderLocationsOnMap 中）');
+        }
     }
 }
 // 初始化地圖並取得使用者位置
 function initLocationMap(forceReload = false) {
+    console.log('🔍 [DEBUG] initLocationMap() 被調用，forceReload =', forceReload);
     const mapContainer = document.getElementById('map-container');
     const statusEl = document.getElementById('location-status');
     const coordsEl = document.getElementById('location-coords');
-    console.log(mapInstance && !forceReload);
+
+    console.log('🔍 [DEBUG] mapContainer =', mapContainer, ', statusEl =', statusEl, ', coordsEl =', coordsEl);
+
     // 取得載入文字元素
     if (!mapLoadingText) {
         mapLoadingText = document.getElementById('map-loading-text');
+        console.log('🔍 [DEBUG] 獲取 mapLoadingText =', mapLoadingText);
     }
+
     // 檢查地圖實例是否已存在
     if (mapInstance) {
         // 如果已經存在，並且沒有被要求強制重新載入，則直接返回
@@ -107,9 +119,13 @@ function initLocationMap(forceReload = false) {
         mapInstance = null;
     }
 
-
-    // 顯示載入中的文字
-    mapLoadingText.style.display = 'block'; // 或 'block'，根據你的樣式決定
+    // 顯示載入中的文字（安全檢查）
+    if (mapLoadingText) {
+        mapLoadingText.style.display = 'block';
+        console.log('✅ 地圖載入文本已顯示');
+    } else {
+        console.warn('⚠️ [警告] mapLoadingText 元素未找到！');
+    }
 
     // 建立地圖
     mapInstance = L.map('map-container', {
@@ -135,10 +151,20 @@ function initLocationMap(forceReload = false) {
 
     // 讓地圖在完成載入後隱藏載入中的文字
     mapInstance.whenReady(() => {
-        mapLoadingText.style.display = 'none';
+        if (mapLoadingText) {
+            mapLoadingText.style.display = 'none';
+        }
         // 確保地圖的尺寸正確
         mapInstance.invalidateSize();
     });
+
+    // 也直接隐藏加载文本（以防 whenReady 没有触发）
+    setTimeout(() => {
+        if (mapLoadingText && mapLoadingText.style.display !== 'none') {
+            mapLoadingText.style.display = 'none';
+            console.log('✓ 地圖加載文本已隱藏');
+        }
+    }, 2000);
 
     // 顯示載入狀態
     //mapContainer.innerHTML = t("MAP_LOADING");

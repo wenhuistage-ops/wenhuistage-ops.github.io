@@ -192,14 +192,4 @@ async function switchLanguage(lang) {
   }
 }
 
-// 導出
-export {
-  loadTranslations,
-  preloadTranslations,
-  checkTranslationCompleteness,
-  t,
-  renderTranslations,
-  switchLanguage
-};
-
 console.log('✓ i18n 模塊已加載 (P2-1: 支持翻譯預加載)');

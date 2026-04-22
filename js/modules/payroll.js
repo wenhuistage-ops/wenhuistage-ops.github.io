@@ -235,22 +235,5 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
   };
 }
 
-// 導出
-export {
-  MIN_MONTHLY_SALARY,
-  HOURLY_RATE,
-  OVERTIME_MULTIPLIER,
-  HOURS_PER_DAY,
-  calculateDailySalary,
-  calculateOvertimeFees,
-  calculateEffectiveHours,
-  calculateDailySalaryFromPunches,
-  calculatePayrollIncome,
-  calculatePayrollDeductions,
-  generatePayrollSummary,
-  calculateMonthlySalary,
-  generatePayrollSheet,
-  generateSamplePayrollFormatSheet
-};
 
-console.log('✓ Payroll 模塊已加載');
+console.log('✓ payroll 模塊已加載');

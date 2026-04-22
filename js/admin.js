@@ -1421,6 +1421,9 @@ function initAdminEvents() {
             mgmtEmployeeName.textContent = employee.name;
             //mgmtEmployeeId.textContent = employee.userId;
             const joinTimeSource = employee.firstLoginTime;
+            let seniorityText = 'N/A';
+            let joinDateText = 'N/A';
+
             if (joinTimeSource) {
                 const joinDate = new Date(joinTimeSource);
                 // 假設 currentLang 已經定義 (在 state.js 中)
@@ -1435,7 +1438,7 @@ function initAdminEvents() {
                     second: '2-digit',
                     hour12: false // 使用 24 小時制
                 });
-                mgmtEmployeeJoinDate.textContent = `${formattedDate} ${formattedTime}`;
+                joinDateText = `${formattedDate} ${formattedTime}`;
                 const today = new Date();
 
                 // 計算總月份數 (更精確的年資計算方法)
@@ -1453,29 +1456,87 @@ function initAdminEvents() {
                     }
                 }
 
-                let seniorityText = '';
+                seniorityText = '';
                 if (years > 0) seniorityText += `${years} ${t("YEAR") || '年'}`;
                 // 只有當月份 > 0 或者總年資不到一年時才顯示月份
                 if (months > 0 || (years === 0 && months === 0)) seniorityText += `${months} ${t("MONTH") || '個月'}`;
+                seniorityText = seniorityText.trim() || 'N/A';
+            }
 
-                mgmtEmployeeSeniority.textContent = seniorityText.trim() || 'N/A';
-            } else {
-                mgmtEmployeeJoinDate.textContent = 'N/A';
-                mgmtEmployeeSeniority.textContent = 'N/A';
+            // P2-3 優化：動態生成 Info Items
+            const infoContainer = document.getElementById('employee-info-container');
+            if (infoContainer) {
+                infoContainer.replaceChildren();
+
+                // 年資 Info Item
+                const seniorityItem = UIComponentGenerator.createInfoItem({
+                    icon: 'fa-crown',
+                    label: t('SENIORITY') || '年資',
+                    value: seniorityText,
+                    colorScheme: 'yellow',
+                    i18nKey: 'SENIORITY'
+                });
+                infoContainer.appendChild(seniorityItem);
+
+                // 入職日期 Info Item
+                const joinDateItem = UIComponentGenerator.createInfoItem({
+                    icon: 'far fa-calendar-alt',
+                    label: t('JOIN_DATE') || '入職日期',
+                    value: joinDateText,
+                    colorScheme: 'blue',
+                    i18nKey: 'JOIN_DATE'
+                });
+                infoContainer.appendChild(joinDateItem);
+
+                // 職務狀態 Info Item
+                const positionText = employee.position || '正式員工';
+                const positionItem = UIComponentGenerator.createInfoItem({
+                    icon: 'fa-briefcase',
+                    label: t('EMPLOYEE_TYPE') || '職務狀態',
+                    value: positionText,
+                    colorScheme: 'indigo',
+                    i18nKey: 'EMPLOYEE_TYPE'
+                });
+                infoContainer.appendChild(positionItem);
             }
 
             mgmtEmployeeAvatar.src = employee.picture || '預設頭像 URL';
             salaryValueSpan.innerText = employee.salary || 60;
             basicSalaryInput.value = employee.salary || 0;
-            if (employee.status === "啟用")
-                toggleActive.checked = true;
-            else
-                toggleActive.checked = false;
 
-            if (employee.position === "管理員")
-                toggleAdmin.checked = true;
-            else
-                toggleAdmin.checked = false;
+            // P2-3 優化：動態生成 Toggle 設定項
+            const settingsContainer = document.getElementById('employee-settings-container');
+            if (settingsContainer) {
+                settingsContainer.replaceChildren();
+
+                // 管理員權限 Toggle
+                const adminToggle = UIComponentGenerator.createToggleSetting({
+                    id: 'toggle-admin',
+                    label: t('IS_ADMIN') || '管理員權限',
+                    checked: employee.position === "管理員",
+                    colorScheme: 'yellow',
+                    statusText: { on: '啟用', off: '關閉' },
+                    i18nKey: 'IS_ADMIN',
+                    onchange: (e) => toggleAdminStatus(currentManagingEmployee.userId, e.target.checked)
+                });
+                settingsContainer.appendChild(adminToggle);
+
+                // 帳號啟用狀態 Toggle
+                const activeToggle = UIComponentGenerator.createToggleSetting({
+                    id: 'toggle-active',
+                    label: t('ACCOUNT_STATUS') || '帳號啟用狀態',
+                    checked: employee.status === "啟用",
+                    colorScheme: 'green',
+                    statusText: { on: '啟用', off: '關閉' },
+                    i18nKey: 'ACCOUNT_STATUS',
+                    onchange: (e) => toggleAccountStatus(currentManagingEmployee.userId, e.target.checked)
+                });
+                settingsContainer.appendChild(activeToggle);
+
+                // 更新全域參考（以兼容舊代碼）
+                toggleAdmin = document.getElementById('toggle-admin');
+                toggleActive = document.getElementById('toggle-active');
+            }
 
             employeeDetailCard.style.display = 'block';
             mgmtPlaceholder.style.display = 'none';

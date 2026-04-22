@@ -43,7 +43,7 @@ function getRedirectUrl() {
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
 
   if (isLocalhost) {
-    // 本地測試環境（例如 http://127.0.0.1:5500）
+    // 本地測試環境（例如 http://127.0.0.1:5501）
     // 回跳到本地測試環境的首頁
     return `${protocol}//${hostname}${port}/index.html`;
   } else {

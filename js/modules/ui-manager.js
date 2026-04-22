@@ -192,8 +192,5 @@ class UIManager {
 // 創建全局單例
 const uiManager = new UIManager();
 
-// 導出
-export default uiManager;
-export { UIManager };
 
-console.log('✓ UIManager 已加載');
+console.log('✓ ui-manager 模塊已加載');
