@@ -363,14 +363,13 @@ function checkAutoPunch() {
 
 async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
     // 檢查快取是否有效（問題 8.4：性能優化）
-    const now = Date.now();
-    if (!forceRefresh && abnormalRecordsCache && abnormalRecordsCacheTime) {
-        const cacheAge = now - abnormalRecordsCacheTime;
-        if (cacheAge < ABNORMAL_RECORDS_CACHE_DURATION) {
-            console.log(`使用快取的異常記錄（快取年齡: ${Math.floor(cacheAge / 1000)}秒）`);
-            renderAbnormalRecords(abnormalRecordsCache);
-            return;
-        }
+    // 🌟 P1-3 改進：使用統一的 CacheManager，自動處理 TTL
+    const abnormalCache = !forceRefresh ? cacheManager.get('abnormal', 'records') : null;
+
+    if (abnormalCache) {
+        console.log(`使用快取的異常記錄`);
+        renderAbnormalRecords(abnormalCache);
+        return;
     }
 
     const currentDate = new Date();
@@ -419,9 +418,8 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
     const recordsLoading = recordsLoadingEl;
     if (recordsLoading) recordsLoading.style.display = 'none';
 
-    // 保存到快取
-    abnormalRecordsCache = allAbnormalRecords;
-    abnormalRecordsCacheTime = now;
+    // 🌟 P1-3 改進：使用統一的 CacheManager 保存快取（自動 5 分鐘 TTL）
+    cacheManager.set('abnormal', 'records', allAbnormalRecords);
     console.log("異常記錄已快取");
 
     // 查詢待審核申請，並將狀態合併到異常記錄中

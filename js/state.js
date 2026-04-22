@@ -24,10 +24,21 @@ const MAX_MONTH_CACHE_ENTRIES = 12;
 const MAX_DETAIL_MONTH_CACHE_ENTRIES = 6;
 const PRELOAD_BASE_DELAY = 500; // 預加載基礎延遲 (毫秒)
 const PRELOAD_INCREMENT_DELAY = 250; // 每個預加載項目的額外延遲 (毫秒)
-let monthDataCache = {}; // 新增：用於快取月份打卡摘要資料
-let monthCacheOrder = []; // LRU 快取順序
-let detailMonthDataCache = {}; // 新增：用於快取月份打卡詳細資料
-let detailMonthCacheOrder = []; // LRU 快取順序
+
+// 🌟 P1-3 改進：快取統一管理
+// 舊的快取變數已遷移至 cache.js 的 cacheManager
+// 用於兼容性的別名（指向 cacheManager）
+const getMonthDataCache = () => cacheManager.caches['month'].data;
+const getMonthCacheOrder = () => cacheManager.caches['month'].order;
+const getDetailMonthDataCache = () => cacheManager.caches['monthDetail'].data;
+const getDetailMonthCacheOrder = () => cacheManager.caches['monthDetail'].order;
+const getAbnormalRecordsCache = () => cacheManager.caches['abnormal'].data;
+
+// 保留舊的全局變數名以支持向後兼容
+let monthDataCache = getMonthDataCache();
+let monthCacheOrder = getMonthCacheOrder();
+let detailMonthDataCache = getDetailMonthDataCache();
+let detailMonthCacheOrder = getDetailMonthCacheOrder();
 let monthDetailLoadPromises = {}; // 避免重複請求同一月份詳細資料
 let monthNavigationHistory = []; // 月曆翻頁行為記錄
 let adminMonthNavigationHistory = []; // 管理員月曆翻頁行為記錄
@@ -35,8 +46,9 @@ let isApiCalled = false; // 新增：用於追蹤 API 呼叫狀態，避免重�
 let userId = localStorage.getItem("sessionUserId");
 
 // 異常記錄快取相關（問題 8.4）
-let abnormalRecordsCache = null; // 快取的異常記錄
-let abnormalRecordsCacheTime = null; // 快取時間
+// 🌟 現由 cacheManager 管理（5 分鐘 TTL）
+let abnormalRecordsCache = null; // 已遷移至 cacheManager
+let abnormalRecordsCacheTime = null; // 已遷移至 cacheManager
 const ABNORMAL_RECORDS_CACHE_DURATION = 5 * 60 * 1000; // 5 分鐘快取
 
 // 新增用於管理員日曆檢視的狀態變數

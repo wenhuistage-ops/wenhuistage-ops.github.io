@@ -34,9 +34,10 @@ async function renderCalendar(date, isrefresh = false) {
     const monthkey = year + "-" + String(month + 1).padStart(2, "0");
 
     // 檢查快取中是否已有該月份資料
-    if (monthDataCache[monthkey] && !isrefresh) {
+    const cachedData = cacheManager.get('month', monthkey);
+    if (cachedData && !isrefresh) {
         // 如果有，直接從快取讀取資料並渲染
-        const records = monthDataCache[monthkey];
+        const records = cachedData;
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
         recordMonthNavigation(date);
         // 背景預載詳細資料，提高點擊日期紀錄速度
@@ -62,7 +63,7 @@ async function renderCalendar(date, isrefresh = false) {
                 // ✅ XSS防護：使用 replaceChildren() 替代 innerHTML
                 calendarGrid.replaceChildren();
 
-                const records = monthDataCache[monthkey] || [];
+                const records = cacheManager.get('month', monthkey) || [];
                 renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
                 recordMonthNavigation(date);
 
@@ -103,7 +104,7 @@ async function preloadAdjacentMonths(currentDate) {
         const uniqueKeys = [prevKey, nextKey, ...predictedKeys].filter((key, idx, arr) => key && arr.indexOf(key) === idx);
 
         uniqueKeys.forEach((key, index) => {
-            if (monthDataCache[key]) return;
+            if (cacheManager.get('month', key)) return;
             const delay = PRELOAD_BASE_DELAY + index * PRELOAD_INCREMENT_DELAY;
             setTimeout(async () => {
                 try {
@@ -128,29 +129,13 @@ async function preloadAdjacentMonths(currentDate) {
 }
 
 function cacheMonthData(monthkey, data) {
-    const existingIndex = monthCacheOrder.indexOf(monthkey);
-    if (existingIndex !== -1) {
-        monthCacheOrder.splice(existingIndex, 1);
-    }
-    monthCacheOrder.push(monthkey);
-    monthDataCache[monthkey] = data;
-    while (monthCacheOrder.length > MAX_MONTH_CACHE_ENTRIES) {
-        const oldestKey = monthCacheOrder.shift();
-        delete monthDataCache[oldestKey];
-    }
+    // 🌟 P1-3 改進：使用統一的 CacheManager
+    cacheManager.set('month', monthkey, data);
 }
 
 function cacheDetailMonthData(monthkey, data) {
-    const existingIndex = detailMonthCacheOrder.indexOf(monthkey);
-    if (existingIndex !== -1) {
-        detailMonthCacheOrder.splice(existingIndex, 1);
-    }
-    detailMonthCacheOrder.push(monthkey);
-    detailMonthDataCache[monthkey] = data;
-    while (detailMonthCacheOrder.length > MAX_DETAIL_MONTH_CACHE_ENTRIES) {
-        const oldestKey = detailMonthCacheOrder.shift();
-        delete detailMonthDataCache[oldestKey];
-    }
+    // 🌟 P1-3 改進：使用統一的 CacheManager
+    cacheManager.set('monthDetail', monthkey, data);
 }
 
 async function prefetchMonthDetails(monthkey, targetUserId = null) {
@@ -158,7 +143,7 @@ async function prefetchMonthDetails(monthkey, targetUserId = null) {
     if (!userId) return;
     const cacheKey = `${userId}-${monthkey}`;
 
-    if (detailMonthDataCache[cacheKey]) return;
+    if (cacheManager.get('monthDetail', cacheKey)) return;
     if (monthDetailLoadPromises[cacheKey]) return;
 
     monthDetailLoadPromises[cacheKey] = callApifetch({
@@ -182,8 +167,10 @@ async function loadMonthDetailData(monthkey, targetUserId = null) {
     if (!userId) return [];
     const cacheKey = `${userId}-${monthkey}`;
 
-    if (detailMonthDataCache[cacheKey]) {
-        return detailMonthDataCache[cacheKey];
+    // 🌟 P1-3 改進：使用統一的 CacheManager
+    const cached = cacheManager.get('monthDetail', cacheKey);
+    if (cached) {
+        return cached;
     }
     if (monthDetailLoadPromises[cacheKey]) {
         const res = await monthDetailLoadPromises[cacheKey];
@@ -436,7 +423,8 @@ async function renderDailyRecords(dateKey) {
     const userId = localStorage.getItem("sessionUserId");
 
     try {
-        const cachedDetails = detailMonthDataCache[month];
+        // 🌟 P1-3 改進：使用統一的 CacheManager
+        const cachedDetails = cacheManager.get('monthDetail', month);
         if (cachedDetails) {
             if (dailyRecordsLoading) dailyRecordsLoading.style.display = 'none';
             return renderRecords(cachedDetails);
