@@ -132,7 +132,8 @@ async function doPunch(type) {
             generalButtonState(button, 'idle');
 
             if (res.ok) {
-                checkAbnormal(1, true);
+                // 🚀 P5-1 優化：異常記錄檢查並行執行（不阻塞打卡完成）
+                checkAbnormal(1, true).catch(err => console.warn("異常記錄檢查失敗:", err));
             }
         } catch (err) {
             console.error(err);
@@ -146,6 +147,7 @@ async function doPunch(type) {
         lastPunchPosition.accuracy <= GPS_ACCURACY_THRESHOLDS.FAIR;
 
     if (canUseCachedPosition) {
+        // 🚀 P5-1 優化：使用快取位置時，立即提交（最快路徑）
         await submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude, lastPunchPosition.accuracy);
         return;
     }
@@ -222,8 +224,8 @@ async function submitPunchWithoutLocation(button) {
 
 // 獲取精確位置的函數，包含精確度檢查和重試機制
 async function getAccurateLocation(onSuccess, button, retryCount = 0) {
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY = 2000; // 2秒重試延遲
+    const MAX_RETRIES = 1; // 🚀 P5-1 優化：只在完全失敗時重試一次
+    const RETRY_DELAY = 500; // 500ms 快速重試
 
     return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
@@ -240,7 +242,9 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
                     timestamp: Date.now()
                 };
 
-                // 評估精確度品質
+                // 🚀 P5-1 優化：移除精確度檢查，直接使用獲取的位置
+                // 精確度驗證交由後端處理（後端知道公司位置和允許範圍）
+                // 評估精確度品質（僅用於通知，不影響是否提交）
                 let quality;
                 if (accuracy <= GPS_ACCURACY_THRESHOLDS.EXCELLENT) {
                     quality = 'excellent';
@@ -252,31 +256,12 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
                     quality = 'poor';
                 }
 
-                // 如果精確度太差且還有重試次數，提示用戶並重試
-                if (quality === 'poor' && retryCount < MAX_RETRIES) {
-                    const retryMsg = t('GPS_ACCURACY_LOW_RETRY', {
-                        accuracy: Math.round(accuracy),
-                        retry: retryCount + 1,
-                        max: MAX_RETRIES
-                    }) || `GPS精確度較差 (${Math.round(accuracy)}m)，正在重試 (${retryCount + 1}/${MAX_RETRIES})...`;
-
-                    showNotification(retryMsg, "warning");
-
-                    // 等待一段時間後重試
-                    setTimeout(() => {
-                        getAccurateLocation(onSuccess, button, retryCount + 1)
-                            .then(resolve)
-                            .catch(reject);
-                    }, RETRY_DELAY);
-                    return;
-                }
-
-                // 精確度可接受或已達最大重試次數，直接使用
-                if (quality !== 'excellent' && quality !== 'good') {
+                // 只在精確度太差時提示，但仍然提交
+                if (quality === 'poor') {
                     const accuracyMsg = t('GPS_ACCURACY_WARNING', {
                         accuracy: Math.round(accuracy),
                         quality: t(`GPS_QUALITY_${quality.toUpperCase()}`) || quality
-                    }) || `GPS精確度: ${Math.round(accuracy)}m (${quality})`;
+                    }) || `GPS精確度: ${Math.round(accuracy)}m (${quality})，將由後端驗證`;
                     showNotification(accuracyMsg, "info");
                 }
 
@@ -285,7 +270,7 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
                 resolve();
             },
             (err) => {
-                // 如果還有重試次數，自動重試
+                // 🚀 P5-1 優化：只在網路錯誤時重試，不在精確度差時重試
                 if (retryCount < MAX_RETRIES) {
                     const retryMsg = t('GPS_RETRY_ON_ERROR', {
                         error: err.message,

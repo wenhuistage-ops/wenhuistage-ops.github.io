@@ -223,7 +223,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     <!-- 將地圖與定位狀態移到按鈕上方 -->
                     <div class="mt-4 mb-6">
                         <div id="map-container"
-                            class="w-full h-64 rounded-lg mb-4 bg-gray-200 flex items-center justify-center text-gray-500">
+                            class="w-full h-64 rounded-lg mb-4 bg-gray-200 flex items-center justify-center text-gray-500"
+                            style="position: relative; z-index: 10;">
                             <div id="map-loading-text">
                                 <span data-i18n="MAP_LOADING">正在載入地圖...</span>
                             </div>
@@ -707,7 +708,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
     <!-- Confirmation Dialog (問題8.6：敏感操作確認) -->
     <div id="confirm-dialog"
-        style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 50;">
+        style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 9999;">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6 w-11/12 sm:w-full max-w-sm mx-4">
             <p id="confirm-message"
                 class="text-gray-800 dark:text-gray-100 mb-6 text-center text-sm sm:text-base font-medium leading-relaxed break-words">
