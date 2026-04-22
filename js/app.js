@@ -172,8 +172,14 @@ function getDOMElements() {
 
 
 // ===================================
-// #region 3. 事件綁定總覽
+// #region 3. 事件綁定總覽（P1-1 改進：模塊化調用）
 // ===================================
+// 依賴的模塊函數：
+// - loadTranslations(), t() → modules/i18n.js
+// - renderCalendar() → modules/calendar.js
+// - doPunch() → punch.js
+// - verifyAdminPermission(), callApifetch() → core.js
+// - loadAdminDashboard() → admin.js
 function bindEvents() {
     // 登入/登出事件
     loginBtn.onclick = async () => {
@@ -262,12 +268,19 @@ function bindEvents() {
 
 document.addEventListener('DOMContentLoaded', async () => {
 
+    // ✅ P1-1 改進：初始化模塊化架構
+    // 注意：UIManager 和 AppState 由 js/modules/ 中的模塊提供
+    if (typeof uiManager !== 'undefined' && uiManager.init) {
+        uiManager.init(); // 初始化 DOM 元素管理器
+    }
+
     // I. 獲取所有 DOM 元素和狀態設置
     getDOMElements(); // 必須在最前面執行
     document.getElementById('language-switcher').value = currentLang;
     localStorage.setItem("lang", currentLang);
 
     // II. 載入基本狀態 (翻譯)
+    // ✅ P1-1 改進：i18n 模塊已遷移至 js/modules/i18n.js
     await loadTranslations(currentLang);
 
     // III. 綁定所有事件

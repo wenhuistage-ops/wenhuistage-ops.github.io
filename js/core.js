@@ -19,115 +19,18 @@ along with 0riginAttendance-System. If not, see <https://www.gnu.org/licenses/>.
 Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this project.
  */
 // ===================================
-// #region 1. i18n相關
+// ✅ P1-1 改進：i18n 模塊化遷移
 // ===================================
-async function loadTranslations(lang) {
-    try {
-        const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
-        if (!res.ok) {
-            throw new Error(`HTTP 錯誤: ${res.status}`);
-        }
-        translations = await res.json();
-        currentLang = lang;
-        localStorage.setItem("lang", lang);
-
-        // 檢查翻譯完整性
-        checkTranslationCompleteness(lang);
-
-        renderTranslations();
-    } catch (err) {
-        console.error("載入語系失敗:", err);
-    }
-}
-
-/**
- * 檢查翻譯的完整性，找出缺失的鍵值
- * @param {string} lang - 語言代碼
- */
-function checkTranslationCompleteness(lang) {
-    // 定義必須的核心翻譯鍵值（常用的UI元素）
-    const coreTranslationKeys = [
-        'APP_TITLE', 'SUBTITLE_LOGIN', 'LOGIN_INFO', 'BTN_LOGOIN',
-        'BTN_LOGOUT', 'BTN_CANCEL', 'BTN_CONFIRM',
-        'PUNCH_SECTION_TITLE', 'PUNCH_SECTION_DESCRIPTION',
-        'PUNCH_IN_LABEL', 'PUNCH_OUT_LABEL',
-        'TAB_DASHBOARD', 'TAB_MONTHLY', 'TAB_LOCATION', 'TAB_ADMIN'
-    ];
-
-    const missingKeys = [];
-    coreTranslationKeys.forEach(key => {
-        if (!translations[key]) {
-            missingKeys.push(key);
-        }
-    });
-
-    if (missingKeys.length > 0) {
-        console.warn(`⚠️ 語言 ${lang} 缺少以下翻譯鍵值:`, missingKeys);
-        console.warn(`建議檢查 i18n/${lang}.json 文件`);
-    } else {
-        console.log(`✅ 語言 ${lang} 的核心翻譯鍵值完整`);
-    }
-
-    // 記錄翻譯統計資訊
-    const totalKeys = Object.keys(translations).length;
-    console.log(`語言 ${lang} 共有 ${totalKeys} 個翻譯鍵值`);
-}
-
-
-// 翻譯函式
-function t(code, params = {}) {
-    let text = translations[code] || code;
-
-    // 檢查並替換參數中的變數
-    for (const key in params) {
-        // 在替換之前，先翻譯參數的值
-        let paramValue = params[key];
-        if (paramValue in translations) {
-            paramValue = translations[paramValue];
-        }
-
-        text = text.replace(`{${key}}`, paramValue);
-    }
-    return text;
-}
-// renderTranslations 可接受一個容器參數
-function renderTranslations(container = document) {
-    // 翻譯網頁標題（只在整頁翻譯時執行）
-    if (container === document) {
-        document.title = t("APP_TITLE");
-    }
-
-    // 處理靜態內容：[data-i18n]
-    const elementsToTranslate = container.querySelectorAll('[data-i18n]');
-    elementsToTranslate.forEach(element => {
-        const key = element.getAttribute('data-i18n');
-        const translatedText = t(key);
-
-        // 檢查翻譯結果是否為空字串，或是否回傳了原始鍵值
-        if (translatedText !== key) {
-            if (element.tagName === 'INPUT') {
-                element.placeholder = translatedText;
-            } else {
-                element.textContent = translatedText;
-            }
-        }
-    });
-
-    // ✨ 新增邏輯：處理動態內容的翻譯，使用 [data-i18n-key]
-    const dynamicElements = container.querySelectorAll('[data-i18n-key]');
-    dynamicElements.forEach(element => {
-        const key = element.getAttribute('data-i18n-key');
-        if (key) {
-            const translatedText = t(key);
-
-            // 只有當翻譯結果不是原始鍵值時才進行更新
-            if (translatedText !== key) {
-                element.textContent = translatedText;
-            }
-        }
-    });
-}
-// #endregion
+// 國際化相關函數已遷移至 js/modules/i18n.js
+//
+// 已移轉的函數：
+// - loadTranslations(lang) → modules/i18n.js
+// - checkTranslationCompleteness(lang) → modules/i18n.js
+// - t(code, params) → modules/i18n.js
+// - renderTranslations(container) → modules/i18n.js
+// - switchLanguage(lang) → modules/i18n.js
+//
+// 保留向後相容性：全局 t()、translations、currentLang 仍可直接使用
 // ===================================
 
 // ===================================
