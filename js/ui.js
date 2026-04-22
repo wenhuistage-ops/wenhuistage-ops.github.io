@@ -590,7 +590,14 @@ const switchTab = (tabId) => {
     if (tabId === 'monthly-view') {
         renderCalendar(currentMonthDate);
     } else if (tabId === 'location-view' || tabId === 'dashboard-view') {
-        initLocationMap(); // <-- 這行保持不變
+        // 🚀 P2-1 優化：改用 ensureMapInitialized() 實現延遲加載
+        // 只在用戶點擊 location-view 時才初始化地圖，而不是立即初始化
+        if (typeof ensureMapInitialized === 'function') {
+            ensureMapInitialized();
+        } else {
+            // 降級方案：如果 ensureMapInitialized 未定義，直接初始化
+            initLocationMap();
+        }
     } else if (tabId === 'admin-view') {
         fetchAndRenderReviewRequests();
     }

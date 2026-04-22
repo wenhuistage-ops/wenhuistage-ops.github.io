@@ -61,7 +61,8 @@ async function ensureLogin() {
                     document.getElementById('login-section').style.display = 'none';
                     document.getElementById('user-header').style.display = 'flex';
                     document.getElementById('main-app').style.display = 'block';
-                    initLocationMap();
+                    // 🚀 P2-1 優化：刪除自動初始化地圖，改為延遲加載
+                    // initLocationMap(); // ❌ 已移除，用戶點擊 location-view 時才初始化
                     // 檢查異常打卡 (在 checkSession 成功後執行)
                     checkAbnormal(); // 檢查本月的異常記錄
 
@@ -281,6 +282,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // II. 載入基本狀態 (翻譯)
     // ✅ P1-1 改進：i18n 模塊已遷移至 js/modules/i18n.js
+    // 🚀 P2-1 優化：預加載常用語言，加快語言切換速度
+    if (typeof preloadTranslations !== 'undefined') {
+        // 異步預加載常用語言（除當前語言外），不阻塞主流程
+        const availableLangs = ['zh-TW', 'en-US', 'ja', 'id', 'vi'];
+        const otherLangs = availableLangs.filter(l => l !== currentLang).slice(0, 2);
+        preloadTranslations(otherLangs); // 不等待，異步執行
+    }
+
     await loadTranslations(currentLang);
 
     // III. 綁定所有事件
@@ -344,7 +353,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 設置全域 userId 變數
             userId = sessionUserId;
 
-            initLocationMap();
+            // 🚀 P2-1 優化：刪除自動初始化地圖，改為延遲加載
+            // initLocationMap(); // ❌ 已移除，用戶點擊 location-view 時才初始化
             checkAbnormal();
             checkAutoPunch(); // 添加自動打卡檢查
         } else {

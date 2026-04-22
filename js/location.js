@@ -18,6 +18,29 @@ along with 0riginAttendance-System. If not, see <https://www.gnu.org/licenses/>.
 Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this project.
  */
 /**
+ * 🚀 P2-1 優化：地圖延遲加載
+ * 在用戶實際需要地圖時才進行初始化，而不是在頁面加載時立即初始化
+ */
+
+// 延遲初始化標誌
+let _mapInitialized = false;
+
+/**
+ * 確保地圖已初始化，如果未初始化則進行初始化
+ * 供其他模塊調用（如 ui.js 的 switchTab）
+ */
+function ensureMapInitialized() {
+    if (_mapInitialized) {
+        console.log('📍 地圖已初始化，復用實例');
+        return;
+    }
+
+    console.log('📍 開始初始化地圖...');
+    _mapInitialized = true;
+    initLocationMap();
+}
+
+/**
  * 從後端取得所有打卡地點，並將它們顯示在地圖上。
  */
 async function fetchAndRenderLocationsOnMap() {
@@ -98,6 +121,17 @@ function initLocationMap(forceReload = false) {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(mapInstance);
+
+    // 🐛 P2-1 修複：初始化 locationMarkers 和 locationCircles (FeatureGroup)
+    // 這些變數在 state.js 中宣告但未初始化，會導致 fetchAndRenderLocationsOnMap() 調用時出錯
+    if (!locationMarkers) {
+        locationMarkers = L.featureGroup().addTo(mapInstance);
+        console.log('✅ locationMarkers FeatureGroup 已初始化');
+    }
+    if (!locationCircles) {
+        locationCircles = L.featureGroup().addTo(mapInstance);
+        console.log('✅ locationCircles FeatureGroup 已初始化');
+    }
 
     // 讓地圖在完成載入後隱藏載入中的文字
     mapInstance.whenReady(() => {

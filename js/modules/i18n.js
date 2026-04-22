@@ -1,20 +1,69 @@
 /**
  * 國際化模塊（i18n）
  * 集中管理翻譯加載、翻譯函數、DOM 翻譯
+ *
+ * P2-1 優化：支持翻譯預加載，減少語言切換延遲
  */
+
+// ===================================
+// 預加載快取 (P2-1 優化)
+// ===================================
+const preloadedTranslations = {}; // {lang: {key: value}}
+
+/**
+ * 預加載指定語言的翻譯文件到內存
+ * 不阻塞主流程，異步執行
+ * @param {string[]} langs - 語言代碼數組 (e.g., ['en-US', 'ja'])
+ */
+async function preloadTranslations(langs = ['en-US', 'ja']) {
+  for (const lang of langs) {
+    if (preloadedTranslations[lang]) {
+      console.log(`⏭️ 語言 ${lang} 已預加載，跳過`);
+      continue;
+    }
+
+    try {
+      console.log(`⏳ 正在預加載語言 ${lang}...`);
+      const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
+      if (!res.ok) {
+        throw new Error(`HTTP 錯誤: ${res.status}`);
+      }
+
+      const translationData = await res.json();
+      preloadedTranslations[lang] = translationData;
+      console.log(`✅ 語言 ${lang} 已預加載（${Object.keys(translationData).length} 個鍵值）`);
+    } catch (err) {
+      console.warn(`⚠️ 預加載語言 ${lang} 失敗:`, err.message);
+    }
+  }
+}
 
 /**
  * 加載指定語言的翻譯
+ * 優先使用預加載的快取，否則從網路 fetch
  * @param {string} lang - 語言代碼（e.g., 'zh-TW', 'en-US'）
  */
 async function loadTranslations(lang) {
   try {
-    const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
-    if (!res.ok) {
-      throw new Error(`HTTP 錯誤: ${res.status}`);
-    }
+    let translationData;
 
-    const translationData = await res.json();
+    // 📊 優先檢查預加載快取
+    if (preloadedTranslations[lang]) {
+      console.log(`⚡ 使用預加載的快取語言 ${lang}`);
+      translationData = preloadedTranslations[lang];
+    } else {
+      // 從網路 fetch
+      console.log(`🌐 從網路加載語言 ${lang}...`);
+      const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
+      if (!res.ok) {
+        throw new Error(`HTTP 錯誤: ${res.status}`);
+      }
+
+      translationData = await res.json();
+
+      // 加載後自動存入快取，供後續使用
+      preloadedTranslations[lang] = translationData;
+    }
 
     // 使用全局變量保存（向後兼容）
     translations = translationData;
@@ -146,10 +195,11 @@ async function switchLanguage(lang) {
 // 導出
 export {
   loadTranslations,
+  preloadTranslations,
   checkTranslationCompleteness,
   t,
   renderTranslations,
   switchLanguage
 };
 
-console.log('✓ i18n 模塊已加載');
+console.log('✓ i18n 模塊已加載 (P2-1: 支持翻譯預加載)');
