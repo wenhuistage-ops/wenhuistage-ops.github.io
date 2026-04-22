@@ -1,11 +1,27 @@
 import { defineConfig } from 'vite'
 import legacy from '@vitejs/plugin-legacy'
 
+// 自訂插件：保留 HTML 中的原始脚本标签
+const preserveScriptsPlugin = {
+  name: 'preserve-scripts',
+  transformIndexHtml: {
+    order: 'pre',
+    handler(html) {
+      // 在开发环境中不修改 HTML，保留原始脚本标签
+      if (process.env.NODE_ENV === 'development') {
+        return html;
+      }
+      return html;
+    }
+  }
+};
+
 export default defineConfig({
   plugins: [
     legacy({
       targets: ['defaults', 'not IE 11']
-    })
+    }),
+    preserveScriptsPlugin
   ],
   root: '.',
   base: '/',
@@ -14,15 +30,17 @@ export default defineConfig({
     minify: 'terser',
     sourcemap: false,
     outDir: 'dist',
-    emptyOutDir: false,  // 保留 dist/ 下的其他文件（如 compiled.css）
+    emptyOutDir: false,
     rollupOptions: {
       input: 'index.html',
-      external: ['./dist/compiled.css']  // 不處理 compiled.css，保留原檔案
+      external: ['./dist/compiled.css']
     }
   },
   server: {
     port: 5173,
-    open: true,
-    host: true
+    open: false,  // 防止自動打開
+    host: true,
+    // 禁用依賴優化
+    preTransformRequests: false
   }
 })

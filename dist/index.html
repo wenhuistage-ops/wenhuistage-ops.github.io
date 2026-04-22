@@ -23,10 +23,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 <html lang="zh-Hant">
 
 <head>
-    <link rel="icon" href="0rigin.png" type="image/x-icon">
+    <link rel="icon" href="/assets/0rigin-DKdsQfSp.png" type="image/x-icon">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title data-i18n="APP_TITLE">APP_TITLE</title>
-    <link rel="stylesheet" href="./dist/compiled.css">
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -73,6 +72,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script type="module" crossorigin src="/assets/index-DhSS3snB.js"></script>
+  <script type="module">import'data:text/javascript,if(!import.meta.resolve)throw Error("import.meta.resolve not supported")';import.meta.url;import("_").catch(()=>1);(async function*(){})().next();window.__vite_is_modern_browser=true</script>
+  <script type="module">!function(){if(window.__vite_is_modern_browser)return;console.warn("vite: loading legacy chunks, syntax error above and the same error below should be ignored");var e=document.getElementById("vite-legacy-polyfill"),n=document.createElement("script");n.src=e.src,n.onload=function(){System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))},document.body.appendChild(n)}();</script>
 </head>
 
 <body class="flex items-center justify-center min-h-screen p-4 
@@ -117,7 +119,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
         <!-- Login Section -->
         <section id="login-section" class="text-center p-8 card fade-in">
-            <img src="/0rigin.png" alt="打卡系統橫幅圖" class="main-image">
+            <img src="/assets/0rigin-DKdsQfSp.png" alt="打卡系統橫幅圖" class="main-image">
             <h1 id="appTitle" data-i18n="SUBTITLE_LOGIN" class="text-2xl font-bold text-gray-800 mb-2 dark:text-white">
                 歡迎文輝考勤系統</h1>
             <p class="text-gray-600 mb-6" data-i18n="LOGIN_INFO" id="status">請點擊登入以繼續。</p>
@@ -732,22 +734,17 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <!-- DOMPurify for XSS protection -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 
-    <script src="js/config.js"></script>
-    <script src="js/state.js"></script>
-    <script src="js/core.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/punch.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/location.js"></script>
     <!-- SheetJS for Excel export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="js/admin.js"></script>
 
     <!-- Floating LINE button (樣式與行為移到 compiled.css / js/app.js) -->
     <button id="floating-line-btn" class="floating-line-btn" aria-label="加入員工 LINE 頻道" title="長按可隱藏"
         data-line-url="https://lin.ee/Hos7UlA">
         💬
     </button>
+  <script nomodule>!function(){var e=document,t=e.createElement("script");if(!("noModule"in t)&&"onbeforeload"in t){var n=!1;e.addEventListener("beforeload",(function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute("nomodule")||!n)return;e.preventDefault()}),!0),t.type="module",t.src=".",e.head.appendChild(t),t.remove()}}();</script>
+  <script nomodule crossorigin id="vite-legacy-polyfill" src="/assets/polyfills-legacy-Z38IoK3f.js"></script>
+  <script nomodule crossorigin id="vite-legacy-entry" data-src="/assets/index-legacy-CZnfO-wA.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
 </body>
 
 </html>
