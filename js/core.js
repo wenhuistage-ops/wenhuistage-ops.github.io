@@ -64,6 +64,12 @@ async function callApifetch(params, loadingId = "loading") {
     const loadingEl = document.getElementById(loadingId);
     if (loadingEl) loadingEl.style.display = "block";
 
+    // 🚀 P5-2 優化：添加請求超時控制（打卡等關鍵操作設 5 秒）
+    const API_TIMEOUT = params.action === 'punch' ? 5000 : 10000; // 打卡 5 秒，其他 10 秒
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+
     try {
         // ✅ 改進：改用 POST 請求，避免 token 在 URL 中洩露
         const response = await fetch(url, {
@@ -72,7 +78,8 @@ async function callApifetch(params, loadingId = "loading") {
             body: searchParams.toString(),  // 參數放在 body 中
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
-            }
+            },
+            signal: controller.signal  // 🚀 P5-2 優化：添加超時信號
         });
 
         // 檢查 HTTP 狀態碼
@@ -93,12 +100,20 @@ async function callApifetch(params, loadingId = "loading") {
             throw jsonError;
         }
     } catch (error) {
-        // 處理網路或其他錯誤
-        showNotification(t("CONNECTION_FAILED"), "error");
-        console.error("API 呼叫失敗:", error);
+        // 🚀 P5-2 優化：區分超時和其他錯誤
+        if (error.name === 'AbortError') {
+            const timeoutMsg = `API 請求超時 (${API_TIMEOUT}ms)，請檢查網路連接或稍後重試`;
+            showNotification(timeoutMsg, "error");
+            console.error("API 超時:", timeoutMsg);
+        } else {
+            // 處理網路或其他錯誤
+            showNotification(t("CONNECTION_FAILED"), "error");
+            console.error("API 呼叫失敗:", error);
+        }
         // 拋出錯誤以便外部捕獲
         throw error;
     } finally {
+        clearTimeout(timeoutId);  // 清除超時計時器
         // 不論成功或失敗，都隱藏 loading 元素
         if (loadingEl) loadingEl.style.display = "none";
     }

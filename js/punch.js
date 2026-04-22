@@ -107,6 +107,10 @@ async function doPunch(type) {
 
     if (!button) return;
 
+    // 🚀 P5-1 性能計時：記錄打卡開始時間
+    const punchStartTime = performance.now();
+    const punchMetrics = { start: punchStartTime };
+
     // A. 進入處理中狀態 (generalButtonState 來自 ui.js)
     generalButtonState(button, 'processing', loadingText);
 
@@ -118,8 +122,9 @@ async function doPunch(type) {
         return;
     }
 
-    const submitPunch = async (lat, lng, accuracy) => {
+    const submitPunch = async (lat, lng, accuracy, geoTime) => {
         try {
+            const apiStart = performance.now();
             const res = await callApifetch({
                 action: 'punch',
                 type: type,
@@ -127,12 +132,23 @@ async function doPunch(type) {
                 lng: lng,
                 note: `精確度: ${Math.round(accuracy)}m | ${navigator.userAgent}`
             });
+            const apiEnd = performance.now();
+            const apiTime = apiEnd - apiStart;
+
             const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
             showNotification(msg, res.ok ? "success" : "error");
             generalButtonState(button, 'idle');
 
             if (res.ok) {
-                // 🚀 P5-1 優化：異常記錄檢查並行執行（不阻塞打卡完成）
+                const totalTime = apiEnd - punchStartTime;
+                // 🚀 P5-1 性能統計輸出
+                console.log(`✅ 打卡成功！`);
+                console.log(`   總耗時: ${totalTime.toFixed(0)}ms`);
+                console.log(`   ├─ GPS獲取: ${geoTime.toFixed(0)}ms`);
+                console.log(`   ├─ API提交: ${apiTime.toFixed(0)}ms`);
+                console.log(`   └─ 其他: ${(totalTime - geoTime - apiTime).toFixed(0)}ms`);
+
+                // 異常記錄檢查並行執行（不阻塞打卡完成）
                 checkAbnormal(1, true).catch(err => console.warn("異常記錄檢查失敗:", err));
             }
         } catch (err) {
@@ -148,12 +164,19 @@ async function doPunch(type) {
 
     if (canUseCachedPosition) {
         // 🚀 P5-1 優化：使用快取位置時，立即提交（最快路徑）
-        await submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude, lastPunchPosition.accuracy);
+        await submitPunch(lastPunchPosition.latitude, lastPunchPosition.longitude, lastPunchPosition.accuracy, 0);
         return;
     }
 
-    // 獲取新位置，帶有精確度檢查和重試機制
-    await getAccurateLocation(submitPunch, button);
+    // 記錄 GPS 獲取時間
+    const geoStart = performance.now();
+
+    // 獲取新位置
+    await getAccurateLocation(async (lat, lng, accuracy) => {
+        const geoEnd = performance.now();
+        const geoTime = geoEnd - geoStart;
+        await submitPunch(lat, lng, accuracy, geoTime);
+    }, button);
 }
 
 // 處理地理位置權限被拒絕的情況
