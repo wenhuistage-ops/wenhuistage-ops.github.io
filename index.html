@@ -69,10 +69,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         });
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="stylesheet" href="./node_modules/leaflet/dist/leaflet.css" />
+    <script src="./node_modules/leaflet/dist/leaflet.js"></script>
 </head>
 
 <body class="flex items-center justify-center min-h-screen p-4 
@@ -730,7 +728,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     </div>
 
     <!-- DOMPurify for XSS protection -->
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <script src="./node_modules/dompurify/dist/purify.js"></script>
 
     <script src="js/config.js"></script>
     <script src="js/state.js"></script>
@@ -740,7 +738,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script src="js/ui.js"></script>
     <script src="js/location.js"></script>
     <!-- SheetJS for Excel export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="./node_modules/xlsx/dist/xlsx.full.min.js"></script>
     <script src="js/admin.js"></script>
 
     <!-- Floating LINE button (樣式與行為移到 compiled.css / js/app.js) -->

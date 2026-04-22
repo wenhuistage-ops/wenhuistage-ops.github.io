@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/0rigind1865-bit/Attendance-System#readme",
   "devDependencies": {
+    "@tailwindcss/forms": "^0.5.11",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@vitejs/plugin-legacy": "^8.0.1",
@@ -35,6 +36,8 @@
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.16",
-    "dompurify": "^3.4.1"
+    "dompurify": "^3.4.1",
+    "leaflet": "^1.9.4",
+    "xlsx": "^0.18.5"
   }
 }
