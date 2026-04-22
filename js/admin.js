@@ -89,9 +89,8 @@ async function renderAdminCalendar(userId, date) {
     // 定義一個內部函式來執行 UI 更新 (避免重複程式碼)
     const updateCalendarUI = (records) => {
         // 清空並渲染日曆 (renderCalendarWithData 來自 ui.js)
-        // 注意：calendarGrid.innerHTML 在 renderCalendarWithData 內部通常會被處理，
-        // 但若該函式是 append 模式，則需先手動清空 calendarGrid.innerHTML = '';
-        calendarGrid.innerHTML = '';
+        // ✅ XSS防護：使用 replaceChildren() 替代 innerHTML
+        calendarGrid.replaceChildren();
 
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle, true);
 
@@ -116,7 +115,8 @@ async function renderAdminCalendar(userId, date) {
         // --- 情境 B: 無快取，需請求 API ---
 
         // 顯示 Loading 狀態
-        calendarGrid.innerHTML = '<div data-i18n="LOADING" class="col-span-full text-center text-gray-500 py-4">正在載入...</div>';
+        // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+        calendarGrid.innerHTML = DOMPurify.sanitize('<div data-i18n="LOADING" class="col-span-full text-center text-gray-500 py-4">正在載入...</div>');
         if (typeof renderTranslations === 'function') renderTranslations(calendarGrid);
 
         try {
@@ -139,13 +139,15 @@ async function renderAdminCalendar(userId, date) {
             } else {
                 // API 回傳錯誤
                 console.error("Failed to fetch admin attendance records:", res.msg);
-                calendarGrid.innerHTML = `<div class="col-span-full text-center text-red-500 py-4">${res.msg || '無法載入資料'}</div>`;
+                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                calendarGrid.innerHTML = DOMPurify.sanitize(`<div class="col-span-full text-center text-red-500 py-4">${res.msg || '無法載入資料'}</div>`);
                 showNotification(res.msg || t("ERROR_FETCH_RECORDS"), "error");
             }
         } catch (err) {
             // 網路或系統錯誤
             console.error("System Error in renderAdminCalendar:", err);
-            calendarGrid.innerHTML = '<div class="col-span-full text-center text-red-500 py-4">發生系統錯誤</div>';
+            // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+            calendarGrid.innerHTML = DOMPurify.sanitize('<div class="col-span-full text-center text-red-500 py-4">發生系統錯誤</div>');
         }
     }
 }
@@ -334,7 +336,8 @@ function calculateAndDisplayMonthlySalary(records) {
         +totalMonthlyOvertimeSalary
     ).toFixed(2);
     if (targetDisplay) {
-        targetDisplay.innerHTML = `
+        // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+        const salaryHtml = `
             <p class="text-sm text-gray-500 dark:text-gray-400">
                 <span data-i18n="MONTHLY_SALARY_PREFIX">本月總薪資：</span>
                 <span class="text-lg font-bold text-indigo-600 dark:text-indigo-400">${totalMonthlySalary} NTD</span>
@@ -375,6 +378,7 @@ function calculateAndDisplayMonthlySalary(records) {
                 </ul>
             </details>
         `;
+        targetDisplay.innerHTML = DOMPurify.sanitize(salaryHtml);
         // 如果您的 i18n 系統需要
         if (typeof renderTranslations === 'function') {
             renderTranslations(targetDisplay);
@@ -867,7 +871,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
     // 確保使用全域變數，而非 document.getElementById
     adminDailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", { dateKey: dateKey });
 
-    adminDailyRecordsList.innerHTML = '';
+    adminDailyRecordsList.replaceChildren();
     adminDailyRecordsEmpty.style.display = 'none';
     adminDailyRecordsCard.style.display = 'block';
     adminRecordsLoading.style.display = 'block';
@@ -906,7 +910,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
         const dailyRecords = records.filter(record => record.date === dateKey);
         console.log(dailyRecords);
         // 清空現有列表
-        adminDailyRecordsList.innerHTML = '';
+        adminDailyRecordsList.replaceChildren();
 
         // 移除舊的 externalInfo（假設 className 為 'daily-summary' 以便識別）
         const existingSummaries = adminDailyRecordsList.parentNode.querySelectorAll('.daily-summary');
@@ -941,11 +945,13 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     const typeKey = r.type === '上班' ? 'PUNCH_IN' : 'PUNCH_OUT';
 
                     // 產生單一打卡記錄的 HTML
-                    li.innerHTML = `
+                    // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                    const recordHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${r.location}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
                     `;
+                    li.innerHTML = DOMPurify.sanitize(recordHtml);
 
                     adminDailyRecordsList.appendChild(li);
                     renderTranslations(li);  // 渲染翻譯
@@ -1038,7 +1044,8 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     }
                 }
 
-                externalInfo.innerHTML = `
+                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                const externalInfoHtml = `
                     <p class="text-sm text-gray-500 dark:text-gray-400">
                         <span data-i18n="RECORD_REASON_PREFIX">系統判斷：</span>
                         ${t(dailyRecord.reason)}
@@ -1046,6 +1053,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     ${hoursHtml}
                     ${salaryHtml}
                 `;
+                externalInfo.innerHTML = DOMPurify.sanitize(externalInfoHtml);
                 // append 到 adminDailyRecordsList 後面
                 adminDailyRecordsList.parentNode.appendChild(externalInfo);
                 renderTranslations(externalInfo);  // 渲染翻譯
@@ -1075,7 +1083,7 @@ function _addWeekdayLabelsToAdminCalendar(year, month) {
         header.className = 'admin-weekday-header grid grid-cols-7 gap-1 mb-2 text-center text-sm text-gray-600 dark:text-gray-300';
         parent.insertBefore(header, grid);
     } else {
-        header.innerHTML = '';
+        header.replaceChildren();
     }
 
     const lang = (typeof currentLang !== 'undefined' && currentLang) ? currentLang : 'zh-TW';
@@ -1158,7 +1166,7 @@ async function fetchAndRenderReviewRequests() {
 
     loadingEl.style.display = 'block';
     emptyEl.style.display = 'none';
-    listEl.innerHTML = '';
+    listEl.replaceChildren();
 
     try {
         const res = await callApifetch({ action: 'getReviewRequest' }); // 來自 core.js
@@ -1190,7 +1198,7 @@ async function fetchAndRenderReviewRequests() {
  */
 function renderReviewRequests(requests) {
     const listEl = pendingRequestsList; // 修正：使用全域變數
-    listEl.innerHTML = '';
+    listEl.replaceChildren();
 
     requests.forEach((req, index) => {
         const li = document.createElement('li');
@@ -1206,7 +1214,8 @@ function renderReviewRequests(requests) {
             detailText = `${req.name || "（未知）"} - ${req.remark || "（無原因）"}`;
         }
 
-        li.innerHTML = `
+        // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+        const requestItemHtml = `
              <div class="flex flex-col space-y-1">
                 <div class="flex items-center justify-between w-full">
                     <div>
@@ -1217,19 +1226,20 @@ function renderReviewRequests(requests) {
                     <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
                 </div>
             </div>
-                
+
             <div class="flex items-center justify-between w-full mt-2">
-                <p 
-                    data-i18n-key="${req.type}" 
+                <p
+                    data-i18n-key="${req.type}"
                     class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
-                </p> 
-                
-                <div class="flex space-x-2"> 
+                </p>
+
+                <div class="flex space-x-2">
                     <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
                     <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
                 </div>
             </div>
         `;
+        li.innerHTML = DOMPurify.sanitize(requestItemHtml);
         listEl.appendChild(li);
         renderTranslations(li); // 來自 core.js
     });
@@ -1317,15 +1327,28 @@ async function loadEmployeeList() {
             allEmployeeList = employees; // 儲存員工列表 (來自 state.js)
 
             // 清空並填充下拉菜單 (使用全域變數)
-            adminSelectEmployee.innerHTML = '<option value="">-- 請選擇一位員工 --</option>';
+            // ✅ XSS防護：使用 DOM API 代替 innerHTML
+            adminSelectEmployee.replaceChildren();
+            const option0 = document.createElement('option');
+            option0.value = '';
+            option0.textContent = '-- 請選擇一位員工 --';
+            adminSelectEmployee.appendChild(option0);
+
             employees.forEach(employee => {
                 const option = document.createElement('option');
                 option.value = employee.userId;
                 option.textContent = `${employee.name} (${employee.userId.substring(0, 8)}...)`;
                 adminSelectEmployee.appendChild(option);
             });
+
             // 清空並填充下拉菜單 (使用全域變數)
-            adminSelectEmployeeMgmt.innerHTML = '<option value="">-- 請選擇一位員工 --</option>';
+            // ✅ XSS防護：使用 DOM API 代替 innerHTML
+            adminSelectEmployeeMgmt.replaceChildren();
+            const mgmtOption0 = document.createElement('option');
+            mgmtOption0.value = '';
+            mgmtOption0.textContent = '-- 請選擇一位員工 --';
+            adminSelectEmployeeMgmt.appendChild(mgmtOption0);
+
             employees.forEach(employee => {
                 const option = document.createElement('option');
                 option.value = employee.userId;

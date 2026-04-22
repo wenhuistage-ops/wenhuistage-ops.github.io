@@ -483,7 +483,7 @@ function renderAbnormalRecords(records) {
     if (records.length > 0) {
         abnormalRecordsSection.style.display = 'block';
         recordsEmpty.style.display = 'none';
-        abnormalList.innerHTML = '';
+        abnormalList.replaceChildren();
 
         records.forEach(record => {
             console.log("Abnormal Record:", record.displayDate, record.reason, "Status:", record.status);
@@ -553,7 +553,8 @@ function renderAbnormalRecords(records) {
                     </span>`;
             }
 
-            li.innerHTML = `
+            // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+            const safeHtml = `
                 <div>
                     <p class="font-medium text-gray-800 dark:text-white">${record.displayDate}</p>
                     <p class="text-sm text-red-600 dark:text-red-400"
@@ -566,6 +567,7 @@ function renderAbnormalRecords(records) {
                     ${buttonsHtml}
                 </div>
             `;
+            li.innerHTML = DOMPurify.sanitize(safeHtml);
             abnormalList.appendChild(li);
             renderTranslations(li); // 來自 core.js
         });
@@ -573,7 +575,7 @@ function renderAbnormalRecords(records) {
     } else {
         abnormalRecordsSection.style.display = 'block';
         recordsEmpty.style.display = 'block';
-        abnormalList.innerHTML = '';
+        abnormalList.replaceChildren();
     }
 }
 // #endregion
@@ -702,7 +704,8 @@ function bindPunchEvents() {
                         </div>
                     </div>
                 `;
-                adjustmentFormContainer.innerHTML = formHtml;
+                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                adjustmentFormContainer.innerHTML = DOMPurify.sanitize(formHtml);
                 renderTranslations(adjustmentFormContainer); // 來自 core.js
 
                 // 設置默認時間值
@@ -742,7 +745,8 @@ function bindPunchEvents() {
                         </button>
                     </div>
                 `;
-                adjustmentFormContainer.innerHTML = formHtml;
+                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                adjustmentFormContainer.innerHTML = DOMPurify.sanitize(formHtml);
             } else if (e.target.classList.contains('vacation-btn')) {
                 // 休假按鈕處理邏輯
                 const date = e.target.dataset.date;
@@ -770,7 +774,8 @@ function bindPunchEvents() {
                         </button>
                     </div>
                 `;
-                adjustmentFormContainer.innerHTML = formHtml;
+                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                adjustmentFormContainer.innerHTML = DOMPurify.sanitize(formHtml);
             }
         });
 
@@ -863,7 +868,7 @@ function bindPunchEvents() {
                         showNotification(outRes.ok ? "全日打卡補登成功" : "下班打卡失敗：" + msg, outRes.ok ? "success" : "error");
 
                         if (outRes.ok) {
-                            adjustmentFormContainer.innerHTML = '';
+                            adjustmentFormContainer.replaceChildren();
                             checkAbnormal(1, true); // 補打卡成功後，重新檢查異常紀錄
                         }
                     } else {
@@ -881,7 +886,7 @@ function bindPunchEvents() {
                         showNotification(msg, res.ok ? "success" : "error");
 
                         if (res.ok) {
-                            adjustmentFormContainer.innerHTML = '';
+                            adjustmentFormContainer.replaceChildren();
                             checkAbnormal(1, true); // 補打卡成功後，重新檢查異常紀錄
                         }
                     }
@@ -890,7 +895,7 @@ function bindPunchEvents() {
                     console.error(err);
                     showNotification(t('NETWORK_ERROR') || '網絡錯誤', 'error');
                 } finally {
-                    if (adjustmentFormContainer.innerHTML !== '') {
+                    if (adjustmentFormContainer.children.length > 0) {
                         generalButtonState(adjustButton, 'idle');
                     }
                 }
@@ -929,7 +934,7 @@ function bindPunchEvents() {
                     showNotification(msg, res.ok ? "success" : "error");
 
                     if (res.ok) {
-                        adjustmentFormContainer.innerHTML = '';
+                        adjustmentFormContainer.replaceChildren();
                         checkAbnormal(1, true); // 請假成功後，重新檢查異常紀錄
                     }
 
@@ -937,7 +942,7 @@ function bindPunchEvents() {
                     console.error(err);
                     showNotification('網絡錯誤，請稍後再試', 'error');
                 } finally {
-                    if (adjustmentFormContainer.innerHTML !== '') {
+                    if (adjustmentFormContainer.children.length > 0) {
                         generalButtonState(leaveButton, 'idle');
                     }
                 }
@@ -976,7 +981,7 @@ function bindPunchEvents() {
                     showNotification(msg, res.ok ? "success" : "error");
 
                     if (res.ok) {
-                        adjustmentFormContainer.innerHTML = '';
+                        adjustmentFormContainer.replaceChildren();
                         checkAbnormal(1, true); // 休假成功後，重新檢查異常紀錄
                     }
 
@@ -984,7 +989,7 @@ function bindPunchEvents() {
                     console.error(err);
                     showNotification('網絡錯誤，請稍後再試', 'error');
                 } finally {
-                    if (adjustmentFormContainer.innerHTML !== '') {
+                    if (adjustmentFormContainer.children.length > 0) {
                         generalButtonState(vacationButton, 'idle');
                     }
                 }

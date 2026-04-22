@@ -344,7 +344,8 @@ function initAdminAddLocationMapIfNeeded() {
     }
 
     function renderSearchResults(items) {
-        searchResultsEl.innerHTML = '';
+        // ✅ XSS防護：使用 replaceChildren() 替代 innerHTML
+        searchResultsEl.replaceChildren();
         if (!items || items.length === 0) {
             searchResultsEl.style.display = 'none';
             return;
@@ -357,7 +358,8 @@ function initAdminAddLocationMapIfNeeded() {
             li.dataset.lat = it.lat;
             li.dataset.lon = it.lon;
             li.dataset.display = it.display_name || '';
-            li.innerHTML = `<div>${it.display_name}</div><small>${it.type || ''} ${it.class || ''}</small>`;
+            // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+            li.innerHTML = DOMPurify.sanitize(`<div>${it.display_name}</div><small>${it.type || ''} ${it.class || ''}</small>`);
             li.addEventListener('click', () => {
                 const lat = parseFloat(li.dataset.lat);
                 const lon = parseFloat(li.dataset.lon);
@@ -379,7 +381,7 @@ function initAdminAddLocationMapIfNeeded() {
     }
 
     function clearSearchResults() {
-        searchResultsEl.innerHTML = '';
+        searchResultsEl.replaceChildren();
         searchResultsEl.style.display = 'none';
         if (searchClearBtn) searchClearBtn.style.display = 'none';
     }

@@ -46,7 +46,8 @@ async function renderCalendar(date, isrefresh = false) {
     } else {
         // 如果沒有，才發送 API 請求
         // 清空日曆，顯示載入狀態，並確保置中
-        calendarGrid.innerHTML = '<div data-i18n="LOADING" class="col-span-full text-center text-gray-500 py-4">正在載入...</div>';
+        // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+        calendarGrid.innerHTML = DOMPurify.sanitize('<div data-i18n="LOADING" class="col-span-full text-center text-gray-500 py-4">正在載入...</div>');
         renderTranslations(calendarGrid);
         try {
             const res = await callApifetch({
@@ -58,7 +59,8 @@ async function renderCalendar(date, isrefresh = false) {
                 cacheMonthData(monthkey, res.records.dailyStatus);
 
                 // 收到資料後，清空載入訊息
-                calendarGrid.innerHTML = '';
+                // ✅ XSS防護：使用 replaceChildren() 替代 innerHTML
+                calendarGrid.replaceChildren();
 
                 const records = monthDataCache[monthkey] || [];
                 renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
@@ -251,7 +253,7 @@ function getPredictedMonthKeys(currentDate) {
 // 新增一個獨立的渲染函式，以便從快取或 API 回應中調用
 function renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle, isForAdmin = false) {
     // 確保日曆網格在每次渲染前被清空
-    calendarGrid.innerHTML = '';
+    calendarGrid.replaceChildren();
     monthTitle.textContent = t("MONTH_YEAR_TEMPLATE", {
         year: year,
         month: month + 1
@@ -400,10 +402,11 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     // 在日曆最下面一行顯示本月累計時數（作為獨立的全寬行）
     const totalRow = document.createElement('div');
     totalRow.className = 'total-hours-row mt-2 p-2 bg-gray-100 dark:bg-gray-700 text-center rounded-lg';
-    totalRow.innerHTML = `
+    // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+    totalRow.innerHTML = DOMPurify.sanitize(`
         <span data-i18n="MONTH_TOTAL_HOURS_PREFIX">本月累計時數：</span>
         ${totalHours} 小時
-    `;
+    `);
     calendarGrid.parentNode.appendChild(totalRow);
     renderTranslations(totalRow); // 如果有翻譯需求，渲染翻譯
 }
@@ -421,7 +424,7 @@ async function renderDailyRecords(dateKey) {
     });
 
     dailyRecordsCard.style.display = 'block';
-    dailyRecordsList.innerHTML = '';
+    dailyRecordsList.replaceChildren();
     dailyRecordsEmpty.style.display = 'none';
     if (dailyRecordsLoading) {
         dailyRecordsLoading.style.display = 'block';
@@ -463,7 +466,7 @@ async function renderDailyRecords(dateKey) {
         console.log('Filtered dailyRecords for', dateKey, ':', dailyRecords);
 
         // 清空現有列表
-        dailyRecordsList.innerHTML = '';
+        dailyRecordsList.replaceChildren();
 
         // 移除舊的 externalInfo（假設 className 為 'daily-summary' 以便識別）
         const existingSummaries = dailyRecordsList.parentNode.querySelectorAll('.daily-summary');
@@ -494,10 +497,12 @@ async function renderDailyRecords(dateKey) {
                         const statusText = isApproved ? "已批准" : "審核中";
 
                         li.classList.add('bg-orange-50', 'dark:bg-orange-700'); // 請假/休假顏色（橙色系）
-                        li.innerHTML = `
+                        // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                        const leaveHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${leaveType} - <span style="color: ${isApproved ? 'green' : 'orange'}; font-weight: bold;">${statusText}</span></p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">請假申請記錄</p>
                     `;
+                        li.innerHTML = DOMPurify.sanitize(leaveHtml);
                     } else {
                         // 普通打卡記錄：顯示時間、位置等
                         // 根據 type 設定不同顏色
@@ -513,11 +518,13 @@ async function renderDailyRecords(dateKey) {
                         const typeKey = r.type === '上班' ? 'PUNCH_IN' : 'PUNCH_OUT';
 
                         // 產生單一打卡記錄的 HTML
-                        li.innerHTML = `
+                        // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                        const punchHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">${r.location}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
                     `;
+                        li.innerHTML = DOMPurify.sanitize(punchHtml);
                     }
 
                     dailyRecordsList.appendChild(li);
@@ -538,13 +545,15 @@ async function renderDailyRecords(dateKey) {
                 `;
                 }
 
-                externalInfo.innerHTML = `
+                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
+                const externalInfoHtml = `
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     <span data-i18n="RECORD_REASON_PREFIX">系統判斷：</span>
                     ${t(dailyRecord.reason)}
                 </p>
                 ${hoursHtml}
             `;
+                externalInfo.innerHTML = DOMPurify.sanitize(externalInfoHtml);
 
                 // append 到 dailyRecordsList 後面
                 dailyRecordsList.parentNode.appendChild(externalInfo);
