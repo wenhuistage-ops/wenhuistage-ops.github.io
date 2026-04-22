@@ -53,9 +53,9 @@ function handleRequest(e) {
   try {
     switch (action) {
       case "getProfile":
-        return respond(handleGetProfile(code));
+        return respond(handleGetProfile(code, e.parameter.redirectUrl));
       case "getLoginUrl":
-        return respond(handleGetLoginUrl());
+        return respond(handleGetLoginUrl(e.parameter));
       case "checkSession":
         return respond(handleCheckSession(sessionToken));
       case "punch":

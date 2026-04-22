@@ -1,4 +1,35 @@
 # macOS system file
 .DS_Store
 
+# Dependencies
 node_modules
+package-lock.json
+yarn.lock
+
+# Build output
+dist
+build
+
+# Test coverage
+coverage
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE/Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -177,7 +177,12 @@ function getDOMElements() {
 function bindEvents() {
     // 登入/登出事件
     loginBtn.onclick = async () => {
-        const res = await callApifetch({ action: 'getLoginUrl' });
+        // 根據當前環境動態決定登入後的回跳網址
+        const redirectUrl = getRedirectUrl();
+        const res = await callApifetch({
+            action: 'getLoginUrl',
+            redirectUrl: redirectUrl  // 將回跳網址作為參數傳遞給後端
+        });
         if (res.url) window.location.href = res.url;
     };
 
@@ -281,7 +286,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById("status").textContent = t("VERIFYING_AUTH");
         try {
             console.log(currentLang);
-            const res = await callApifetch({ action: 'getProfile', otoken: otoken, languag: currentLang });
+            // 獲取當前環境的 redirect URL，與登入時相同
+            const redirectUrl = getRedirectUrl();
+            const res = await callApifetch({ action: 'getProfile', otoken: otoken, languag: currentLang, redirectUrl: redirectUrl });
             if (res.ok && res.sToken) {
                 localStorage.setItem("sessionToken", res.sToken);
                 history.replaceState({}, '', window.location.pathname);

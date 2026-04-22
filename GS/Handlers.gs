@@ -22,8 +22,8 @@
 
 // Handlers.gs
 
-function handleGetProfile(code) {
-  const tokenResp = exchangeCodeForToken_(code);
+function handleGetProfile(code, redirectUrl = null) {
+  const tokenResp = exchangeCodeForToken_(code, redirectUrl);
   const profile   = getLineUserInfo_(tokenResp);
   const sToken    = writeSession_(profile.userId);
   writeEmployee_(profile);
@@ -35,12 +35,17 @@ function handleGetProfile(code) {
   };
 }
 
-function handleGetLoginUrl() {
-  const baseUrl = LINE_REDIRECT_URL;
+function handleGetLoginUrl(params = {}) {
+  // 接收前端傳來的 redirectUrl，如果沒有提供則使用預設值
+  const redirectUrl = params.redirectUrl || LINE_REDIRECT_URL;
   const state   = Utilities.getUuid();
   const scope   = encodeURIComponent('openid profile email');
-  const redirect= encodeURIComponent(baseUrl);
+  const redirect= encodeURIComponent(redirectUrl);
   const url     = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${encodeURIComponent(LINE_CHANNEL_ID)}&redirect_uri=${redirect}&state=${state}&scope=${scope}`;
+
+  // 記錄用於調試
+  Logger.log("getLoginUrl: 使用的 redirectUrl = " + redirectUrl);
+
   return { url };
 }
 

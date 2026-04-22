@@ -22,15 +22,21 @@
 
 // LineApi.gs
 
-function exchangeCodeForToken_(code) {
+function exchangeCodeForToken_(code, redirectUrl = null) {
+  // 如果沒有提供 redirectUrl，使用預設值
+  const actualRedirectUrl = redirectUrl || LINE_REDIRECT_URL;
+
   const url     = 'https://api.line.me/oauth2/v2.1/token';
   const payload = {
     grant_type: 'authorization_code',
     code,
-    redirect_uri: LINE_REDIRECT_URL,
+    redirect_uri: actualRedirectUrl,
     client_id: LINE_CHANNEL_ID,
     client_secret: LINE_CHANNEL_SECRET
   };
+
+  Logger.log("exchangeCodeForToken: 使用的 redirectUrl = " + actualRedirectUrl);
+
   const resp = UrlFetchApp.fetch(url, {
     method: 'post',
     payload: Object.keys(payload).map(k => `${k}=${encodeURIComponent(payload[k])}`).join('&'),

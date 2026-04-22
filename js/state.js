@@ -1,114 +1,74 @@
 /**
-Copyright (C) 2025 0J (Lin Jie / 0rigin1856)
-
-This file is part of 0riginAttendance-System.
-
-0riginAttendance-System is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or
-(at your option) any later version.
-
-0riginAttendance-System is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with 0riginAttendance-System. If not, see <https://www.gnu.org/licenses/>.
-Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this project.
+ * 應用全局常數和配置
+ * 🌟 P1-1 改進：
+ * - 全局變量由 js/modules/state.js 的 AppState 管理
+ * - DOM 元素由 js/modules/ui-manager.js 管理
+ * - 本文件現在僅保留常數定義和初始化
  */
-//let currentLang = localStorage.getItem("lang");//當前語言
-let currentMonthDate = new Date();//當前月份
-let translations = {};
+
+// ===================================
+// 快取配置常數
+// ===================================
+
 const MAX_MONTH_CACHE_ENTRIES = 12;
 const MAX_DETAIL_MONTH_CACHE_ENTRIES = 6;
+const MAX_ADMIN_MONTH_CACHE_ENTRIES = 12;
+const ABNORMAL_RECORDS_CACHE_DURATION = 5 * 60 * 1000; // 5 分鐘
+
+// ===================================
+// 預加載配置
+// ===================================
+
 const PRELOAD_BASE_DELAY = 500; // 預加載基礎延遲 (毫秒)
 const PRELOAD_INCREMENT_DELAY = 250; // 每個預加載項目的額外延遲 (毫秒)
 
-// 🌟 P1-3 改進：快取統一管理
-// 舊的快取變數已遷移至 cache.js 的 cacheManager
-// 用於兼容性的別名（指向 cacheManager）
-const getMonthDataCache = () => cacheManager.caches['month'].data;
-const getMonthCacheOrder = () => cacheManager.caches['month'].order;
-const getDetailMonthDataCache = () => cacheManager.caches['monthDetail'].data;
-const getDetailMonthCacheOrder = () => cacheManager.caches['monthDetail'].order;
-const getAbnormalRecordsCache = () => cacheManager.caches['abnormal'].data;
+// ===================================
+// CacheManager 初始化
+// ===================================
 
-// 保留舊的全局變數名以支持向後兼容
-let monthDataCache = getMonthDataCache();
-let monthCacheOrder = getMonthCacheOrder();
-let detailMonthDataCache = getDetailMonthDataCache();
-let detailMonthCacheOrder = getDetailMonthCacheOrder();
-let monthDetailLoadPromises = {}; // 避免重複請求同一月份詳細資料
-let monthNavigationHistory = []; // 月曆翻頁行為記錄
-let adminMonthNavigationHistory = []; // 管理員月曆翻頁行為記錄
-let isApiCalled = false; // 新增：用於追蹤 API 呼叫狀態，避免重複呼叫
+// CacheManager 由 cache.js 提供全局實例：cacheManager
+
+// ===================================
+// 向後兼容的全局變量別名
+// ===================================
+// 這些變量仍保留在全局作用域中，用於支持現有代碼
+// 實際數據由 AppState 或 UIManager 管理
+
+let currentMonthDate = new Date(); // 當前月份（員工視圖）
+let translations = {}; // 翻譯字典（由 i18n 模塊管理）
+let currentLang = localStorage.getItem("lang") || 'zh-TW'; // 當前語言
+
+// 用戶相關（由 AppState 管理）
 let userId = localStorage.getItem("sessionUserId");
 
-// 異常記錄快取相關（問題 8.4）
-// 🌟 現由 cacheManager 管理（5 分鐘 TTL）
-let abnormalRecordsCache = null; // 已遷移至 cacheManager
-let abnormalRecordsCacheTime = null; // 已遷移至 cacheManager
-const ABNORMAL_RECORDS_CACHE_DURATION = 5 * 60 * 1000; // 5 分鐘快取
-
-// 新增用於管理員日曆檢視的狀態變數
+// 管理員相關（由 AppState 管理）
 let adminSelectedUserId = null;
-let adminCurrentDate = new Date(); // 初始化為當前月份
-let allEmployeeList = []; // 用於儲存所有員工列表
-const adminMonthDataCache = {};
-const MAX_ADMIN_MONTH_CACHE_ENTRIES = 12;
-let adminMonthCacheOrder = []; // Admin LRU 快取順序
+let adminCurrentDate = new Date();
+let allEmployeeList = [];
 
+// API 狀態標誌
+let isApiCalled = false;
+let monthDetailLoadPromises = {};
+let monthNavigationHistory = [];
+let adminMonthNavigationHistory = [];
 
+// 待審核請求（由 request-approval 模塊管理）
+let pendingRequests = [];
 
-// 員工/通用 UI 元素
-let loginBtn = null;
-let logoutBtn = null;
-let punchInBtn = null;
-let punchOutBtn = null;
-let tabDashboardBtn = null;
-let tabMonthlyBtn = null;
-let tabLocationBtn = null;
-let tabAdminBtn = null;
-let abnormalList = null;
-let adjustmentFormContainer = null;
-let calendarGrid = null;
+// ===================================
+// 地圖相關全局變量（由 location.js 管理）
+// ===================================
 
-// 地點管理元素 (Admin/Location View)
-let getLocationBtn = null;
-let locationLatInput = null;
-let locationLngInput = null;
-let addLocationBtn = null;
-
-// 管理員專屬元素
-let adminSelectEmployee = null;
-let adminEmployeeCalendarCard = null;
-let adminPrevMonthBtn = null;
-let adminNextMonthBtn = null;
-// 🌟 新增：全域宣告管理員日紀錄相關的 DOM 元素 🌟
-let adminDailyRecordsCard = null;
-let adminDailyRecordsTitle = null;
-let adminDailyRecordsList = null;
-let adminRecordsLoading = null;
-let adminDailyRecordsEmpty = null;
-
-let pendingRequests = []; // 新增：用於快取待審核的請求
-
-// 全域變數，用於儲存地圖實例
 let mapInstance = null;
 let mapLoadingText = null;
 let currentCoords = null;
 let marker = null;
 let circle = null;
-/**
- * 從後端取得所有打卡地點，並將它們顯示在地圖上。
- */
-// 全域變數，用於儲存地點標記和圓形
-let locationMarkers = L.layerGroup();
-let locationCircles = L.layerGroup();
+let locationMarkers = null; // 將在 location.js 中初始化
+let locationCircles = null; // 將在 location.js 中初始化
 
-// 語系初始化邏輯 (從 DOMContentLoaded 移至此處)
-let currentLang = localStorage.getItem("lang");
+console.log('✓ 應用常數和配置已加載');
+
 
 if (!currentLang) {
     const browserLang = navigator.language || navigator.userLanguage;
