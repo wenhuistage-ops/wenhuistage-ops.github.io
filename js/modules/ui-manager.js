@@ -70,7 +70,7 @@ class UIManager {
 
     // 定位視圖
     this.elements.locationView = document.getElementById('location-view');
-    this.elements.mapContainer = document.getElementById('map');
+    this.elements.mapContainer = document.getElementById('map-container');
     this.elements.getLocationBtn = document.getElementById('get-location-btn');
     this.elements.locationLatInput = document.getElementById('location-lat');
     this.elements.locationLngInput = document.getElementById('location-lng');

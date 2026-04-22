@@ -378,34 +378,38 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
 
     console.log("檢查異常記錄 - 當前月份:", currentMonth, "檢查月份數:", monthsToCheck, "用戶ID:", sessionUserId);
 
-    // 收集多個月份的異常記錄
-    let allAbnormalRecords = [];
-
+    // 🚀 P4-2 優化：並行加載多個月份的異常記錄
+    const monthPromises = [];
     for (let i = 0; i < monthsToCheck; i++) {
         const checkDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
         const month = checkDate.getFullYear() + "-" + String(checkDate.getMonth() + 1).padStart(2, "0");
 
-        console.log(`檢查第 ${i + 1} 個月: ${month}`);
-
-        try {
-            const res = await callApifetch({
+        monthPromises.push(
+            callApifetch({
                 action: 'getAbnormalRecords',
                 month: month,
                 userId: sessionUserId
-            });
+            }).then(res => ({ res, month })).catch(error => {
+                console.error(`檢查月份 ${month} 時出錯:`, error);
+                return { res: null, month };
+            })
+        );
+    }
 
-            if (res.ok && res.records) {
-                // 為每個記錄添加月份標記
-                const recordsWithMonth = res.records.map(record => ({
-                    ...record,
-                    month: month,
-                    displayDate: `${month}-${record.date.split('-')[2]}`
-                }));
-                allAbnormalRecords = allAbnormalRecords.concat(recordsWithMonth);
-                console.log(`月份 ${month} 找到 ${res.records.length} 條異常記錄`);
-            }
-        } catch (error) {
-            console.error(`檢查月份 ${month} 時出錯:`, error);
+    // 等待所有月份的 API 調用完成（並行而非串行）
+    const results = await Promise.all(monthPromises);
+    let allAbnormalRecords = [];
+
+    for (const { res, month } of results) {
+        if (res && res.ok && res.records) {
+            // 為每個記錄添加月份標記
+            const recordsWithMonth = res.records.map(record => ({
+                ...record,
+                month: month,
+                displayDate: `${month}-${record.date.split('-')[2]}`
+            }));
+            allAbnormalRecords = allAbnormalRecords.concat(recordsWithMonth);
+            console.log(`月份 ${month} 找到 ${res.records.length} 條異常記錄`);
         }
     }
 
@@ -482,6 +486,9 @@ function renderAbnormalRecords(records) {
         abnormalRecordsSection.style.display = 'block';
         recordsEmpty.style.display = 'none';
         abnormalList.replaceChildren();
+
+        // 🚀 P4-2 優化：使用 DocumentFragment 批量插入 DOM
+        const fragment = document.createDocumentFragment();
 
         records.forEach(record => {
             console.log("Abnormal Record:", record.displayDate, record.reason, "Status:", record.status);
@@ -566,9 +573,13 @@ function renderAbnormalRecords(records) {
                 </div>
             `;
             li.innerHTML = DOMPurify.sanitize(safeHtml);
-            abnormalList.appendChild(li);
-            renderTranslations(li); // 來自 core.js
+            fragment.appendChild(li);
         });
+
+        // 一次性插入所有 DOM 節點
+        abnormalList.appendChild(fragment);
+        // 渲染所有翻譯（而非逐個渲染）
+        renderTranslations(abnormalList); // 來自 core.js
 
     } else {
         abnormalRecordsSection.style.display = 'block';

@@ -98,7 +98,6 @@ async function renderAdminCalendar(userId, date) {
         _addWeekdayLabelsToAdminCalendar(year, month);
 
         // 計算並顯示月總薪資
-        // console.log('Records:', records, 'Salary:', currentManagingEmployee?.salary);
         calculateAndDisplayMonthlySalary(records);
     };
 
@@ -108,8 +107,12 @@ async function renderAdminCalendar(userId, date) {
         console.log(`[Cache Hit] Loading data for ${cacheKey}`);
         updateCalendarUI(adminMonthDataCache[cacheKey]);
         recordAdminMonthNavigation(date);
-        prefetchMonthDetails(apiMonthParam, userId);
-        preloadAdjacentAdminMonths(date, userId);
+
+        // 🚀 P4-2 優化：預加載和導航記錄並行執行（不阻塞主流程）
+        Promise.all([
+            prefetchMonthDetails(apiMonthParam, userId),
+            preloadAdjacentAdminMonths(date, userId)
+        ]).catch(err => console.warn("預加載出錯:", err));
 
     } else {
         // --- 情境 B: 無快取，需請求 API ---
@@ -134,8 +137,12 @@ async function renderAdminCalendar(userId, date) {
                 // 更新 UI
                 updateCalendarUI(records);
                 recordAdminMonthNavigation(date);
-                prefetchMonthDetails(apiMonthParam, userId);
-                preloadAdjacentAdminMonths(date, userId);
+
+                // 🚀 P4-2 優化：預加載和導航記錄並行執行（不阻塞主流程）
+                Promise.all([
+                    prefetchMonthDetails(apiMonthParam, userId),
+                    preloadAdjacentAdminMonths(date, userId)
+                ]).catch(err => console.warn("預加載出錯:", err));
             } else {
                 // API 回傳錯誤
                 console.error("Failed to fetch admin attendance records:", res.msg);
@@ -260,10 +267,16 @@ function calculateAndDisplayMonthlySalary(records) {
     let totalNetHours = 0;//此月總淨工時：
     let totalRestHours = 0;//此月休息時數：
     let totalGrossHours = 0;//此月總時數：
+
+    // 🚀 P4-2 優化：預快取 DOM 查詢和日期對象
+    const displayElement = document.getElementById('admin-monthly-salary-display');
+    const targetDisplay = (typeof adminMonthlySalaryDisplay !== 'undefined') ? adminMonthlySalaryDisplay : displayElement;
+
+    // 循環中的複雜計算
     records.forEach(dailyRecord => {
         // 確保有打卡時間欄位才計算
         if (dailyRecord.punchInTime && dailyRecord.punchOutTime) {
-            // 判斷日子類型 
+            // 判斷日子類型
             const dateObject = new Date(dailyRecord.date);
 
             // 檢查轉換是否成功，避免轉換失敗時繼續執行
@@ -285,7 +298,7 @@ function calculateAndDisplayMonthlySalary(records) {
                 && isExplicitNonHolidayValue(holidayRawValue);
 
             const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
-            //console.log(`計算日期: ${dailyRecord.date},dayOfWeek:${dayOfWeek}, 類型: ${dayType}`);
+
             // 🚨 步驟 1：使用新函數計算淨工時與扣除分鐘數
             const {
                 dailySalary,
@@ -299,7 +312,10 @@ function calculateAndDisplayMonthlySalary(records) {
                 hourlyRate,
                 dayType
             );
-            console.log(laborHoursDetails);
+
+            // 🚀 P4-2 優化：移除生產環境不需要的 console.log
+            // console.log(laborHoursDetails);
+
             totalNormalHours = totalNormalHours + laborHoursDetails.normalHours;
             totalOvertimeHours = totalOvertimeHours + laborHoursDetails.overtimeHours;
             totalNetHours = totalNormalHours + totalOvertimeHours;
@@ -310,18 +326,6 @@ function calculateAndDisplayMonthlySalary(records) {
 
             if (effectiveHours > 0) {
                 totalMonthlyOvertimeSalary += dailySalary;
-                const effectiveHoursFixed = effectiveHours.toFixed(2);
-                calculationDetails.push(
-                    `日期 ${dailyRecord.date} (${dailyRecord.punchInTime}-${dailyRecord.punchOutTime}): 
-                     - 休息扣除 ${breakHoursDisplay}h (淨工時 ${effectiveHoursFixed}h)
-                     - 加班計算: ${calculation}`
-                );
-            } else if (totalBreakMinutes > 0) {
-                // 記錄打卡了，但全被休息時間扣除的情況
-                calculationDetails.push(
-                    `日期 ${dailyRecord.date} (${dailyRecord.punchInTime}-${dailyRecord.punchOutTime}): 
-                     - 休息扣除 ${breakHoursDisplay}h (淨工時 0h, 無薪資)`
-                );
             }
         }
     });
@@ -329,12 +333,11 @@ function calculateAndDisplayMonthlySalary(records) {
     totalMonthlyOvertimeSalary = totalMonthlyOvertimeSalary.toFixed(2);
 
     // 顯示月總薪資
-    const displayElement = document.getElementById('admin-monthly-salary-display');
-    const targetDisplay = (typeof adminMonthlySalaryDisplay !== 'undefined') ? adminMonthlySalaryDisplay : displayElement;
     let totalMonthlySalary = (
         +monthlySalary +
         +totalMonthlyOvertimeSalary
     ).toFixed(2);
+
     if (targetDisplay) {
         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
         const salaryHtml = `

@@ -253,7 +253,13 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     // 計算本月累計時數
     const currentMonthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
     let totalHours = 0;
+
+    // 🚀 P4-2 優化：提前建立 recordsByDate Map
+    const recordsByDate = {};
     records.forEach(r => {
+        if (!recordsByDate[r.date]) recordsByDate[r.date] = [];
+        recordsByDate[r.date].push(r);
+        // 同時計算時數（避免第二次循環）
         if (r.date.startsWith(currentMonthKey)) {
             totalHours += parseFloat(r.hours || 0);
         }
@@ -264,12 +270,7 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    const recordsByDate = records.reduce((map, record) => {
-        if (!map[record.date]) map[record.date] = [];
-        map[record.date].push(record);
-        return map;
-    }, {});
-
+    // 🚀 P4-2 優化：使用 DocumentFragment 批量插入日期格子
     const fragment = document.createDocumentFragment();
 
     // 填補月初的空白格子

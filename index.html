@@ -68,64 +68,78 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             });
         });
     </script>
+    <!-- 🚀 P4-1 優化：預連接 Google Fonts，加快加載 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS 仍需同步加載 -->
     <link rel="stylesheet" href="./node_modules/leaflet/dist/leaflet.css" />
-    <script src="./node_modules/leaflet/dist/leaflet.js"></script>
+    <!-- 🚀 P4-2 優化：Leaflet JS 用 defer 延遲加載 -->
+    <script defer src="./node_modules/leaflet/dist/leaflet.js"></script>
+
 </head>
 
 <!-- HTML Templates for P2-3 Optimization -->
 <div id="templates" style="display: none;">
-  <!-- Tab Button Template -->
-  <template id="tab-button-template">
-    <button data-id-suffix="tab" data-i18n="TAB_PLACEHOLDER" class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">
-      <span data-text>標籤</span>
-    </button>
-  </template>
+    <!-- Tab Button Template -->
+    <template id="tab-button-template">
+        <button data-id-suffix="tab" data-i18n="TAB_PLACEHOLDER"
+            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">
+            <span data-text>標籤</span>
+        </button>
+    </template>
 
-  <!-- Info Item Template (梯度卡片) -->
-  <template id="info-item-template">
-    <div class="info-item bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-xl shadow-md border-l-4 border-yellow-500">
-      <p class="text-base font-semibold text-yellow-800 dark:text-yellow-300 flex items-center" data-i18n="INFO_LABEL">
-        <i class="fas fa-crown mr-2 text-yellow-600 dark:text-yellow-400"></i>
-        <span data-text>標籤</span>
-      </p>
-      <p class="text-3xl font-extrabold text-yellow-700 dark:text-yellow-200 mt-2" data-text-value>N/A</p>
-    </div>
-  </template>
-
-  <!-- Toggle Setting Template -->
-  <template id="toggle-setting-template">
-    <div class="flex justify-between items-center p-4 rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
-      <label class="setting-label text-base font-semibold text-yellow-800 dark:text-yellow-300" data-i18n="SETTING_LABEL">
-        <span data-text>設定標籤</span>:
-      </label>
-      <label class="relative inline-flex items-center cursor-pointer">
-        <input type="checkbox" data-id-suffix="toggle" class="sr-only peer" data-onchange="handleToggle">
-        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 dark:peer-focus:ring-yellow-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-yellow-600">
+    <!-- Info Item Template (梯度卡片) -->
+    <template id="info-item-template">
+        <div
+            class="info-item bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-xl shadow-md border-l-4 border-yellow-500">
+            <p class="text-base font-semibold text-yellow-800 dark:text-yellow-300 flex items-center"
+                data-i18n="INFO_LABEL">
+                <i class="fas fa-crown mr-2 text-yellow-600 dark:text-yellow-400"></i>
+                <span data-text>標籤</span>
+            </p>
+            <p class="text-3xl font-extrabold text-yellow-700 dark:text-yellow-200 mt-2" data-text-value>N/A</p>
         </div>
-        <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300" data-status-text>關閉</span>
-      </label>
-    </div>
-  </template>
+    </template>
 
-  <!-- Card Wrapper Template -->
-  <template id="card-template">
-    <div class="card p-6">
-      <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4" data-i18n="CARD_TITLE" data-text>卡片標題</h2>
-      <p class="text-gray-500 mb-4" data-i18n="CARD_DESCRIPTION" data-text-desc>卡片描述</p>
-      <div class="card-content" data-content><!-- 內容將插入於此 --></div>
-    </div>
-  </template>
+    <!-- Toggle Setting Template -->
+    <template id="toggle-setting-template">
+        <div
+            class="flex justify-between items-center p-4 rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
+            <label class="setting-label text-base font-semibold text-yellow-800 dark:text-yellow-300"
+                data-i18n="SETTING_LABEL">
+                <span data-text>設定標籤</span>:
+            </label>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" data-id-suffix="toggle" class="sr-only peer" data-onchange="handleToggle">
+                <div
+                    class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 dark:peer-focus:ring-yellow-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-yellow-600">
+                </div>
+                <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300" data-status-text>關閉</span>
+            </label>
+        </div>
+    </template>
 
-  <!-- Form Input Group Template -->
-  <template id="form-input-template">
-    <div>
-      <label data-id-suffix="label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" data-i18n="LABEL">
-        <span data-text>標籤</span>
-      </label>
-      <input type="text" data-id-suffix="input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-    </div>
-  </template>
+    <!-- Card Wrapper Template -->
+    <template id="card-template">
+        <div class="card p-6">
+            <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4" data-i18n="CARD_TITLE" data-text>卡片標題</h2>
+            <p class="text-gray-500 mb-4" data-i18n="CARD_DESCRIPTION" data-text-desc>卡片描述</p>
+            <div class="card-content" data-content><!-- 內容將插入於此 --></div>
+        </div>
+    </template>
+
+    <!-- Form Input Group Template -->
+    <template id="form-input-template">
+        <div>
+            <label data-id-suffix="label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                data-i18n="LABEL">
+                <span data-text>標籤</span>
+            </label>
+            <input type="text" data-id-suffix="input"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        </div>
+    </template>
 </div>
 
 <body class="flex items-center justify-center min-h-screen p-4
@@ -712,36 +726,36 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     </div>
 
     <!-- DOMPurify for XSS protection -->
-    <script src="./node_modules/dompurify/dist/purify.js"></script>
+    <script defer src="./node_modules/dompurify/dist/purify.js"></script>
 
     <!-- 基礎設施層 -->
-    <script src="js/template-loader.js"></script>
-    <script src="js/ui-component-generator.js"></script>
-    <script src="js/cache.js"></script>
-    <script src="js/config.js"></script>
+    <script defer src="js/template-loader.js"></script>
+    <script defer src="js/ui-component-generator.js"></script>
+    <script defer src="js/cache.js"></script>
+    <script defer src="js/config.js"></script>
 
     <!-- P1-1 改進：模塊化狀態和 UI 管理 -->
-    <script src="js/modules/state.js"></script>
-    <script src="js/modules/ui-manager.js"></script>
+    <script defer src="js/modules/state.js"></script>
+    <script defer src="js/modules/ui-manager.js"></script>
 
     <!-- P1-1 改進：業務邏輯模塊 -->
-    <script src="js/modules/i18n.js"></script>
-    <script src="js/modules/calendar.js"></script>
-    <script src="js/modules/payroll.js"></script>
-    <script src="js/modules/request-approval.js"></script>
+    <script defer src="js/modules/i18n.js"></script>
+    <script defer src="js/modules/calendar.js"></script>
+    <script defer src="js/modules/payroll.js"></script>
+    <script defer src="js/modules/request-approval.js"></script>
 
     <!-- 核心系統 -->
-    <script src="js/state.js"></script>
-    <script src="js/core.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/punch.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/location.js"></script>
+    <script defer src="js/state.js"></script>
+    <script defer src="js/core.js"></script>
+    <script defer src="js/app.js"></script>
+    <script defer src="js/punch.js"></script>
+    <script defer src="js/ui.js"></script>
+    <script defer src="js/location.js"></script>
 
     <!-- SheetJS for Excel export -->
-    <script src="./node_modules/xlsx/dist/xlsx.full.min.js"></script>
-    <script src="js/api-debug.js"></script>
-    <script src="js/admin.js"></script>
+    <script defer src="./node_modules/xlsx/dist/xlsx.full.min.js"></script>
+    <script defer src="js/api-debug.js"></script>
+    <script defer src="js/admin.js"></script>
 
     <!-- Floating LINE button (樣式與行為移到 compiled.css / js/app.js) -->
     <button id="floating-line-btn" class="floating-line-btn" aria-label="加入員工 LINE 頻道" title="長按可隱藏"

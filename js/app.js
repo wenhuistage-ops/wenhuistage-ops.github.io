@@ -370,6 +370,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         checkAutoPunch(); // 來自 punch.js
         renderCalendar(currentMonthDate); // 來自 ui.js，員工自己的日曆
 
+        // 🚀 P2-1 優化修正：在登入成功後初始化地圖（延遲加載）
+        // 確保地圖在應用初始化時就已準備好，但不會阻塞頁面加載
+        if (typeof ensureMapInitialized === 'function') {
+            ensureMapInitialized();
+        }
+
         // 🌟 關鍵修正：只有管理員才啟動 loadAdminDashboard 🌟
         if (loginResult.isAdmin) {
             await loadAdminDashboard(); // 來自 admin.js，載入員工列表和綁定事件

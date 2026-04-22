@@ -158,13 +158,38 @@ function initLocationMap(forceReload = false) {
         mapInstance.invalidateSize();
     });
 
+    // 🐛 P2-1 修複：在地圖容器變為可見時重新計算大小
+    // 因為初始化時容器可能還是 display:none，導致 Leaflet 無法正確計算大小
+    const observer = new MutationObserver(() => {
+        if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
+            mapInstance.invalidateSize();
+            console.log('✅ 地圖容器尺寸已重新計算');
+        }
+    });
+    if (mapContainer) {
+        observer.observe(mapContainer, {
+            attributes: true,
+            attributeFilter: ['style'],
+            attributeOldValue: true
+        });
+    }
+
     // 也直接隐藏加载文本（以防 whenReady 没有触发）
     setTimeout(() => {
         if (mapLoadingText && mapLoadingText.style.display !== 'none') {
             mapLoadingText.style.display = 'none';
             console.log('✓ 地圖加載文本已隱藏');
         }
-    }, 2000);
+    }, 1000);
+
+    // 確保即使地圖初始化失敗也會隱藏加載文本
+    setTimeout(() => {
+        const loadingEl = document.getElementById('map-loading-text');
+        if (loadingEl) {
+            loadingEl.style.display = 'none';
+            console.log('✓ 強制隱藏地圖加載文本');
+        }
+    }, 3000);
 
     // 顯示載入狀態
     //mapContainer.innerHTML = t("MAP_LOADING");

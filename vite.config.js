@@ -63,9 +63,15 @@ export default defineConfig({
     sourcemap: false,
     outDir: 'dist',
     emptyOutDir: false,
+    // 🚀 P4-1 優化：更好的構建配置
     rollupOptions: {
       input: 'index.html',
-      external: ['./dist/compiled.css']
+      external: ['./dist/compiled.css'],
+      output: {
+        // 優化輸出配置
+        chunkFileNames: 'js/[name]-[hash].js',
+        entryFileNames: 'js/[name]-[hash].js'
+      }
     }
   },
   server: {

@@ -51,6 +51,8 @@ let isApiCalled = false;
 let monthDetailLoadPromises = {};
 let monthNavigationHistory = [];
 let adminMonthNavigationHistory = [];
+let adminMonthDataCache = {}; // 管理員月份數據快取
+let adminMonthCacheOrder = []; // 管理員月份快取順序（用於 LRU 清理）
 
 // 待審核請求（由 request-approval 模塊管理）
 let pendingRequests = [];
