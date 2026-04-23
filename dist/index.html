@@ -73,7 +73,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Leaflet CSS & JS (從 CDN 加載，避免 GitHub Pages 部署問題) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
   <script async type="module" crossorigin src="/js/index-BvBxA36U.js"></script>
   <script type="module">import'data:text/javascript,if(!import.meta.resolve)throw Error("import.meta.resolve not supported")';import.meta.url;import("_").catch(()=>1);(async function*(){})().next();window.__vite_is_modern_browser=true</script>
@@ -727,8 +727,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         </div>
     </div>
 
-    <!-- DOMPurify for XSS protection (從 CDN 加載) -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.1/purify.min.js"></script>
+    <!-- DOMPurify for XSS protection (從 CDN 加載) - 必須同步加載，不能 defer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.1/purify.min.js"></script>
 
     <!-- 基礎設施層 -->
     <script defer src="js/template-loader.js"></script>
