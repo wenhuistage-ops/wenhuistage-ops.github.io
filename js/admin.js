@@ -839,10 +839,10 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     // 產生單一打卡記錄的 HTML
                     // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                     const recordHtml = `
-        < p class="font-medium text-gray-800 dark:text-white" > ${ r.time } - ${ t(typeKey) }</p >
+                        <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${r.location}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
-    `;
+                    `;
                     li.innerHTML = DOMPurify.sanitize(recordHtml);
 
                     adminDailyRecordsList.appendChild(li);
@@ -857,11 +857,11 @@ async function renderAdminDailyRecords(dateKey, userId) {
                 let salaryHtml = '';
                 if (dailyRecord.hours > 0) {
                     hoursHtml = `
-        < p class="text-sm text-gray-500 dark:text-gray-400" >
-            <span data-i18n="RECORD_HOURS_PREFIX">當日工作時數：</span>
-                            ${ dailyRecord.hours } 小時
-                        </p >
-        `;
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            <span data-i18n="RECORD_HOURS_PREFIX">當日工作時數：</span>
+                            ${dailyRecord.hours} 小時
+                        </p>
+                    `;
                     // 計算當日薪資 (使用 currentManagingEmployee.salary，假設已從員工選擇事件中設定)
                     const monthlySalary = currentManagingEmployee.salary || 30000; // 預設為2025最低月薪，如果無資料
                     const hourlyRate = (monthlySalary / 240); // 確保是數字進行計算，用於傳遞給底層函式
@@ -909,42 +909,42 @@ async function renderAdminDailyRecords(dateKey, userId) {
 
                     if (effectiveHours > 0) {
                         salaryHtml = `
-        < p class="text-sm text-gray-500 dark:text-gray-400 mt-2" >
-            <span data-i18n="RECORD_SALARY_PREFIX">當日薪資：</span>
-            <span class="font-bold text-indigo-600 dark:text-indigo-400">${dailySalaryFixed} NTD</span>
-        </p >
-        <details class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            <summary>薪資計算細節</summary>
-            <ul class="list-disc ml-4 mt-1 space-y-0.5">
-                <li><span data-i18n="HOURLY_RATE_CALCULATED">等效時薪：</span> ${hourlyRateDisplay} NTD/小時</li>
-                <li><span data-i18n="BREAK_DEDUCTION">休息扣除：</span> ${breakHoursDisplay}h (淨工時 ${effectiveHoursFixed}h)</li>
-                <li><span data-i18n="SALARY_CALCULATION">日薪計算式：</span> ${calculation}</li>
-            </ul>
-        </details>
-    `;
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            <span data-i18n="RECORD_SALARY_PREFIX">當日薪資：</span>
+                            <span class="font-bold text-indigo-600 dark:text-indigo-400">${dailySalaryFixed} NTD</span>
+                        </p>
+                        <details class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            <summary>薪資計算細節</summary>
+                            <ul class="list-disc ml-4 mt-1 space-y-0.5">
+                                <li><span data-i18n="HOURLY_RATE_CALCULATED">等效時薪：</span> ${hourlyRateDisplay} NTD/小時</li>
+                                <li><span data-i18n="BREAK_DEDUCTION">休息扣除：</span> ${breakHoursDisplay}h (淨工時 ${effectiveHoursFixed}h)</li>
+                                <li><span data-i18n="SALARY_CALCULATION">日薪計算式：</span> ${calculation}</li>
+                            </ul>
+                        </details>
+                        `;
                     } else {
                         // 處理淨工時為 0 但有打卡的情況
                         salaryHtml = `
-        < p class="text-sm text-gray-500 dark:text-gray-400 mt-2" >
-            <span data-i18n="RECORD_SALARY_PREFIX">當日加班薪資：</span>
-    0.00 NTD
-        </p >
-        <p class="text-xs text-red-400 mt-1 italic">
-            <span data-i18n="NO_EFFECTIVE_HOURS">淨工時為 0。</span> 休息扣除 ${breakHoursDisplay}h。
-        </p>
-    `;
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            <span data-i18n="RECORD_SALARY_PREFIX">當日加班薪資：</span>
+                            0.00 NTD
+                        </p>
+                        <p class="text-xs text-red-400 mt-1 italic">
+                            <span data-i18n="NO_EFFECTIVE_HOURS">淨工時為 0。</span> 休息扣除 ${breakHoursDisplay}h。
+                        </p>
+                        `;
                     }
                 }
 
                 // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                 const externalInfoHtml = `
-        < p class="text-sm text-gray-500 dark:text-gray-400" >
-            <span data-i18n="RECORD_REASON_PREFIX">系統判斷：</span>
-                        ${ t(dailyRecord.reason) }
-                    </p >
-        ${ hoursHtml }
-                    ${ salaryHtml }
-    `;
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            <span data-i18n="RECORD_REASON_PREFIX">系統判斷：</span>
+                            ${t(dailyRecord.reason)}
+                        </p>
+                        ${hoursHtml}
+                        ${salaryHtml}
+                `;
                 externalInfo.innerHTML = DOMPurify.sanitize(externalInfoHtml);
                 // append 到 adminDailyRecordsList 後面
                 adminDailyRecordsList.parentNode.appendChild(externalInfo);
@@ -1108,7 +1108,7 @@ function renderReviewRequests(requests) {
 
         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
         const requestItemHtml = `
-        < div class="flex flex-col space-y-1" >
+        <div class="flex flex-col space-y-1">
             <div class="flex items-center justify-between w-full">
                 <div>
                     <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
@@ -1117,7 +1117,7 @@ function renderReviewRequests(requests) {
                 </div>
                 <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
             </div>
-            </div >
+        </div>
 
         <div class="flex items-center justify-between w-full mt-2">
             <p
