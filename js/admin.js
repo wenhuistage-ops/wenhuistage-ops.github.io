@@ -436,8 +436,7 @@ function calculateAndDisplayMonthlySalary(records) {
 
     console.timeEnd('    [Salary Calculation]');
 }
-    }
-}
+
 /**
  * 根據上班與下班時間，計算扣除休息時間後的有效工時 (小時)，並回傳被扣除的總分鐘數。
  *
