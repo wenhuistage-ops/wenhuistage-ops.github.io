@@ -90,6 +90,7 @@ async function renderAdminCalendar(userId, date) {
     const today = new Date();
 
     // 統一格式：YYYY-MM (API用) 與 UserId-YYYY-MM (快取用)
+    const apiMonthParam = `${year}-${monthStr}`;
     const cacheKey = `${userId}-${year}-${monthStr}`;
 
     // 定義一個內部函式來執行 UI 更新 (避免重複程式碼)
