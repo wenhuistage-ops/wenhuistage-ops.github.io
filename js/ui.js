@@ -355,21 +355,6 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         dayCell.dataset.date = dateKey;
         dayCell.dataset.records = JSON.stringify(todayRecords); // 儲存當天資料
 
-        // 🌟 關鍵：新增點擊事件監聽器 🌟
-        dayCell.addEventListener('click', function () {
-            // 排除未來日期
-            if (cellDate > today) return;
-
-            // 判斷是否為管理員日曆
-            if (isForAdmin && adminSelectedUserId) {
-                // 如果是管理員日曆，呼叫管理員專用的紀錄渲染函式
-                renderAdminDailyRecords(this.dataset.date, adminSelectedUserId);
-            } else if (!isForAdmin) {
-                // 如果是員工自己的日曆，呼叫員工專用的紀錄渲染函式
-                renderDailyRecords(this.dataset.date);
-            }
-        });
-
         fragment.appendChild(dayCell);
     }
 
@@ -387,14 +372,52 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
 
     calendarGrid.appendChild(fragment);
 
+    // 🚀 優化：使用事件委托替代 31 個個別監聽器
+    // 先移除舊的監聽器（如果存在），避免重複添加
+    const oldListener = calendarGrid._calendarClickListener;
+    if (oldListener) {
+        calendarGrid.removeEventListener('click', oldListener);
+    }
+
+    // 創建新的事件監聽器函數
+    const newListener = (event) => {
+        const dayCell = event.target.closest('.day-cell:not(.empty)');
+        if (!dayCell) return;
+
+        const dateStr = dayCell.dataset.date;
+        const cellDate = new Date(dateStr);
+
+        // 排除未來日期
+        if (cellDate > today) return;
+
+        // 判斷是否為管理員日曆
+        if (isForAdmin && adminSelectedUserId) {
+            renderAdminDailyRecords(dateStr, adminSelectedUserId);
+        } else if (!isForAdmin) {
+            renderDailyRecords(dateStr);
+        }
+    };
+
+    // 保存監聽器引用以便後續移除
+    calendarGrid._calendarClickListener = newListener;
+    calendarGrid.addEventListener('click', newListener);
+
     // 在日曆最下面一行顯示本月累計時數（作為獨立的全寬行）
     const totalRow = document.createElement('div');
     totalRow.className = 'total-hours-row mt-2 p-2 bg-gray-100 dark:bg-gray-700 text-center rounded-lg';
-    // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-    totalRow.innerHTML = DOMPurify.sanitize(`
-        <span data-i18n="MONTH_TOTAL_HOURS_PREFIX">本月累計時數：</span>
-        ${totalHours} 小時
-    `);
+
+    // 🚀 優化：簡單的數字不需要 DOMPurify 掃描
+    // 使用 textContent 設置文本內容，避免 XSS 風險且性能更好
+    const hourLabel = document.createElement('span');
+    hourLabel.setAttribute('data-i18n', 'MONTH_TOTAL_HOURS_PREFIX');
+    hourLabel.textContent = '本月累計時數：';
+
+    const hourValue = document.createElement('span');
+    hourValue.textContent = totalHours + ' 小時';
+
+    totalRow.appendChild(hourLabel);
+    totalRow.appendChild(hourValue);
+
     calendarGrid.parentNode.appendChild(totalRow);
     renderTranslations(totalRow); // 如果有翻譯需求，渲染翻譯
 }

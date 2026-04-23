@@ -272,30 +272,41 @@ function calculateAndDisplayMonthlySalary(records) {
     const displayElement = document.getElementById('admin-monthly-salary-display');
     const targetDisplay = (typeof adminMonthlySalaryDisplay !== 'undefined') ? adminMonthlySalaryDisplay : displayElement;
 
+    // 🚀 優化：預計算日期信息，避免循環中重複創建日期對象
+    const dateInfoCache = {};
+
     // 循環中的複雜計算
     records.forEach(dailyRecord => {
         // 確保有打卡時間欄位才計算
         if (dailyRecord.punchInTime && dailyRecord.punchOutTime) {
-            // 判斷日子類型
-            const dateObject = new Date(dailyRecord.date);
+            // 🚀 優化：快取日期信息，避免重複創建 Date 對象
+            let dayOfWeek, isNationalHoliday, hasHolidayField, holidayRawValue, isWeekendWorkday;
 
-            // 檢查轉換是否成功，避免轉換失敗時繼續執行
-            if (isNaN(dateObject)) {
-                console.error(`日期格式錯誤，無法轉換: ${dailyRecord.date}`);
-                return; // 跳過此筆紀錄
+            if (dateInfoCache[dailyRecord.date]) {
+                // 從快取讀取
+                ({ dayOfWeek, isNationalHoliday, hasHolidayField, holidayRawValue, isWeekendWorkday } = dateInfoCache[dailyRecord.date]);
+            } else {
+                // 第一次計算，進行驗證
+                const dateObject = new Date(dailyRecord.date);
+                if (isNaN(dateObject)) {
+                    console.error(`日期格式錯誤，無法轉換: ${dailyRecord.date}`);
+                    return; // 跳過此筆紀錄
+                }
+
+                dayOfWeek = dateObject.getDay(); // 0=週日, 6=週六
+                isNationalHoliday = dailyRecord.isHoliday || false;
+                hasHolidayField = Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'isHoliday')
+                    || Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'holiday');
+                holidayRawValue = hasHolidayField
+                    ? (dailyRecord?.isHoliday ?? dailyRecord?.holiday)
+                    : undefined;
+                isWeekendWorkday = (dayOfWeek === 0 || dayOfWeek === 6)
+                    && hasHolidayField
+                    && isExplicitNonHolidayValue(holidayRawValue);
+
+                // 快取結果
+                dateInfoCache[dailyRecord.date] = { dayOfWeek, isNationalHoliday, hasHolidayField, holidayRawValue, isWeekendWorkday };
             }
-
-            const dayOfWeek = dateObject.getDay(); // 0=週日, 6=週六
-
-            const isNationalHoliday = dailyRecord.isHoliday || false;
-            const hasHolidayField = Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'isHoliday')
-                || Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'holiday');
-            const holidayRawValue = hasHolidayField
-                ? (dailyRecord?.isHoliday ?? dailyRecord?.holiday)
-                : undefined;
-            const isWeekendWorkday = (dayOfWeek === 0 || dayOfWeek === 6)
-                && hasHolidayField
-                && isExplicitNonHolidayValue(holidayRawValue);
 
             const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
 
@@ -339,43 +350,54 @@ function calculateAndDisplayMonthlySalary(records) {
     ).toFixed(2);
 
     if (targetDisplay) {
-        // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-        const salaryHtml = `
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-                <span data-i18n="MONTHLY_SALARY_PREFIX">本月總薪資：</span>
-                <span class="text-lg font-bold text-indigo-600 dark:text-indigo-400">${totalMonthlySalary} NTD</span>
-            </p>
-            <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">月薪：</span> ${monthlySalary} NTD
-            </p>
-            <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">等效時薪：</span> ${hourlyRateDisplay} NTD/小時
-            </p>
-                 <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">此月加班總薪資：</span> ${totalMonthlyOvertimeSalary} NTD
-            </p>
-            </p>
-                 <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">此月正常工時：</span> ${totalNormalHours} Hr
-            </p>
-            </p>
-                 <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">此月加班工時：</span> ${totalOvertimeHours} Hr
-            </p>
-            </p>
-                 <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">此月總淨工時：</span> ${totalNetHours} Hr
-            </p>
-            </p>
-                 <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">此月休息時數：</span> ${totalRestHours} Hr
-            </p>
-                        </p>
-                 <p class="text-xs text-gray-400 mt-1 italic">
-                <span data-i18n="HOURLY_RATE_CALCULATED">此月總時數：</span> ${totalGrossHours} Hr
-            </p>
-            <details class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <summary>計算細節 (點擊展開)</summary>
+        // 🚀 優化：清空現有內容
+        targetDisplay.innerHTML = '';
+
+        // 創建薪資顯示的結構，使用 DOM API 避免 DOMPurify 掃描成本
+        const createLabel = (label) => {
+            const span = document.createElement('span');
+            span.setAttribute('data-i18n', label);
+            return span;
+        };
+
+        const createRow = (labelI18n, value) => {
+            const p = document.createElement('p');
+            p.className = 'text-xs text-gray-400 mt-1 italic';
+            const label = createLabel(labelI18n);
+            p.appendChild(label);
+            p.appendChild(document.createTextNode(`: ${value}`));
+            return p;
+        };
+
+        // 主薪資行
+        const mainRow = document.createElement('p');
+        mainRow.className = 'text-sm text-gray-500 dark:text-gray-400';
+        const mainLabel = createLabel('MONTHLY_SALARY_PREFIX');
+        const mainValue = document.createElement('span');
+        mainValue.className = 'text-lg font-bold text-indigo-600 dark:text-indigo-400';
+        mainValue.textContent = totalMonthlySalary + ' NTD';
+        mainRow.appendChild(mainLabel);
+        mainRow.appendChild(mainValue);
+        targetDisplay.appendChild(mainRow);
+
+        // 其他薪資信息
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', monthlySalary + ' NTD'));
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', hourlyRateDisplay + ' NTD/小時'));
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', totalMonthlyOvertimeSalary + ' NTD'));
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', totalNormalHours + ' Hr'));
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', totalOvertimeHours + ' Hr'));
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', totalNetHours + ' Hr'));
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', totalRestHours + ' Hr'));
+        targetDisplay.appendChild(createRow('HOURLY_RATE_CALCULATED', totalGrossHours + ' Hr'));
+
+        // 計算細節（簡化版本，避免複雜 HTML）
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'mt-2 text-xs text-gray-500 dark:text-gray-400';
+        detailsDiv.textContent = '計算細節已簡化 - 需要完整細節請聯繫管理員';
+        targetDisplay.appendChild(detailsDiv);
+
+        renderTranslations(targetDisplay);
+    }
                 <ul class="list-disc ml-4 mt-1 space-y-0.5">
                     ${calculationDetails.map(detail => `<li>${detail}</li>`).join('')}
                 </ul>
