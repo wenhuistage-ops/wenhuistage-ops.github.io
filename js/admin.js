@@ -67,6 +67,14 @@ const INSURANCE_RATES = {
  * @param {Date} date - 要查詢的月份日期物件
  */
 async function renderAdminCalendar(userId, date) {
+    // 🚀 性能監測：開始記錄
+    const renderStartTime = performance.now();
+    const monthStr = String(date.getMonth() + 1).padStart(2, "0");
+    console.log(`%c[Calendar Load] 開始載入員工月曆`, 'color: #0066cc; font-weight: bold;', {
+        userId,
+        month: `${date.getFullYear()}-${monthStr}`
+    });
+
     // 1. 取得全域 DOM 元素 (建議加上防呆檢查)
     const monthTitle = adminCurrentMonthDisplay;
     const calendarGrid = adminCalendarGrid;
@@ -82,30 +90,44 @@ async function renderAdminCalendar(userId, date) {
     const today = new Date();
 
     // 統一格式：YYYY-MM (API用) 與 UserId-YYYY-MM (快取用)
-    const monthStr = String(month + 1).padStart(2, "0");
-    const apiMonthParam = `${year}-${monthStr}`;
     const cacheKey = `${userId}-${year}-${monthStr}`;
 
     // 定義一個內部函式來執行 UI 更新 (避免重複程式碼)
     const updateCalendarUI = (records) => {
+        const uiStartTime = performance.now();
+
         // 清空並渲染日曆 (renderCalendarWithData 來自 ui.js)
         // ✅ XSS防護：使用 replaceChildren() 替代 innerHTML
+        console.time('  ├─ replaceChildren');
         calendarGrid.replaceChildren();
+        console.timeEnd('  ├─ replaceChildren');
 
+        console.time('  ├─ renderCalendarWithData');
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle, true);
+        console.timeEnd('  ├─ renderCalendarWithData');
 
         // 加入星期標籤 (必須在格子生成後執行)
+        console.time('  ├─ addWeekdayLabels');
         _addWeekdayLabelsToAdminCalendar(year, month);
+        console.timeEnd('  ├─ addWeekdayLabels');
 
         // 計算並顯示月總薪資
+        console.time('  ├─ calculateAndDisplayMonthlySalary');
         calculateAndDisplayMonthlySalary(records);
+        console.timeEnd('  ├─ calculateAndDisplayMonthlySalary');
+
+        const uiEndTime = performance.now();
+        console.log(`  └─ UI更新完成: ${(uiEndTime - uiStartTime).toFixed(2)}ms`);
     };
 
     // 3. 邏輯分支：檢查快取 vs API 請求
     if (adminMonthDataCache[cacheKey]) {
         // --- 情境 A: 快取有資料 ---
-        console.log(`[Cache Hit] Loading data for ${cacheKey}`);
+        const cacheStartTime = performance.now();
+        console.log(`%c[Cache Hit] ✓ 快取命中`, 'color: #00aa00; font-weight: bold;', `使用快取數據: ${cacheKey}`);
         updateCalendarUI(adminMonthDataCache[cacheKey]);
+        const cacheEndTime = performance.now();
+        console.log(`%c[Cache Load] 完成 - 耗時 ${(cacheEndTime - cacheStartTime).toFixed(2)}ms`, 'color: #00aa00;');
         recordAdminMonthNavigation(date);
 
         // 🚀 P4-2 優化：預加載和導航記錄並行執行（不阻塞主流程）
@@ -116,6 +138,8 @@ async function renderAdminCalendar(userId, date) {
 
     } else {
         // --- 情境 B: 無快取，需請求 API ---
+        const apiStartTime = performance.now();
+        console.log(`%c[API Request] ⏳ 快取未命中，發送 API 請求...`, 'color: #ff9900;');
 
         // 顯示 Loading 狀態
         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
@@ -123,19 +147,28 @@ async function renderAdminCalendar(userId, date) {
         if (typeof renderTranslations === 'function') renderTranslations(calendarGrid);
 
         try {
+            console.time('  ├─ API callApifetch');
             const res = await callApifetch({
                 action: 'getCalendarSummary',
                 month: apiMonthParam,
                 userId: userId
             });
+            console.timeEnd('  ├─ API callApifetch');
 
             if (res.ok) {
                 // 儲存至快取
                 const records = res.records.dailyStatus || [];
+                console.time('  ├─ cacheAdminMonthData');
                 cacheAdminMonthData(cacheKey, records);
+                console.timeEnd('  ├─ cacheAdminMonthData');
 
                 // 更新 UI
+                console.time('  ├─ updateCalendarUI');
                 updateCalendarUI(records);
+                console.timeEnd('  ├─ updateCalendarUI');
+
+                const apiEndTime = performance.now();
+                console.log(`%c[API Load] ✓ 完成 - 耗時 ${(apiEndTime - apiStartTime).toFixed(2)}ms`, 'color: #00aa00;');
                 recordAdminMonthNavigation(date);
 
                 // 🚀 P4-2 優化：預加載和導航記錄並行執行（不阻塞主流程）
@@ -252,6 +285,8 @@ async function preloadAdjacentAdminMonths(currentDate, userId) {
  * @param {Array} records - 月份的所有每日記錄 (要求包含 punchInTime, punchOutTime 欄位)
  */
 function calculateAndDisplayMonthlySalary(records) {
+    console.time('    [Salary Calculation]');
+
     // 檢查全域變數是否存在，如果不存在，提供合理的預設值
     const monthlySalary = (typeof currentManagingEmployee !== 'undefined' && currentManagingEmployee.salary)
         ? currentManagingEmployee.salary
@@ -398,16 +433,9 @@ function calculateAndDisplayMonthlySalary(records) {
 
         renderTranslations(targetDisplay);
     }
-                <ul class="list-disc ml-4 mt-1 space-y-0.5">
-                    ${calculationDetails.map(detail => `<li>${detail}</li>`).join('')}
-                </ul>
-            </details>
-        `;
-        targetDisplay.innerHTML = DOMPurify.sanitize(salaryHtml);
-        // 如果您的 i18n 系統需要
-        if (typeof renderTranslations === 'function') {
-            renderTranslations(targetDisplay);
-        }
+
+    console.timeEnd('    [Salary Calculation]');
+}
     }
 }
 /**
@@ -508,7 +536,7 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
         dailyHours.overtimeHours = hours; // 例假日出勤，所有工時皆為加班性質（特休/例假性質）
         const extraPay = hourlyRate * 8;
         dailySalary += extraPay;
-        calculation += `${hourlyRate} × 8 (例假日前 8 小時，至少給 8 小時薪資) = ${extraPay.toFixed(2)}; `;
+        calculation += `${ hourlyRate } × 8(例假日前 8 小時，至少給 8 小時薪資) = ${ extraPay.toFixed(2) }; `;
 
         let hWorked = hours;
         let hOver8 = Math.max(0, hWorked - 8);
@@ -517,12 +545,12 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
         if (hOver8 > 0) {
             const payOver = hourlyRate * hOver8 * 2;
             dailySalary += payOver;
-            calculation += `${hourlyRate} × ${hOver8} × 2 (例假日 >8h 加班) = ${payOver.toFixed(2)}; `;
+            calculation += `${ hourlyRate } × ${ hOver8 } × 2(例假日 > 8h 加班) = ${ payOver.toFixed(2) }; `;
         }
 
         // 例假日補休一天，依目前匯出口徑直接折現。
         dailySalary += extraPay;
-        calculation += `${hourlyRate} × 8 (例假日補休折現) = ${extraPay.toFixed(2)}; `;
+        calculation += `${ hourlyRate } × 8(例假日補休折現) = ${ extraPay.toFixed(2) }; `;
     } else if (dayType === DAY_TYPE.HOLIDAY) {
         // =========================================================
         // 國定假日 (特別休假) 計算
@@ -530,11 +558,11 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
         dailyHours.overtimeHours = hours; // 例假日出勤，所有工時皆為加班性質（特休/例假性質）
         if (hours <= 8) {
             dailySalary = hourlyRate * 8;
-            calculation = `${hourlyRate} × ${8} (國定假日-不論工時長短，至少給予一日工資，即 8 小時薪資) = ${dailySalary.toFixed(2)}`;
+            calculation = `${ hourlyRate } × ${ 8 } (國定假日 - 不論工時長短，至少給予一日工資，即 8 小時薪資) = ${ dailySalary.toFixed(2) } `;
         } else {
             const normalPay = hourlyRate * 8;
             dailySalary += normalPay;
-            calculation += `${hourlyRate} × 8 (國定假日) = ${normalPay.toFixed(2)}; `;
+            calculation += `${ hourlyRate } × 8(國定假日) = ${ normalPay.toFixed(2) }; `;
 
             let overtimeHours = hours - 8;
 
@@ -543,14 +571,14 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
                 const overtime1 = Math.min(overtimeHours, 2);
                 const overtimePay1 = hourlyRate * overtime1 * 4 / 3;
                 dailySalary += overtimePay1;
-                calculation += `${hourlyRate} × ${overtime1} × 4/3 (國定假日加班 1-2h) = ${overtimePay1.toFixed(2)}; `;
+                calculation += `${ hourlyRate } × ${ overtime1 } × 4 / 3(國定假日加班 1 - 2h) = ${ overtimePay1.toFixed(2) }; `;
                 overtimeHours -= overtime1;
             }
             // 加班後續小時: 1.66 倍 (5/3)
             if (overtimeHours > 0) {
                 const overtimePay2 = hourlyRate * overtimeHours * 5 / 3;
                 dailySalary += overtimePay2;
-                calculation += `${hourlyRate} × ${overtimeHours} × 5/3 (國定假日加班 >2h) = ${overtimePay2.toFixed(2)}; `;
+                calculation += `${ hourlyRate } × ${ overtimeHours } × 5 / 3(國定假日加班 > 2h) = ${ overtimePay2.toFixed(2) }; `;
             }
         }
     } else if (dayType === DAY_TYPE.REST_DAY) {
@@ -566,7 +594,7 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
             const h = Math.min(remainingHours, 2);
             const pay = hourlyRate * h * 4 / 3;
             dailySalary += pay;
-            calculation += `${hourlyRate} × ${h} × 4/3 (休息日 1-2h) = ${pay.toFixed(2)}; `;
+            calculation += `${ hourlyRate } × ${ h } × 4 / 3(休息日 1 - 2h) = ${ pay.toFixed(2) }; `;
             remainingHours -= h;
         }
 
@@ -575,7 +603,7 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
             const h = Math.min(remainingHours, 6);
             const pay = hourlyRate * h * 5 / 3;
             dailySalary += pay;
-            calculation += `${hourlyRate} × ${h} × 5/3 (休息日 3-8h) = ${pay.toFixed(2)}; `;
+            calculation += `${ hourlyRate } × ${ h } × 5 / 3(休息日 3 - 8h) = ${ pay.toFixed(2) }; `;
             remainingHours -= h;
         }
 
@@ -584,7 +612,7 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
             const h = remainingHours;
             const pay = hourlyRate * h * 8 / 3;
             dailySalary += pay;
-            calculation += `${hourlyRate} × ${h} × 8/3 (休息日 >8h) = ${pay.toFixed(2)}; `;
+            calculation += `${ hourlyRate } × ${ h } × 8 / 3(休息日 > 8h) = ${ pay.toFixed(2) }; `;
         }
     } else {
         // =========================================================
@@ -603,21 +631,21 @@ function calculateDailySalary(hours, hourlyRate, dayType) {
             const overtime1 = Math.min(overtimeHours, 2);
             const overtimePay1 = hourlyRate * overtime1 * 4 / 3;
             dailySalary += overtimePay1;
-            calculation += `${hourlyRate} × ${overtime1} × 4/3 (平日加班 1-2h) = ${overtimePay1.toFixed(2)}; `;
+            calculation += `${ hourlyRate } × ${ overtime1 } × 4 / 3(平日加班 1 - 2h) = ${ overtimePay1.toFixed(2) }; `;
             overtimeHours -= overtime1;
         }
         // 加班後續小時: 1.66 倍 (5/3)
         if (overtimeHours > 0) {
             const overtimePay2 = hourlyRate * overtimeHours * 5 / 3;
             dailySalary += overtimePay2;
-            calculation += `${hourlyRate} × ${overtimeHours} × 5/3 (平日加班 >2h) = ${overtimePay2.toFixed(2)}; `;
+            calculation += `${ hourlyRate } × ${ overtimeHours } × 5 / 3(平日加班 > 2h) = ${ overtimePay2.toFixed(2) }; `;
         }
 
     }
 
     // 將總計加入 calculation 字串
     if (calculation && !calculation.includes('總計')) {
-        calculation += `總計 = ${dailySalary.toFixed(2)}`;
+        calculation += `總計 = ${ dailySalary.toFixed(2) } `;
     }
 
     return {
@@ -745,7 +773,7 @@ function classifyOvertimeHours(totalHours, dayType, isHoliday, baseHours = 8) {
         }
 
         default:
-            console.warn(`未知的日期類型: ${dayType}`);
+            console.warn(`未知的日期類型: ${ dayType } `);
     }
 
     return overtimeDetails;
@@ -972,10 +1000,10 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     // 產生單一打卡記錄的 HTML
                     // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                     const recordHtml = `
-                        <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
+        < p class="font-medium text-gray-800 dark:text-white" > ${ r.time } - ${ t(typeKey) }</p >
                         <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${r.location}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
-                    `;
+    `;
                     li.innerHTML = DOMPurify.sanitize(recordHtml);
 
                     adminDailyRecordsList.appendChild(li);
@@ -990,11 +1018,11 @@ async function renderAdminDailyRecords(dateKey, userId) {
                 let salaryHtml = '';
                 if (dailyRecord.hours > 0) {
                     hoursHtml = `
-                        <p class="text-sm text-gray-500 dark:text-gray-400">
-                            <span data-i18n="RECORD_HOURS_PREFIX">當日工作時數：</span>
-                            ${dailyRecord.hours} 小時
-                        </p>
-                    `;
+        < p class="text-sm text-gray-500 dark:text-gray-400" >
+            <span data-i18n="RECORD_HOURS_PREFIX">當日工作時數：</span>
+                            ${ dailyRecord.hours } 小時
+                        </p >
+        `;
                     // 計算當日薪資 (使用 currentManagingEmployee.salary，假設已從員工選擇事件中設定)
                     const monthlySalary = currentManagingEmployee.salary || 30000; // 預設為2025最低月薪，如果無資料
                     const hourlyRate = (monthlySalary / 240); // 確保是數字進行計算，用於傳遞給底層函式
@@ -1003,7 +1031,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
 
                     // 檢查轉換是否成功，避免轉換失敗時繼續執行
                     if (isNaN(dateObject)) {
-                        console.error(`日期格式錯誤，無法轉換: ${dailyRecord.date}`);
+                        console.error(`日期格式錯誤，無法轉換: ${ dailyRecord.date } `);
                         return; // 跳過此筆紀錄
                     }
 
@@ -1020,7 +1048,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         && isExplicitNonHolidayValue(holidayRawValue);
 
                     const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
-                    console.log(`計算日期: ${dailyRecord.date},dayOfWeek:${dayOfWeek}, 類型: ${dayType}`);
+                    console.log(`計算日期: ${ dailyRecord.date }, dayOfWeek:${ dayOfWeek }, 類型: ${ dayType } `);
                     const hourlyRateDisplay = hourlyRate.toFixed(2); // 用於顯示
 
                     // 🚨 關鍵變動：使用新的包裝函式來計算所有細節
@@ -1042,10 +1070,10 @@ async function renderAdminDailyRecords(dateKey, userId) {
 
                     if (effectiveHours > 0) {
                         salaryHtml = `
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+        < p class="text-sm text-gray-500 dark:text-gray-400 mt-2" >
             <span data-i18n="RECORD_SALARY_PREFIX">當日薪資：</span>
             <span class="font-bold text-indigo-600 dark:text-indigo-400">${dailySalaryFixed} NTD</span>
-        </p>
+        </p >
         <details class="mt-1 text-xs text-gray-500 dark:text-gray-400">
             <summary>薪資計算細節</summary>
             <ul class="list-disc ml-4 mt-1 space-y-0.5">
@@ -1058,10 +1086,10 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     } else {
                         // 處理淨工時為 0 但有打卡的情況
                         salaryHtml = `
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+        < p class="text-sm text-gray-500 dark:text-gray-400 mt-2" >
             <span data-i18n="RECORD_SALARY_PREFIX">當日加班薪資：</span>
-            0.00 NTD
-        </p>
+    0.00 NTD
+        </p >
         <p class="text-xs text-red-400 mt-1 italic">
             <span data-i18n="NO_EFFECTIVE_HOURS">淨工時為 0。</span> 休息扣除 ${breakHoursDisplay}h。
         </p>
@@ -1071,13 +1099,13 @@ async function renderAdminDailyRecords(dateKey, userId) {
 
                 // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                 const externalInfoHtml = `
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                        <span data-i18n="RECORD_REASON_PREFIX">系統判斷：</span>
-                        ${t(dailyRecord.reason)}
-                    </p>
-                    ${hoursHtml}
-                    ${salaryHtml}
-                `;
+        < p class="text-sm text-gray-500 dark:text-gray-400" >
+            <span data-i18n="RECORD_REASON_PREFIX">系統判斷：</span>
+                        ${ t(dailyRecord.reason) }
+                    </p >
+        ${ hoursHtml }
+                    ${ salaryHtml }
+    `;
                 externalInfo.innerHTML = DOMPurify.sanitize(externalInfoHtml);
                 // append 到 adminDailyRecordsList 後面
                 adminDailyRecordsList.parentNode.appendChild(externalInfo);
@@ -1121,7 +1149,7 @@ function _addWeekdayLabelsToAdminCalendar(year, month) {
             const d = new Date(Date.UTC(2021, 7, 1 + i)); // 2021-08-01 ~ Sun
             label = d.toLocaleDateString(lang, { weekday: 'short' });
         } catch (e) {
-            label = `週${fallbackWeek[i]}`;
+            label = `週${ fallbackWeek[i] } `;
         }
         const cell = document.createElement('div');
         cell.className = 'py-1';
@@ -1236,34 +1264,34 @@ function renderReviewRequests(requests) {
         let detailText = req.name || "（未知）";
         if (isLeaveRequest) {
             // 請假/休假記錄：顯示 "姓名 - 原因"
-            detailText = `${req.name || "（未知）"} - ${req.remark || "（無原因）"}`;
+            detailText = `${ req.name || "（未知）" } - ${ req.remark || "（無原因）" } `;
         }
 
         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
         const requestItemHtml = `
-             <div class="flex flex-col space-y-1">
-                <div class="flex items-center justify-between w-full">
-                    <div>
-                        <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">申請時間: ${req.applicationTime || "（未知）"}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}: ${req.targetTime || "（未知）"}</p>
-                    </div>
-                    <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
+        < div class="flex flex-col space-y-1" >
+            <div class="flex items-center justify-between w-full">
+                <div>
+                    <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">申請時間: ${req.applicationTime || "（未知）"}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}: ${req.targetTime || "（未知）"}</p>
                 </div>
+                <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
             </div>
+            </div >
 
-            <div class="flex items-center justify-between w-full mt-2">
-                <p
-                    data-i18n-key="${req.type}"
-                    class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
-                </p>
+        <div class="flex items-center justify-between w-full mt-2">
+            <p
+                data-i18n-key="${req.type}"
+                class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+            </p>
 
-                <div class="flex space-x-2">
-                    <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
-                    <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
-                </div>
+            <div class="flex space-x-2">
+                <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
+                <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
             </div>
-        `;
+        </div>
+    `;
         li.innerHTML = DOMPurify.sanitize(requestItemHtml);
         listEl.appendChild(li);
         renderTranslations(li); // 來自 core.js
@@ -1301,7 +1329,7 @@ async function handleReviewAction(button, index, action) {
 
     // 🌟 修正點 (問題8.6)：添加確認對話框
     const actionText = action === 'approve' ? '核准' : '拒絕';
-    const confirmMsg = `確定要${actionText}此項申請嗎？`;
+    const confirmMsg = `確定要${ actionText } 此項申請嗎？`;
     const confirmed = await showConfirmDialog(confirmMsg);
 
     if (!confirmed) {
@@ -1362,7 +1390,7 @@ async function loadEmployeeList() {
             employees.forEach(employee => {
                 const option = document.createElement('option');
                 option.value = employee.userId;
-                option.textContent = `${employee.name} (${employee.userId.substring(0, 8)}...)`;
+                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)`;
                 adminSelectEmployee.appendChild(option);
             });
 
@@ -1377,7 +1405,7 @@ async function loadEmployeeList() {
             employees.forEach(employee => {
                 const option = document.createElement('option');
                 option.value = employee.userId;
-                option.textContent = `${employee.name} (${employee.userId.substring(0, 8)}...)`;
+                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)`;
                 adminSelectEmployeeMgmt.appendChild(option);
             });
         } else {
@@ -1463,7 +1491,7 @@ function initAdminEvents() {
                     second: '2-digit',
                     hour12: false // 使用 24 小時制
                 });
-                joinDateText = `${formattedDate} ${formattedTime}`;
+                joinDateText = `${ formattedDate } ${ formattedTime } `;
                 const today = new Date();
 
                 // 計算總月份數 (更精確的年資計算方法)
@@ -1482,9 +1510,9 @@ function initAdminEvents() {
                 }
 
                 seniorityText = '';
-                if (years > 0) seniorityText += `${years} ${t("YEAR") || '年'}`;
+                if (years > 0) seniorityText += `${ years } ${ t("YEAR") || '年' } `;
                 // 只有當月份 > 0 或者總年資不到一年時才顯示月份
-                if (months > 0 || (years === 0 && months === 0)) seniorityText += `${months} ${t("MONTH") || '個月'}`;
+                if (months > 0 || (years === 0 && months === 0)) seniorityText += `${ months } ${ t("MONTH") || '個月' } `;
                 seniorityText = seniorityText.trim() || 'N/A';
             }
 
@@ -1760,12 +1788,12 @@ const switchAdminSubTab = (subTabId) => {
     newTabElement.style.display = 'block'; // 顯示內容
 
     // 4. 設定新頁籤按鈕的選中狀態
-    const newBtnElement = document.getElementById(`tab-${subTabId.replace('-view', '-btn')}`);
+    const newBtnElement = document.getElementById(`tab - ${ subTabId.replace('-view', '-btn') } `);
     newBtnElement.classList.replace('bg-gray-200', 'bg-indigo-600');
     newBtnElement.classList.replace('text-gray-600', 'text-white');
 
     // 5. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
-    console.log(`切換到管理員子頁籤: ${subTabId}`);
+    console.log(`切換到管理員子頁籤: ${ subTabId } `);
     if (subTabId === 'review-requests') {
         fetchAndRenderReviewRequests(); // 載入表單
     } else if (subTabId === 'manage-Punch') {
@@ -1976,7 +2004,7 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
         if (!isNaN(dt.getTime())) {
             const h = String(dt.getHours()).padStart(2, '0');
             const m = String(dt.getMinutes()).padStart(2, '0');
-            return `${h}:${m}`;
+            return `${ h }:${ m } `;
         }
 
         if (rawTime.includes('T')) return rawTime.split('T')[1].substring(0, 5);
@@ -2008,7 +2036,7 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
     rows.push([
         '',
         employeeInfo?.name || '',
-        `${rocYear}年`,
+        `${ rocYear } 年`,
         '上班',
         '下班',
         '上班',
@@ -2030,93 +2058,93 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
 
         const dateStr = String(row[0] || '');
         const parts = dateStr.split('-');
-        const md = parts.length === 3 ? `${Number(parts[1])}/${Number(parts[2])}` : dateStr;
+        const md = parts.length === 3 ? `${ Number(parts[1]) }/${Number(parts[2])}` : dateStr;
 
-        const rawDayType = String(row[2] || '');
-        const dayType = rawDayType === '國' ? '國定假日' : rawDayType;
-        const weekday = String(row[1] || '').replace('週', '');
-        const inTime = normalizeSheetTime(row[3]);
-        const outTime = normalizeSheetTime(row[5]);
-        const effectiveHours = Number(row[8] || 0);
+    const rawDayType = String(row[2] || '');
+    const dayType = rawDayType === '國' ? '國定假日' : rawDayType;
+    const weekday = String(row[1] || '').replace('週', '');
+    const inTime = normalizeSheetTime(row[3]);
+    const outTime = normalizeSheetTime(row[5]);
+    const effectiveHours = Number(row[8] || 0);
 
-        const categoryValues = categories.map(c => {
-            const v = Number(row[c.idx] || 0);
-            categoryTotals[c.key] += v;
-            return Number(v.toFixed(2));
-        });
-
-        totalEffectiveHours += effectiveHours;
-        if (rawDayType === '例' && effectiveHours > 0) workedRegularOffDays += 1;
-        if (rawDayType === '國' && effectiveHours > 0) workedHolidayDays += 1;
-
-        rows.push([
-            dayType,
-            weekday,
-            md,
-            inTime,
-            outTime,
-            '',
-            '',
-            Number(effectiveHours.toFixed(2)),
-            ...categoryValues
-        ]);
+    const categoryValues = categories.map(c => {
+        const v = Number(row[c.idx] || 0);
+        categoryTotals[c.key] += v;
+        return Number(v.toFixed(2));
     });
 
-    const overtimeHourValues = categories.map(c => Number(categoryTotals[c.key].toFixed(2)));
-    const overtimeRateValues = categories.map(c => Number((hourlyRate * c.rate).toFixed(0)));
-    const overtimeFeeValues = categories.map(c => Number((categoryTotals[c.key] * hourlyRate * c.rate).toFixed(0)));
-    const totalOvertimeHours = overtimeHourValues.reduce((sum, v) => sum + Number(v || 0), 0);
-    const totalOvertimeFee = overtimeFeeValues.reduce((sum, v) => sum + Number(v || 0), 0);
+    totalEffectiveHours += effectiveHours;
+    if (rawDayType === '例' && effectiveHours > 0) workedRegularOffDays += 1;
+    if (rawDayType === '國' && effectiveHours > 0) workedHolidayDays += 1;
 
-    rows.push(['', '', '', '', '', '', Number(totalOvertimeHours.toFixed(2)), '加班時數', ...overtimeHourValues, Number(totalOvertimeHours.toFixed(2))]);
-    rows.push(['', '', '', '', '', '', '', '加班時薪', ...overtimeRateValues]);
-    rows.push(['', '', '', '', '', '', '', '加班費', ...overtimeFeeValues, Number(totalOvertimeFee.toFixed(0))]);
-    rows.push([]);
-    rows.push([]);
+    rows.push([
+        dayType,
+        weekday,
+        md,
+        inTime,
+        outTime,
+        '',
+        '',
+        Number(effectiveHours.toFixed(2)),
+        ...categoryValues
+    ]);
+});
 
-    const regularOffAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
-    const holidayAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
-    const regularOffAllowance = workedRegularOffDays * regularOffAllowancePerDay;
-    const holidayAllowance = workedHolidayDays * holidayAllowancePerDay;
+const overtimeHourValues = categories.map(c => Number(categoryTotals[c.key].toFixed(2)));
+const overtimeRateValues = categories.map(c => Number((hourlyRate * c.rate).toFixed(0)));
+const overtimeFeeValues = categories.map(c => Number((categoryTotals[c.key] * hourlyRate * c.rate).toFixed(0)));
+const totalOvertimeHours = overtimeHourValues.reduce((sum, v) => sum + Number(v || 0), 0);
+const totalOvertimeFee = overtimeFeeValues.reduce((sum, v) => sum + Number(v || 0), 0);
 
-    rows.push(['', '應發項目']);
-    rows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
-    rows.push(['', '本薪', Number(baseMonthly.toFixed(0)), '平日加班', '', categories[0].multiplierLabel, overtimeHourValues[0], overtimeFeeValues[0]]);
-    rows.push(['', `例假日補休折現${workedRegularOffDays}天`, regularOffAllowance, '', '', categories[1].multiplierLabel, overtimeHourValues[1], overtimeFeeValues[1]]);
-    rows.push(['', `國定假日${workedHolidayDays}天`, holidayAllowance, '休息日加班', '8小時以內', categories[2].multiplierLabel, overtimeHourValues[2], overtimeFeeValues[2]]);
-    rows.push(['', '', '', '', '', categories[3].multiplierLabel, overtimeHourValues[3], overtimeFeeValues[3]]);
-    rows.push(['', '', '', '', '逾8小時', categories[4].multiplierLabel, overtimeHourValues[4], overtimeFeeValues[4]]);
-    rows.push(['', '', '', '例假日出勤', '8小時以內', categories[5].multiplierLabel, overtimeHourValues[5], overtimeFeeValues[5]]);
-    rows.push(['', '', '', '', '逾8小時', categories[6].multiplierLabel, overtimeHourValues[6], overtimeFeeValues[6]]);
-    rows.push(['', '', '', '國定假日出勤', '9~10小時', categories[7].multiplierLabel, overtimeHourValues[7], overtimeFeeValues[7]]);
-    rows.push(['', '', '', '', '11~12小時', categories[8].multiplierLabel, overtimeHourValues[8], overtimeFeeValues[8]]);
+rows.push(['', '', '', '', '', '', Number(totalOvertimeHours.toFixed(2)), '加班時數', ...overtimeHourValues, Number(totalOvertimeHours.toFixed(2))]);
+rows.push(['', '', '', '', '', '', '', '加班時薪', ...overtimeRateValues]);
+rows.push(['', '', '', '', '', '', '', '加班費', ...overtimeFeeValues, Number(totalOvertimeFee.toFixed(0))]);
+rows.push([]);
+rows.push([]);
 
-    const totalIncome = Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance + Number(totalOvertimeFee.toFixed(0));
-    rows.push(['', '合計', Number((Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance).toFixed(0)), '', '', '合計', '', Number(totalOvertimeFee.toFixed(0))]);
-    rows.push([]);
-    rows.push(['', '應扣金額', '', '', '', '', Number(totalIncome.toFixed(0))]);
+const regularOffAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
+const holidayAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
+const regularOffAllowance = workedRegularOffDays * regularOffAllowancePerDay;
+const holidayAllowance = workedHolidayDays * holidayAllowancePerDay;
 
-    const leaveInsuranceLevel = String(employeeInfo?.leaveInsurance || '第2級').trim();
-    const healthInsuranceLevel = String(employeeInfo?.healthInsurance || '第2級').trim();
-    const laborInsuranceFee = Number((totalIncome * (INSURANCE_RATES['勞保'][leaveInsuranceLevel] || 0.0225)).toFixed(0));
-    const healthInsuranceFee = Number((totalIncome * (INSURANCE_RATES['健保'][healthInsuranceLevel] || 0.0130)).toFixed(0));
-    const housingExpense = Number(employeeInfo?.housingExpense || 1000);
-    const incomeTax = Number((totalIncome * 0.06).toFixed(0));
+rows.push(['', '應發項目']);
+rows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
+rows.push(['', '本薪', Number(baseMonthly.toFixed(0)), '平日加班', '', categories[0].multiplierLabel, overtimeHourValues[0], overtimeFeeValues[0]]);
+rows.push(['', `例假日補休折現${workedRegularOffDays}天`, regularOffAllowance, '', '', categories[1].multiplierLabel, overtimeHourValues[1], overtimeFeeValues[1]]);
+rows.push(['', `國定假日${workedHolidayDays}天`, holidayAllowance, '休息日加班', '8小時以內', categories[2].multiplierLabel, overtimeHourValues[2], overtimeFeeValues[2]]);
+rows.push(['', '', '', '', '', categories[3].multiplierLabel, overtimeHourValues[3], overtimeFeeValues[3]]);
+rows.push(['', '', '', '', '逾8小時', categories[4].multiplierLabel, overtimeHourValues[4], overtimeFeeValues[4]]);
+rows.push(['', '', '', '例假日出勤', '8小時以內', categories[5].multiplierLabel, overtimeHourValues[5], overtimeFeeValues[5]]);
+rows.push(['', '', '', '', '逾8小時', categories[6].multiplierLabel, overtimeHourValues[6], overtimeFeeValues[6]]);
+rows.push(['', '', '', '國定假日出勤', '9~10小時', categories[7].multiplierLabel, overtimeHourValues[7], overtimeFeeValues[7]]);
+rows.push(['', '', '', '', '11~12小時', categories[8].multiplierLabel, overtimeHourValues[8], overtimeFeeValues[8]]);
 
-    rows.push(['', `勞保費29500`, '', -laborInsuranceFee]);
-    rows.push(['', `健保費29500`, '', -healthInsuranceFee]);
-    rows.push(['', '住宿', '', -housingExpense]);
-    rows.push(['', '所得稅', '', -incomeTax]);
-    rows.push([]);
+const totalIncome = Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance + Number(totalOvertimeFee.toFixed(0));
+rows.push(['', '合計', Number((Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance).toFixed(0)), '', '', '合計', '', Number(totalOvertimeFee.toFixed(0))]);
+rows.push([]);
+rows.push(['', '應扣金額', '', '', '', '', Number(totalIncome.toFixed(0))]);
 
-    const totalDeductions = laborInsuranceFee + healthInsuranceFee + housingExpense + incomeTax;
-    const netPay = totalIncome - totalDeductions;
-    rows.push(['', '合計', '', -totalDeductions]);
-    rows.push([]);
-    rows.push(['', '小計', '', netPay]);
-    rows.push(['', '實支額', '', netPay]);
+const leaveInsuranceLevel = String(employeeInfo?.leaveInsurance || '第2級').trim();
+const healthInsuranceLevel = String(employeeInfo?.healthInsurance || '第2級').trim();
+const laborInsuranceFee = Number((totalIncome * (INSURANCE_RATES['勞保'][leaveInsuranceLevel] || 0.0225)).toFixed(0));
+const healthInsuranceFee = Number((totalIncome * (INSURANCE_RATES['健保'][healthInsuranceLevel] || 0.0130)).toFixed(0));
+const housingExpense = Number(employeeInfo?.housingExpense || 1000);
+const incomeTax = Number((totalIncome * 0.06).toFixed(0));
 
-    return rows;
+rows.push(['', `勞保費29500`, '', -laborInsuranceFee]);
+rows.push(['', `健保費29500`, '', -healthInsuranceFee]);
+rows.push(['', '住宿', '', -housingExpense]);
+rows.push(['', '所得稅', '', -incomeTax]);
+rows.push([]);
+
+const totalDeductions = laborInsuranceFee + healthInsuranceFee + housingExpense + incomeTax;
+const netPay = totalIncome - totalDeductions;
+rows.push(['', '合計', '', -totalDeductions]);
+rows.push([]);
+rows.push(['', '小計', '', netPay]);
+rows.push(['', '實支額', '', netPay]);
+
+return rows;
 }
 
 function setupAdminExport() {
