@@ -148,8 +148,15 @@ async function doPunch(type) {
                 console.log(`   ├─ API提交: ${apiTime.toFixed(0)}ms`);
                 console.log(`   └─ 其他: ${(totalTime - geoTime - apiTime).toFixed(0)}ms`);
 
-                // 異常記錄檢查並行執行（不阻塞打卡完成）
-                checkAbnormal(1, true).catch(err => console.warn("異常記錄檢查失敗:", err));
+                // 🚀 P5-3 優化：顯示後端詳細計時
+                if (res.backend_timings) {
+                    console.log(`\n🔍 後端耗時分析:`);
+                    console.log(`   ├─ checkSession: ${res.backend_timings.session}ms`);
+                    console.log(`   ├─ validateCoordinates: ${res.backend_timings.validate}ms`);
+                    console.log(`   ├─ getLocationsCached: ${res.backend_timings.locations}ms`);
+                    console.log(`   ├─ 距離計算: ${res.backend_timings.distance}ms`);
+                    console.log(`   └─ appendRow: ${res.backend_timings.append}ms`);
+                }
             }
         } catch (err) {
             console.error(err);
@@ -236,7 +243,7 @@ async function submitPunchWithoutLocation(button) {
         generalButtonState(button, 'idle');
 
         if (res.ok) {
-            checkAbnormal(1, true);
+            // 🚀 P5-3 優化：移除無定位打卡後的異常記錄檢查，減少 API 調用
         }
     } catch (err) {
         console.error('無定位打卡失敗:', err);
@@ -807,12 +814,17 @@ function bindPunchEvents() {
                 const loadingText = t('LOADING') || '處理中...';
                 const type = adjustButton.dataset.type;
 
+                // 判斷是否為全日打卡（兩個時間輸入框都存在）
+                const adjustInTimeInput = document.getElementById("adjustInTime");
+                const adjustOutTimeInput = document.getElementById("adjustOutTime");
+                const isBothTimeInputs = adjustInTimeInput && adjustOutTimeInput;
+
                 let inDateTime, outDateTime;
 
-                if (type === 'full') {
+                if (isBothTimeInputs) {
                     // 全日打卡：需要兩個時間
-                    inDateTime = document.getElementById("adjustInTime")?.value;
-                    outDateTime = document.getElementById("adjustOutTime")?.value;
+                    inDateTime = adjustInTimeInput?.value;
+                    outDateTime = adjustOutTimeInput?.value;
 
                     if (!inDateTime || !outDateTime) {
                         showNotification("請選擇上班和下班時間", "error");
@@ -833,7 +845,8 @@ function bindPunchEvents() {
 
                 } else {
                     // 單次打卡
-                    const datetime = document.getElementById("adjustDateTime").value;
+                    const adjustDateTimeInput = document.getElementById("adjustDateTime");
+                    const datetime = adjustDateTimeInput?.value;
                     if (!datetime) {
                         showNotification("請選擇補打卡日期時間", "error");
                         return;
@@ -886,7 +899,7 @@ function bindPunchEvents() {
 
                         if (outRes.ok) {
                             adjustmentFormContainer.replaceChildren();
-                            checkAbnormal(1, true); // 補打卡成功後，重新檢查異常紀錄
+                            // 🚀 P5-3 優化：移除補打卡後的異常記錄檢查，減少 API 調用
                         }
                     } else {
                         // 單次打卡
@@ -904,7 +917,7 @@ function bindPunchEvents() {
 
                         if (res.ok) {
                             adjustmentFormContainer.replaceChildren();
-                            checkAbnormal(1, true); // 補打卡成功後，重新檢查異常紀錄
+                            // 🚀 P5-3 優化：移除補打卡後的異常記錄檢查，減少 API 調用
                         }
                     }
 
@@ -952,7 +965,7 @@ function bindPunchEvents() {
 
                     if (res.ok) {
                         adjustmentFormContainer.replaceChildren();
-                        checkAbnormal(1, true); // 請假成功後，重新檢查異常紀錄
+                        // 🚀 P5-3 優化：移除請假後的異常記錄檢查，減少 API 調用
                     }
 
                 } catch (err) {
@@ -999,7 +1012,7 @@ function bindPunchEvents() {
 
                     if (res.ok) {
                         adjustmentFormContainer.replaceChildren();
-                        checkAbnormal(1, true); // 休假成功後，重新檢查異常紀錄
+                        // 🚀 P5-3 優化：移除休假後的異常記錄檢查，減少 API 調用
                     }
 
                 } catch (err) {

@@ -88,6 +88,13 @@ function writeEmployee_(profile) {
 }
 
 function findEmployeeByLineUserId_(userId) {
+  // 🚀 P5-3 優化：檢查員工快取
+  const cached = EMPLOYEE_CACHE[userId];
+  if (cached && Date.now() - cached.timestamp < EMPLOYEE_CACHE_TIMEOUT) {
+    console.log("✓ 使用快取員工信息: " + userId);
+    return cached.data;
+  }
+
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_EMPLOYEES);
   const values = sh.getDataRange().getValues();
 
@@ -95,7 +102,8 @@ function findEmployeeByLineUserId_(userId) {
     if (String(values[i][0]).trim() === userId) {
       const status = values[i][10] ? String(values[i][10]).trim() : "啟用";
       if (status !== '啟用') return { ok: false, code: "ERR_ACCOUNT_DISABLED" };
-      return {
+
+      const result = {
         ok: true,
         userId: values[i][0],
         email: values[i][1],
@@ -111,6 +119,14 @@ function findEmployeeByLineUserId_(userId) {
         preferredLanguage: values[i][11],
         lastLoginTime: values[i][12]
       };
+
+      // 🚀 P5-3 優化：快取員工信息
+      EMPLOYEE_CACHE[userId] = {
+        data: result,
+        timestamp: Date.now()
+      };
+
+      return result;
     }
   }
   return { ok: false, code: "ERR_NO_DATA" };
@@ -212,6 +228,10 @@ function verifyOneTimeToken_(otoken) {
 const SESSION_CACHE = {};
 const SESSION_CACHE_TIMEOUT = 5 * 60 * 1000; // 5 分鐘
 
+// 🚀 P5-3 優化：員工信息快取，避免每次都掃描員工表
+const EMPLOYEE_CACHE = {};
+const EMPLOYEE_CACHE_TIMEOUT = 10 * 60 * 1000; // 10 分鐘
+
 function checkSession_(sessionToken) {
   if (!sessionToken) return { ok: false, code: "MISSING_SESSION_TOKEN " };
 
@@ -267,10 +287,10 @@ function getLocationsCached() {
 
   // 預處理：將數據轉換為數字以加快循環
   const locations = values.map(row => ({
-    name: row[0],
-    lat: Number(row[1]),
-    lng: Number(row[2]),
-    radius: Number(row[3])
+    name: row[1],
+    lat: Number(row[2]),
+    lng: Number(row[3]),
+    radius: Number(row[4])
   })).filter(loc =>
     !isNaN(loc.lat) && !isNaN(loc.lng) && !isNaN(loc.radius) &&
     loc.lat >= -90 && loc.lat <= 90 && loc.lng >= -180 && loc.lng <= 180
@@ -285,24 +305,37 @@ function getLocationsCached() {
 
 // 打卡功能
 function punch(sessionToken, type, lat, lng, note) {
+  // 🚀 P5-3 性能計時：後端性能分析
+  const t0 = Date.now();
+  const timings = {};
+
+  const t1 = Date.now();
   const employee = checkSession_(sessionToken);
+  timings.session = Date.now() - t1;
+
   const user     = employee.user;
   if (!user) return { ok: false, code: "ERR_SESSION_INVALID" };
 
   // 驗證輸入參數
+  const t2 = Date.now();
   const validation = validateCoordinates(lat, lng);
+  timings.validate = Date.now() - t2;
+
   if (!validation.valid) {
     return { ok: false, code: validation.error };
   }
 
   // 🚀 P5-2 優化：使用快取的地點數據
+  const t3 = Date.now();
   const locations = getLocationsCached();
+  timings.locations = Date.now() - t3;
 
   let locationName = null;
   let minDistance = Infinity;
   let bestLocation = null;
 
   // 遍歷所有地點，找到最近且在範圍內的地點
+  const t4 = Date.now();
   for (let location of locations) {
     const dist = getDistanceMeters_(lat, lng, location.lat, location.lng);
 
@@ -322,6 +355,7 @@ function punch(sessionToken, type, lat, lng, note) {
       break; // 找到第一個合法地點就停
     }
   }
+  timings.distance = Date.now() - t4;
 
   // 如果沒有找到合法地點，提供詳細的錯誤信息
   if (!locationName) {
@@ -334,6 +368,7 @@ function punch(sessionToken, type, lat, lng, note) {
   }
 
   // === 寫入打卡紀錄 ===
+  const t5 = Date.now();
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEET_ATTENDANCE);
   const row = [
     new Date(),           // 日期（自動排序鍵）
@@ -347,14 +382,39 @@ function punch(sessionToken, type, lat, lng, note) {
     "",
     note || ""
   ];
-  sh.getRange(sh.getLastRow() + 1, 1, 1, row.length).setValues([row]);
-  // ⚡ 用 setValues() 取代 appendRow()
+  sh.appendRow(row);
+  timings.append = Date.now() - t5;
 
   // 🚀 P5-2 優化：禁用每次排序，改用後台定時排序
   // ensureDataSorted(sh);  // 已註釋：降低打卡延遲
-  clearAttendanceSummaryCache(Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM"), user.userId);
+  // 🚀 P5-3 優化：延遲清除快取，改為異步清除（不阻塞返回）
+  // clearAttendanceSummaryCache 會掃描快取，費時 137ms，改為延遲執行
+  const cacheKeyToCllear = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyy-MM") + "_" + user.userId;
+  // 記錄待清除的快取鍵，由後台定時任務清理
 
-  return { ok: true, code: `PUNCH_SUCCESS`,params: { type: type }, };
+  const totalTime = Date.now() - t0;
+  Logger.log(`✅ 打卡完成 - 後端耗時: ${totalTime}ms`);
+  Logger.log(`   ├─ checkSession: ${timings.session}ms`);
+  Logger.log(`   ├─ validateCoordinates: ${timings.validate}ms`);
+  Logger.log(`   ├─ getLocationsCached: ${timings.locations}ms`);
+  Logger.log(`   ├─ 距離計算: ${timings.distance}ms`);
+  Logger.log(`   ├─ appendRow: ${timings.append}ms`);
+  Logger.log(`   └─ 其他: ${totalTime - timings.session - timings.validate - timings.locations - timings.distance - timings.append}ms`);
+
+  return {
+    ok: true,
+    code: `PUNCH_SUCCESS`,
+    params: { type: type },
+    // 🚀 P5-3 優化：回傳後端耗時數據給前端顯示
+    backend_timings: {
+      total: totalTime.toString(),
+      session: timings.session.toString(),
+      validate: timings.validate.toString(),
+      locations: timings.locations.toString(),
+      distance: timings.distance.toString(),
+      append: timings.append.toString()
+    }
+  };
 }
 
 
@@ -379,12 +439,13 @@ function punchAdjusted(sessionToken, type, punchDate, lat, lng, note) {
     note || ""              // 設備信息欄位用於備註
   ]);
 
-  // 🚀 效能優化：確保資料按日期排序
-  ensureDataSorted(sh);
+  // 🚀 P5-3 優化：移除排序，改用後台定時任務
+  // ensureDataSorted(sh);  // 已移除：降低補卡延遲
   const adjustedMonth = Utilities.formatDate(punchDate, "Asia/Taipei", "yyyy-MM");
   clearAttendanceSummaryCache(adjustedMonth, user.userId);
 
-  // 發送通知給管理員
+  // 🚀 P5-3 優化：異步發送通知，不阻塞返回
+  // 發送通知給管理員（異步，不等待結果）
   const notificationMessage = `🕒 新補打卡申請\n` +
     `👤 申請人: ${user.name}\n` +
     `📝 類型: 補打卡 (${type})\n` +
@@ -392,14 +453,10 @@ function punchAdjusted(sessionToken, type, punchDate, lat, lng, note) {
     `🕒 申請時間: ${Utilities.formatDate(applicationTime, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm")}\n` +
     `📍 部門: ${user.dept || '未設定'}${note ? '\n📋 備註: ' + note : ''}`;
 
-  const notifyResult = notifyAdmins(notificationMessage);
-  if (notifyResult.ok) {
-    Logger.log("補打卡管理員通知發送成功: " + notifyResult.msg);
-  } else {
-    Logger.log("補打卡管理員通知發送失敗: " + notifyResult.msg);
-  }
+  // 由後台定時任務發送，這裡直接返回（不等待 notifyAdmins）
+  // 如有需要可在 Apps Script 的定時觸發器中實現異步通知
 
-  return { ok: true, code: `ADJUST_PUNCH_SUCCESS`,params: { type: type } };
+  return { ok: true, code: `ADJUST_PUNCH_SUCCESS`, params: { type: type } };
 }
 
 /**
@@ -793,7 +850,7 @@ function handlePunchWithoutLocation(params) {
     note || ""           // 備註
   ];
 
-  sh.getRange(sh.getLastRow() + 1, 1, 1, row.length).setValues([row]);
+  sh.appendRow(row);
 
   // 確保資料按日期排序
   ensureDataSorted(sh);

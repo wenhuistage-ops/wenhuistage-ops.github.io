@@ -65,7 +65,7 @@ async function callApifetch(params, loadingId = "loading") {
     if (loadingEl) loadingEl.style.display = "block";
 
     // 🚀 P5-2 優化：添加請求超時控制（打卡等關鍵操作設 5 秒）
-    const API_TIMEOUT = params.action === 'punch' ? 5000 : 10000; // 打卡 5 秒，其他 10 秒
+    const API_TIMEOUT = params.action === 'punch' ? 10000 : 10000; // 打卡 5 秒，其他 10 秒
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
