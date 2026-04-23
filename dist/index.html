@@ -71,12 +71,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Leaflet CSS 仍需同步加載 -->
-    <!-- 🚀 P4-2 優化：Leaflet JS 用 defer 延遲加載 -->
-    <script defer src="./node_modules/leaflet/dist/leaflet.js"></script>
+    <!-- Leaflet CSS & JS (從 CDN 加載，避免 GitHub Pages 部署問題) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
-  <script async type="module" crossorigin src="/js/index-DQ_rKTW4.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-bWwJ8D-O.css">
+  <script async type="module" crossorigin src="/js/index-BvBxA36U.js"></script>
   <script type="module">import'data:text/javascript,if(!import.meta.resolve)throw Error("import.meta.resolve not supported")';import.meta.url;import("_").catch(()=>1);(async function*(){})().next();window.__vite_is_modern_browser=true</script>
   <script type="module">!function(){if(window.__vite_is_modern_browser)return;console.warn("vite: loading legacy chunks, syntax error above and the same error below should be ignored");var e=document.getElementById("vite-legacy-polyfill"),n=document.createElement("script");n.src=e.src,n.onload=function(){System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))},document.body.appendChild(n)}();</script>
 </head>
@@ -728,8 +727,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         </div>
     </div>
 
-    <!-- DOMPurify for XSS protection -->
-    <script defer src="./node_modules/dompurify/dist/purify.js"></script>
+    <!-- DOMPurify for XSS protection (從 CDN 加載) -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.4.1/purify.min.js"></script>
 
     <!-- 基礎設施層 -->
     <script defer src="js/template-loader.js"></script>
@@ -755,8 +754,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script defer src="js/ui.js"></script>
     <script defer src="js/location.js"></script>
 
-    <!-- SheetJS for Excel export -->
-    <script defer src="./node_modules/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS for Excel export (從 CDN 加載) -->
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script defer src="js/api-debug.js"></script>
     <script defer src="js/admin.js"></script>
 
@@ -767,7 +766,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     </button>
   <script nomodule>!function(){var e=document,t=e.createElement("script");if(!("noModule"in t)&&"onbeforeload"in t){var n=!1;e.addEventListener("beforeload",(function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute("nomodule")||!n)return;e.preventDefault()}),!0),t.type="module",t.src=".",e.head.appendChild(t),t.remove()}}();</script>
   <script nomodule crossorigin id="vite-legacy-polyfill" src="/js/polyfills-legacy-u-AV8E9r.js"></script>
-  <script nomodule crossorigin id="vite-legacy-entry" data-src="/js/index-legacy-bg_3SVd6.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
+  <script nomodule crossorigin id="vite-legacy-entry" data-src="/js/index-legacy-BaFnDPCz.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
 </body>
 
 </html>
