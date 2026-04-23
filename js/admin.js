@@ -1618,18 +1618,24 @@ const switchAdminSubTab = (subTabId) => {
 
     subBtns.forEach(id => {
         const btnElement = document.getElementById(id);
-        btnElement.classList.replace('bg-indigo-600', 'bg-gray-200');
-        btnElement.classList.replace('text-white', 'text-gray-600');
+        if (btnElement) {
+            btnElement.classList.replace('bg-indigo-600', 'bg-gray-200');
+            btnElement.classList.replace('text-white', 'text-gray-600');
+        }
     });
 
     // 3. 顯示新頁籤並新增 active 類別
     const newTabElement = document.getElementById(subTabId);
-    newTabElement.style.display = 'block'; // 顯示內容
+    if (newTabElement) {
+        newTabElement.style.display = 'block'; // 顯示內容
+    }
 
     // 4. 設定新頁籤按鈕的選中狀態
-    const newBtnElement = document.getElementById(`tab - ${ subTabId.replace('-view', '-btn') } `);
-    newBtnElement.classList.replace('bg-gray-200', 'bg-indigo-600');
-    newBtnElement.classList.replace('text-gray-600', 'text-white');
+    const newBtnElement = document.getElementById(`tab-${subTabId.replace('-view', '-btn')}`);
+    if (newBtnElement) {
+        newBtnElement.classList.replace('bg-gray-200', 'bg-indigo-600');
+        newBtnElement.classList.replace('text-gray-600', 'text-white');
+    }
 
     // 5. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
     console.log(`切換到管理員子頁籤: ${ subTabId } `);
@@ -2045,21 +2051,33 @@ function setupAdminExport() {
 
         // 從後端直接取得所有該月份的打卡記錄（完整紀錄）
         try {
-            const token = localStorage.getItem('sessionToken');
-
             const response = await callApifetch({
-                action: 'getCompleteAttendanceRecords',
+                action: 'getAttendanceDetails',
                 month: monthParam,
-                userId: userId,
-                token: token
+                userId: userId
             });
             if (!response.ok) {
                 alert('無法取得完整的打卡記錄');
                 return;
             }
 
-            // allRecords 是該月份該員工的所有打卡記錄
-            const allRecords = Array.isArray(response.records) ? response.records : [];
+            // 將 dailyStatus 展開成個別打卡紀錄的平坦列表
+            const allRecords = [];
+            const dailyStatus = response.records?.dailyStatus || [];
+            dailyStatus.forEach(day => {
+                if (!Array.isArray(day.record)) return;
+                day.record.forEach(punch => {
+                    allRecords.push({
+                        date: `${day.date} ${punch.time || ''}`.trim(),
+                        type: punch.type || '',
+                        location: punch.location || '',
+                        note: punch.note || '',
+                        audit: punch.audit || '',
+                        isHoliday: day.isHoliday || false,
+                        holiday: day.holiday
+                    });
+                });
+            });
 
             // Sheet 1: 所有完整打卡紀錄
             const completeRecordRows = [
