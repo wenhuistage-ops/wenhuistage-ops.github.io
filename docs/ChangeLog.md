@@ -7,6 +7,46 @@
 
 ## 2026-04-24
 
+### 重構：punch.js 拆分第三步（抽出核心打卡邏輯）
+
+**動作**：將 punch.js Region 1「核心打卡邏輯」拆為兩個關注點獨立的模組。
+
+**檔案變動**：
+| 檔案 | 變化 |
+|------|------|
+| `js/punch.js` | 758 → 441 行（**-317 行**） |
+| `js/punch/geolocation.js` | 新增（193 行） |
+| `js/punch/punch-flow.js` | 新增（193 行） |
+| `index.html` | +2 script 標籤 |
+
+**抽出內容**：
+
+`js/punch/geolocation.js`（定位相關）
+- 常數：`PUNCH_GEOLOCATION_OPTIONS`、`GPS_ACCURACY_THRESHOLDS`
+- 狀態：`lastPunchPosition`、`geolocationPermissionStatus`
+- 函式：`checkGeolocationPermission`、`requestGeolocationPermission`、`getAccurateLocation`
+
+`js/punch/punch-flow.js`（打卡流程）
+- 函式：`doPunch`、`handleLocationPermissionDenied`、`submitPunchWithoutLocation`
+
+**相容性**：
+- 全域函式宣告保持不變，`app.js:204, 205` 的 `doPunch("上班"|"下班")` 呼叫無影響
+- 載入順序：geolocation.js → punch-flow.js → punch.js（punch-flow 依賴 geolocation）
+- 4 suite / 55 測試全綠
+
+### punch.js 拆分累計進度
+
+| 階段 | 行數 | 變化 | 累計 |
+|------|-----|------|------|
+| 原始 | 1029 | — | — |
+| 抽 Region 3（異常紀錄） | 799 | -230 | -22% |
+| 抽 Region 2（自動打卡） | 758 | -41 | -26% |
+| **抽 Region 1（核心打卡）** | **441** | **-317** | **-57%** |
+
+剩餘：Region 4 補打卡 UI（≈421 行，含巨大的 bindPunchEvents）。
+
+---
+
 ### 重構：punch.js 拆分第二步（抽出自動打卡模組）
 
 **動作**：將 punch.js Region 2「自動打卡」抽出為獨立模組。
