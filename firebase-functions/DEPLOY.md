@@ -50,6 +50,29 @@ npm install
 
 會產生 `node_modules/`（已在 .gitignore）。
 
+## Step 4.5 — 設定 LINE secrets（部署前必做）
+
+`getProfile` 與 `getLoginUrl` 需要 LINE Channel ID / Secret / Access Token。
+這些值不能寫進程式碼，用 Firebase Secret Manager 儲存：
+
+```bash
+# 從 GAS 的 Script Properties 複製對應值
+cd firebase-functions
+firebase functions:secrets:set LINE_CHANNEL_ID
+# 提示輸入時貼上值，Enter 確認
+
+firebase functions:secrets:set LINE_CHANNEL_SECRET
+firebase functions:secrets:set LINE_CHANNEL_ACCESS_TOKEN
+```
+
+Secret Manager 需啟用 API（首次會提示）。若遇權限錯誤：
+- GCP Console → IAM & Admin → Service Accounts → 找到 App Engine default service account → 加「Secret Manager Secret Accessor」角色
+
+驗證已設定：
+```bash
+firebase functions:secrets:access LINE_CHANNEL_ID
+```
+
 ## Step 5 — 部署 security rules
 
 ```bash
@@ -70,6 +93,10 @@ firebase deploy --only functions
 
 部署成功後可於 Firebase Console → Functions 查看：
 - `checkSession`
+- `getLoginUrl`
+- `getProfile`
+- `exchangeToken`
+- `punch`
 - `getLocations`
 
 ## Step 7 — 產生測試資料

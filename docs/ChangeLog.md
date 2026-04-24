@@ -5,6 +5,45 @@
 
 ---
 
+## 2026-04-25
+
+### 階段三 C（續）：身份流程 + 打卡核心 Cloud Functions
+
+**脈絡**：階段 B 發現 Firebase Cloud Functions 需要 Blaze plan，使用者決定**晚點升級**，
+本輪繼續在分支寫程式碼，升級後可一次部署。
+
+**本輪新增 4 個 Cloud Functions**：
+- `src/getLoginUrl.js` — 產生 LINE OAuth 授權 URL
+- `src/getProfile.js` — LINE code 換 access_token + id_token，upsert 員工、發 oneTimeToken
+- `src/exchangeToken.js` — oneTimeToken 換 sessionToken（單次使用）
+- `src/punch.js` — 員工打卡（含 Haversine 距離、地點驗證、backend_timings）
+
+**Helpers 擴充**（`src/_helpers.js`）：
+- LINE secrets 宣告：`LINE_CHANNEL_ID`、`LINE_CHANNEL_SECRET`、`LINE_CHANNEL_ACCESS_TOKEN`（defineSecret）
+- `validateCoordinates(lat, lng)` — 座標合法性檢查
+- `getDistanceMeters(lat1, lng1, lat2, lng2)` — Haversine 公式
+- `getAllLocations()` — 讀所有地點（未快取，v1 簡化）
+- `upsertEmployee(profile)` — 新員工建立、既有員工更新 lastLoginTime
+- `createOneTimeToken(userId)` / `consumeOneTimeToken(otoken)` — 一次性 token 管理
+
+**Firestore 集合新增**：
+- `oneTimeTokens` — 一次性 token（getProfile 產生、exchangeToken 消耗）
+- `attendance` — 打卡紀錄（由 punch 寫入）
+
+**DEPLOY.md 更新**：
+- 新增 Step 4.5「設定 LINE secrets」(`firebase functions:secrets:set`)
+- Step 6 完成後應看到 6 個 function
+
+**已實作 Cloud Functions 進度**：6 / 18
+- ✅ checkSession、getLoginUrl、getProfile、exchangeToken、punch、getLocations
+- ⏳ 下一輪：punchWithoutLocation、adjustPunch、getCalendarSummary、getAttendanceDetails、
+  getAbnormalRecords、getCompleteAttendanceRecords、getEmployeeList、addLocation、
+  submitLeave、getReviewRequest、approveReview、rejectReview
+
+測試：4 suite / 55 全綠。前端 `useFirestore=false` 保持不變，零風險。
+
+---
+
 ## 2026-04-24
 
 ### 階段三 C：Cloud Functions MVP 建置（checkSession、getLocations）

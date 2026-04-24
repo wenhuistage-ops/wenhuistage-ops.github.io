@@ -10,15 +10,17 @@
 
 "use strict";
 
-// ===== MVP 已實作 =====
+// ===== 身份與 session =====
 exports.checkSession = require("./src/checkSession");
+exports.getLoginUrl = require("./src/getLoginUrl");
+exports.getProfile = require("./src/getProfile");
+exports.exchangeToken = require("./src/exchangeToken");
+
+// ===== 打卡核心 =====
+exports.punch = require("./src/punch");
 exports.getLocations = require("./src/getLocations");
 
 // ===== 待實作（下一輪） =====
-// exports.getProfile = require("./src/getProfile");
-// exports.getLoginUrl = require("./src/getLoginUrl");
-// exports.exchangeToken = require("./src/exchangeToken");
-// exports.punch = require("./src/punch");
 // exports.punchWithoutLocation = require("./src/punchWithoutLocation");
 // exports.adjustPunch = require("./src/adjustPunch");
 // exports.getCalendarSummary = require("./src/getCalendarSummary");
