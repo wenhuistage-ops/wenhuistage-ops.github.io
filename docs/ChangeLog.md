@@ -7,6 +7,36 @@
 
 ## 2026-04-24
 
+### 重構：punch.js 拆分第一步（抽出異常紀錄模組）
+
+**動作**：將 punch.js Region 3「異常紀錄檢查」抽出為獨立模組。
+
+**檔案變動**：
+| 檔案 | 變化 |
+|------|------|
+| `js/punch.js` | 1029 → 799 行（**-230 行 / -22%**） |
+| `js/punch/abnormal-records.js` | 新增 242 行 |
+| `index.html` | 新增 1 行 script 標籤 |
+
+**抽出的內容**：
+- `checkAbnormal(monthsToCheck, forceRefresh)` — 並行查詢多月異常記錄
+- `enrichAbnormalRecordsWithApplicationStatus(records)` — 補上待審核申請狀態
+- `renderAbnormalRecords(records)` — 渲染列表（含 DOMPurify XSS 防護）
+
+**相容性**：
+- 透過全域函式宣告，對 `app.js:67, 357` 的 `checkAbnormal()` 呼叫完全相容
+- index.html 中 `abnormal-records.js` 在 `punch.js` 之前載入，確保依賴順序
+- 新模組加 UMD export，後續可直接於 Jest 補測試
+
+**測試結果**：4 suite / 55 測試全綠。
+
+**下一步 punch.js 拆分候選**（尚未做）：
+- Region 1「核心打卡」(≈308 行) → `js/punch/geolocation.js` + `punch-flow.js`
+- Region 2「自動打卡」(≈36 行) → `js/punch/auto-punch.js`
+- Region 4「補打卡 UI」(≈421 行，含巨大的 `bindPunchEvents`) → `js/punch/make-up.js` + `events.js`
+
+---
+
 ### 移除：薪資完整拆除（admin.js -53%）
 
 **決策**：Excel 匯出簡化為只匯出完整打卡紀錄，所有薪資相關程式碼全部移除，
