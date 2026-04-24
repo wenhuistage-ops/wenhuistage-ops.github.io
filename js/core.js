@@ -38,13 +38,25 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // ===================================
 
 /**
- * 透過 fetch API 呼叫後端 API。
- * ✅ 改進 2.1：改用 POST 請求，token 在 body 中，不在 URL 中
- * @param {object} params - 包含 action 和所有其他參數的物件 (e.g., { action: '...', month: '...', userId: '...' })
- * @param {string} [loadingId="loading"] - 顯示 loading 狀態的 DOM 元素 ID。
- * @returns {Promise<object>} - 回傳一個包含 API 回應資料的 Promise。
+ * 後端 API 呼叫入口（分流 GAS / Firestore）
+ *
+ * 依 API_CONFIG.useFirestore 決定底層實作：
+ *   - true  → 呼叫 Cloud Functions（firestore-client.js）
+ *   - false → 原有 GAS POST（以下實作）
+ *
+ * 回傳結構在兩端保持一致：{ ok, code, params, records, ... }
+ * @param {object} params - 包含 action 和其他參數的物件
+ * @param {string} [loadingId="loading"] - 顯示 loading 的 DOM ID
+ * @returns {Promise<object>}
  */
 async function callApifetch(params, loadingId = "loading") {
+    // 🔀 後端分流：若切到 Firestore 則改用 Cloud Functions
+    if (typeof API_CONFIG !== "undefined" && API_CONFIG.useFirestore
+        && typeof callFirestoreFunction === "function") {
+        return await callFirestoreFunction(params, loadingId);
+    }
+
+    // 以下為 GAS 原有實作
     const token = localStorage.getItem("sessionToken");
 
     // 1. 構造 URLSearchParams 物件（用於 POST body）

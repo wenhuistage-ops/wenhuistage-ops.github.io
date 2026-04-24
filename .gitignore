@@ -19,6 +19,12 @@ coverage/
 .env.local
 .env.*.local
 
+# Firebase 服務帳號金鑰（勿提交）
+serviceAccountKey.json
+firebase-functions/node_modules/
+firebase-functions/.firebaserc
+.firebaserc
+
 # IDE/Editor
 .vscode
 .idea

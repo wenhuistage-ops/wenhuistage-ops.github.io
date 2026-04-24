@@ -7,6 +7,44 @@
 
 ## 2026-04-24
 
+### 階段三 A：Firestore 切換骨架（分支 vs 主線策略）
+
+**策略**：主線保持 GAS + Google Sheets，本分支逐步切換到 Firestore + Cloud
+Functions，資料完全隔離、風險歸零於主線。
+
+**本輪完成（階段 A，零風險前置建設）**：
+
+新增文件：
+- `docs/plans/Firestore切換策略-分支vs主線.md` — 策略、技術選擇、階段 A/B/C/D/E checklist
+- `firebase-functions/README.md` — Cloud Functions 目錄說明與 GAS action 對照表
+- `scripts/migrate-to-firestore.js` — 遷移腳本雛形（骨架未實作 SDK 呼叫，需配置後才能跑）
+
+新增程式碼：
+- `js/config.js`：
+  - 新增 `API_CONFIG.useFirestore`（預設 `false`）
+  - 新增 `API_CONFIG.firebase`（apiKey/projectId 等 placeholder）
+  - 新增 runtime override：`?backend=firestore|gas` URL 參數 + `localStorage.backend`
+- `js/firestore-client.js`（新檔 118 行）：
+  - `initFirestoreClient()`、`callFirestoreFunction(params, loadingId)` 介面
+  - 目前是骨架，未配置時回傳 `{ ok: false, code: "ERR_FIRESTORE_NOT_CONFIGURED" }`
+  - **完全不執行任何網路呼叫**，不會影響任何資料
+- `js/core.js`：`callApifetch` 入口加分流判斷，若 `API_CONFIG.useFirestore=true` 改走 Cloud Functions
+- `index.html`：於 core.js 之前載入 firestore-client.js
+- `.gitignore`：新增 `serviceAccountKey.json`、`firebase-functions/node_modules/`
+
+**風險評估**：
+- 主線合併本分支時 `useFirestore=false`，行為與舊版完全一致
+- firestore-client 未配置時直接回錯誤代碼，不呼叫任何網路資源
+- 測試全綠（55 / 55）
+
+**下一步（需要您操作）**：
+- 階段 B：建 Firebase 測試專案、取得 config、填入 `API_CONFIG.firebase`
+- 階段 C：在 `firebase-functions/` 實作 Cloud Functions
+- 階段 D：準備測試用 Sheet、跑 migration
+- 階段 E：決定切換策略（雙軌 / 漸進合併 / 完全切換）
+
+---
+
 ### 重構：抽出 index.html 模板至 templates/（階段二完結）
 
 **調查發現**：index.html 的 5 個內嵌 `<template>` 與配套的
