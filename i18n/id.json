@@ -130,6 +130,7 @@
   "ERR_ACCOUNT_DISABLED": "Akun belum diaktifkan! Harap beri tahu admin.",
   "ERR_NO_DATA": "Tidak ada data",
   "ERR_OUT_OF_RANGE": "❌ Gagal absen! Anda berada di luar jangkauan lokasi.",
+  "ERR_OUT_OF_RANGE_WITH_DISTANCE": "❌ Gagal absen! Anda berjarak {distance}m dari lokasi terdekat \"{location}\", di luar radius yang diizinkan {radius}m.",
   "ERR_INVALID_COORDINATES": "❌ Data koordinat tidak valid",
   "ERR_INVALID_LATITUDE": "❌ Nilai lintang tidak valid (harus antara -90 dan 90 derajat)",
   "ERR_INVALID_LONGITUDE": "❌ Nilai bujur tidak valid (harus antara -180 dan 180 derajat)",

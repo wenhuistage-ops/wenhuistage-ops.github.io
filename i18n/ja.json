@@ -130,6 +130,7 @@
   "ERR_ACCOUNT_DISABLED": "アカウントが有効になっていません！管理者に通知してください！",
   "ERR_NO_DATA": "データがありません",
   "ERR_OUT_OF_RANGE": "❌ 打刻失敗！許可された打刻場所の範囲外です。",
+  "ERR_OUT_OF_RANGE_WITH_DISTANCE": "❌ 打刻失敗！最も近い場所「{location}」から {distance}m 離れており、許可範囲（{radius}m）を超えています。",
   "ERR_INVALID_COORDINATES": "❌ 無効な座標データ",
   "ERR_INVALID_LATITUDE": "❌ 無効な緯度値（-90度から90度の間でなければなりません）",
   "ERR_INVALID_LONGITUDE": "❌ 無効な経度値（-180度から180度の間でなければなりません）",

@@ -358,13 +358,20 @@ function punch(sessionToken, type, lat, lng, note) {
   timings.distance = Date.now() - t4;
 
   // 如果沒有找到合法地點，提供詳細的錯誤信息
+  // 改為分離 code 與 params，讓前端 t() 直接走 i18n 字典
   if (!locationName) {
-    let errorMsg = "ERR_OUT_OF_RANGE";
     if (bestLocation) {
-      // 提供最近地點的距離信息
-      errorMsg += `_DISTANCE:${Math.round(bestLocation.distance)}m_LOCATION:${bestLocation.name}_RADIUS:${bestLocation.radius}m`;
+      return {
+        ok: false,
+        code: "ERR_OUT_OF_RANGE_WITH_DISTANCE",
+        params: {
+          distance: Math.round(bestLocation.distance),
+          location: bestLocation.name,
+          radius: bestLocation.radius
+        }
+      };
     }
-    return { ok: false, code: errorMsg };
+    return { ok: false, code: "ERR_OUT_OF_RANGE" };
   }
 
   // === 寫入打卡紀錄 ===

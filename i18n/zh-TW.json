@@ -130,6 +130,7 @@
   "ERR_ACCOUNT_DISABLED": "帳號未啟用！請通知管理員！",
   "ERR_NO_DATA": "沒有資料",
   "ERR_OUT_OF_RANGE": "❌ 打卡失敗！ 不在允許的打卡地點範圍內",
+  "ERR_OUT_OF_RANGE_WITH_DISTANCE": "❌ 打卡失敗！距離最近地點「{location}」還有 {distance}m，超出允許範圍 {radius}m",
   "ERR_INVALID_COORDINATES": "❌ 無效的坐標數據",
   "ERR_INVALID_LATITUDE": "❌ 無效的緯度值（必須在 -90 到 90 度之間）",
   "ERR_INVALID_LONGITUDE": "❌ 無效的經度值（必須在 -180 到 180 度之間）",

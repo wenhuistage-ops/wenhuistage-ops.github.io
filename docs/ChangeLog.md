@@ -7,6 +7,24 @@
 
 ## 2026-04-24
 
+### 修復：超出範圍打卡錯誤訊息未翻譯
+
+**問題**：使用者打卡超出地點範圍時，畫面顯示原始字串
+`ERR_OUT_OF_RANGE_DISTANCE:150m_LOCATION:辦公室_RADIUS:100m` 而非可讀錯誤。
+
+**根因**：`GS/DbOperations.gs:362` 把參數塞進 i18n key 字串裡返回給前端，
+前端 `t()` 找不到對應翻譯就直接顯示原 key。
+
+**修復**：
+- `GS/DbOperations.gs`：改回 `{ ok: false, code: "ERR_OUT_OF_RANGE_WITH_DISTANCE", params: { distance, location, radius } }` 乾淨結構
+- `i18n/*.json` × 5 語系：新增 `ERR_OUT_OF_RANGE_WITH_DISTANCE` 翻譯
+- `js/modules/i18n.js`：`t()` 新增 fallback 解析舊格式（GAS 重新部署前仍能正確顯示）+ UMD export
+- `tests/i18n.test.js`：新增 9 個測試覆蓋 t() 真實函式與向後相容解析
+
+**部署提醒**：Apps Script 需重新部署才能生效新格式；前端 fallback 同時涵蓋舊格式，故任一端先部署都能正確顯示。
+
+---
+
 ### 階段二：測試基礎建設
 
 #### 修改

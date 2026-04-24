@@ -130,6 +130,7 @@
   "ERR_ACCOUNT_DISABLED": "Account not active. Please contact admin.",
   "ERR_NO_DATA": "No data",
   "ERR_OUT_OF_RANGE": "❌ Punch failed! You are out of range.",
+  "ERR_OUT_OF_RANGE_WITH_DISTANCE": "❌ Punch failed! You are {distance}m from the nearest location \"{location}\", outside the allowed radius of {radius}m.",
   "ERR_INVALID_COORDINATES": "❌ Invalid coordinate data",
   "ERR_INVALID_LATITUDE": "❌ Invalid latitude value (must be between -90 and 90 degrees)",
   "ERR_INVALID_LONGITUDE": "❌ Invalid longitude value (must be between -180 and 180 degrees)",

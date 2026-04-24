@@ -116,6 +116,7 @@
   "ERR_ACCOUNT_DISABLED": "Tài khoản chưa được kích hoạt! Vui lòng thông báo cho quản trị viên.",
   "ERR_NO_DATA": "Không có dữ liệu",
   "ERR_OUT_OF_RANGE": "❌ Chấm công thất bại! Bạn đang ở ngoài khu vực cho phép.",
+  "ERR_OUT_OF_RANGE_WITH_DISTANCE": "❌ Chấm công thất bại! Bạn cách địa điểm gần nhất \"{location}\" {distance}m, vượt quá bán kính cho phép {radius}m.",
   "ERR_INVALID_COORDINATES": "❌ Dữ liệu tọa độ không hợp lệ",
   "ERR_INVALID_LATITUDE": "❌ Giá trị vĩ độ không hợp lệ (phải từ -90 đến 90 độ)",
   "ERR_INVALID_LONGITUDE": "❌ Giá trị kinh độ không hợp lệ (phải từ -180 đến 180 độ)",
