@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// ⚠️ 安全策略：所有資料操作都必須透過 Cloud Functions（Admin SDK 繞過 rules）
+// 前端 Firebase Web SDK 直接存取一律拒絕，避免誤觸或被濫用。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

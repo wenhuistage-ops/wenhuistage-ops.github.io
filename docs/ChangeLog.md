@@ -7,6 +7,41 @@
 
 ## 2026-04-24
 
+### 階段三 C：Cloud Functions MVP 建置（checkSession、getLocations）
+
+**使用者已完成階段 B**：建立 Firebase 專案 `wenhui-check-in-system`（區域
+`asia-southeast1`），並將 config 填入 `js/config.js` 的 `API_CONFIG.firebase`。
+
+**本輪建置**：
+
+Firebase Functions 專案完整骨架
+- `firebase-functions/firebase.json` — 部署設定含 emulator 埠配置
+- `firebase-functions/firestore.rules` — 預設全鎖（所有前端直存一律拒絕）
+- `firebase-functions/firestore.indexes.json` — 空索引（之後再加）
+- `firebase-functions/functions/package.json` — Node 20 + firebase-admin v12 + firebase-functions v6
+- `firebase-functions/functions/index.js` — 主入口（已實作 2、註解 16 個待補 action）
+- `firebase-functions/DEPLOY.md` — **給您的一次性部署指南**（8 個步驟含檢查清單）
+
+MVP Cloud Functions（2 個）
+- `functions/src/_helpers.js`（88 行）— Admin SDK 單例、集合常數、`verifySession`/`verifyAdmin`
+- `functions/src/checkSession.js`（40 行）— 對應 GS `handleCheckSession`
+- `functions/src/getLocations.js`（38 行）— 對應 GS `handleGetLocation`
+
+前端 Firebase Web SDK 接入
+- `js/firestore-client.js` 骨架升級為真實實作
+  - Firebase SDK v10.14.1 透過 CDN 動態 `import()` 載入
+  - `initFirestoreClient()` 含 _initPromise 避免重複初始化
+  - `callFirestoreFunction()` 依 `params.action` 映射至對應 callable function
+  - sessionToken 自動從 localStorage 取出注入 payload
+  - 錯誤標準化回應：`ERR_FIRESTORE_NOT_CONFIGURED` / `ERR_FIRESTORE_CALL_FAILED`
+
+**本輪不會跑任何網路請求**（未執行部署前，前端 call 到 Firebase 會回
+`ERR_FIRESTORE_NOT_CONFIGURED` 因為 SDK 尚未下載；主線 `useFirestore=false` 不受影響）。
+
+**下一步**：請您執行 `firebase-functions/DEPLOY.md` 的 8 個步驟完成部署，回報後我繼續實作剩餘 Cloud Functions。
+
+---
+
 ### 階段三 A：Firestore 切換骨架（分支 vs 主線策略）
 
 **策略**：主線保持 GAS + Google Sheets，本分支逐步切換到 Firestore + Cloud

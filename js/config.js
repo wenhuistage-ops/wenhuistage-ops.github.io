@@ -35,9 +35,9 @@ const API_CONFIG = {
   // Firebase 專案配置（僅 useFirestore=true 才使用）
   // 由使用者於 Firebase Console → 專案設定 複製填入
   firebase: {
-    apiKey: null,
-    authDomain: null,
-    projectId: null,
+    apiKey: "AIzaSyASdCk6cVtdSrRBwNMjATRKNwcy1d4-E4E",
+    authDomain: "wenhui-check-in-system.firebaseapp.com",
+    projectId: "wenhui-check-in-system",
     region: "asia-southeast1"
   }
 };
