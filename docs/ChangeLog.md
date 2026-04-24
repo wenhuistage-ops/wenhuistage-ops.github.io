@@ -7,6 +7,50 @@
 
 ## 2026-04-25
 
+### 階段三 C（完結）：Cloud Functions 全部 17 個 action 實作完成
+
+**本輪新增 11 個 Cloud Functions + 1 個 attendance helper**
+
+新增 helper：
+- `src/_attendance.js`：`getMonthlyAttendance`、`summarizeByDay`、`detectAbnormal`、`parseMonth`
+
+新增 functions（依群組）：
+- **打卡寫入**：`punchWithoutLocation`、`adjustPunch`
+- **打卡查詢**：`getCalendarSummary`、`getAttendanceDetails`、`getCompleteAttendanceRecords`、`getAbnormalRecords`
+- **管理員**：`getEmployeeList`、`addLocation`
+- **請假審核**：`submitLeave`、`getReviewRequest`、`approveReview`、`rejectReview`
+
+### 實作策略
+- 複雜的勞基法判斷（checkAttendance / checkAttendanceCalendar / checkAttendanceAbnormal）
+  先做**簡化版**，標 TODO 待對齊 GS Utils.gs
+- `reviewRequest` 的 `id` 改用 Firestore docId 取代 GS 的 rowNumber
+- 管理員權限檢查統一用 helper `verifyAdmin`
+- `submitLeave` / `adjustPunch` 的管理員通知暫留 TODO，等異步通知系統落地後接入
+
+### Cloud Functions 最終狀態
+**17 / 17 實作完成**（`testNotification` 列為選擇性，略過）
+```
+身份：    checkSession、getLoginUrl、getProfile、exchangeToken
+打卡寫入：punch、punchWithoutLocation、adjustPunch
+打卡查詢：getLocations、getCalendarSummary、getAttendanceDetails、
+          getCompleteAttendanceRecords、getAbnormalRecords
+管理員：  getEmployeeList、addLocation
+請假審核：submitLeave、getReviewRequest、approveReview、rejectReview
+```
+
+### DEPLOY.md 更新
+Step 6 部署後應看到的 17 個 functions 清單。
+
+測試：4 suite / 55 全綠。主線 useFirestore=false 仍不受影響。
+
+**下一步等待使用者操作**：
+1. 升級 Firebase Blaze plan
+2. 執行 DEPLOY.md 8 個步驟
+3. 準備測試資料（複製正式 Sheet 或用假資料）
+4. 在瀏覽器 `?backend=firestore` 走過完整流程驗證
+
+---
+
 ### 階段三 C（續）：身份流程 + 打卡核心 Cloud Functions
 
 **脈絡**：階段 B 發現 Firebase Cloud Functions 需要 Blaze plan，使用者決定**晚點升級**，

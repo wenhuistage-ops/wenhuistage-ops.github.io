@@ -91,13 +91,35 @@ cd firebase-functions
 firebase deploy --only functions
 ```
 
-部署成功後可於 Firebase Console → Functions 查看：
+部署成功後可於 Firebase Console → Functions 查看（17 個）：
+
+**身份與 session**：
 - `checkSession`
 - `getLoginUrl`
 - `getProfile`
 - `exchangeToken`
+
+**打卡寫入**：
 - `punch`
+- `punchWithoutLocation`
+- `adjustPunch`
+
+**打卡查詢**：
 - `getLocations`
+- `getCalendarSummary`
+- `getAttendanceDetails`
+- `getCompleteAttendanceRecords`
+- `getAbnormalRecords`
+
+**管理員**：
+- `getEmployeeList`
+- `addLocation`
+
+**請假與審核**：
+- `submitLeave`
+- `getReviewRequest`
+- `approveReview`
+- `rejectReview`
 
 ## Step 7 — 產生測試資料
 

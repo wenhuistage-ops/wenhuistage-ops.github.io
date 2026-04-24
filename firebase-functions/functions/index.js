@@ -16,21 +16,27 @@ exports.getLoginUrl = require("./src/getLoginUrl");
 exports.getProfile = require("./src/getProfile");
 exports.exchangeToken = require("./src/exchangeToken");
 
-// ===== 打卡核心 =====
+// ===== 打卡寫入 =====
 exports.punch = require("./src/punch");
-exports.getLocations = require("./src/getLocations");
+exports.punchWithoutLocation = require("./src/punchWithoutLocation");
+exports.adjustPunch = require("./src/adjustPunch");
 
-// ===== 待實作（下一輪） =====
-// exports.punchWithoutLocation = require("./src/punchWithoutLocation");
-// exports.adjustPunch = require("./src/adjustPunch");
-// exports.getCalendarSummary = require("./src/getCalendarSummary");
-// exports.getAttendanceDetails = require("./src/getAttendanceDetails");
-// exports.getCompleteAttendanceRecords = require("./src/getCompleteAttendanceRecords");
-// exports.getAbnormalRecords = require("./src/getAbnormalRecords");
-// exports.getEmployeeList = require("./src/getEmployeeList");
-// exports.addLocation = require("./src/addLocation");
-// exports.submitLeave = require("./src/submitLeave");
-// exports.getReviewRequest = require("./src/getReviewRequest");
-// exports.approveReview = require("./src/approveReview");
-// exports.rejectReview = require("./src/rejectReview");
-// exports.testNotification = require("./src/testNotification");
+// ===== 打卡查詢 =====
+exports.getLocations = require("./src/getLocations");
+exports.getCalendarSummary = require("./src/getCalendarSummary");
+exports.getAttendanceDetails = require("./src/getAttendanceDetails");
+exports.getCompleteAttendanceRecords = require("./src/getCompleteAttendanceRecords");
+exports.getAbnormalRecords = require("./src/getAbnormalRecords");
+
+// ===== 管理員 =====
+exports.getEmployeeList = require("./src/getEmployeeList");
+exports.addLocation = require("./src/addLocation");
+
+// ===== 請假與審核 =====
+exports.submitLeave = require("./src/submitLeave");
+exports.getReviewRequest = require("./src/getReviewRequest");
+exports.approveReview = require("./src/approveReview");
+exports.rejectReview = require("./src/rejectReview");
+
+// ===== 選擇性 =====
+// exports.testNotification = require("./src/testNotification"); // 後續異步通知系統時補上
