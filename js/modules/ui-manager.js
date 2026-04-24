@@ -100,11 +100,9 @@ class UIManager {
     this.elements.adminStatusSpan = document.getElementById('admin-status-span');
     this.elements.toggleActive = document.getElementById('toggle-active');
     this.elements.activeStatusSpan = document.getElementById('active-status-span');
-    this.elements.basicSalaryInput = document.getElementById('basic-salary-input');
-    this.elements.salaryValueSpan = document.getElementById('salary-value-span');
+    // 薪資 DOM 綁定已移除，待重新設計
     this.elements.requireGpsCheckbox = document.getElementById('require-gps-checkbox');
     this.elements.allowManualAdjustCheckbox = document.getElementById('allow-manual-adjust-checkbox');
-    this.elements.formLeaveSalary = document.getElementById('form-leave-salary');
     this.elements.formPunchPolicy = document.getElementById('form-punch-policy');
     this.elements.saveEmployeeBtn = document.getElementById('save-employee-btn');
 
@@ -123,9 +121,7 @@ class UIManager {
     this.elements.adminDailyRecordsList = document.getElementById('admin-daily-records-list');
     this.elements.adminDailyRecordsEmpty = document.getElementById('admin-daily-records-empty');
 
-    // 管理員 - 薪資管理
-    this.elements.adminMonthlySalaryDisplay = document.getElementById('admin-monthly-salary-display');
-    this.elements.exportPayrollBtn = document.getElementById('export-payroll-btn');
+    // 管理員 - 薪資管理（已移除，待重新設計）
 
     // 管理員 - 待審核請求
     this.elements.toggleRequestsBtn = document.getElementById('toggle-requests-btn');

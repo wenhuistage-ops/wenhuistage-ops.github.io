@@ -7,6 +7,53 @@
 
 ## 2026-04-24
 
+### 移除：薪資完整拆除（admin.js -53%）
+
+**決策**：Excel 匯出簡化為只匯出完整打卡紀錄，所有薪資相關程式碼全部移除，
+為重新設計騰出空間。
+
+**程式碼變動**：
+| 檔案 | 前 | 後 | 變化 |
+|------|-----|-----|------|
+| `js/admin.js` | 2511 行 | 1179 行 | **-1332 行 (-53%)** |
+| `index.html` | 758 行 | 731 行 | -27 行（刪除薪資設定卡片） |
+| `js/state.js` | 130 行 | 124 行 | -6 行（DOM 宣告） |
+| `js/app.js` | 436 行 | 435 行 | -1 行 |
+| `js/modules/ui-manager.js` | 196 行 | 192 行 | -4 行 |
+
+**admin.js 移除內容**：
+- 常數：`OVERTIME_RATES`、`INSURANCE_RATES`、`DAY_TYPE`
+- 純計算函式：`calculateEffectiveHours`、`calculateDailySalary`、
+  `calculateDailySalaryFromPunches`、`classifyOvertimeHours`、
+  `calculateOvertimeFees`、`calculatePayrollIncome`、
+  `calculatePayrollDeductions`、`generatePayrollSummary`
+- 日期類型：`isExplicitNonHolidayValue`、`determineDayType`
+- Excel 薪資輸出：`generatePayrollSheet`、`generateSamplePayrollFormatSheet`
+- 輔助：`setupAdminSalaryToggle`、`resolveHourlyRateForExport`、
+  `getPunchesFromRecord`、`pickInOutPunches`、`parseTimeToDate`、
+  `computeRawHoursFromPunches`
+- `renderAdminDailyRecords` 中顯示當日薪資的 salaryHtml 區塊
+- `setupAdminExport` 重寫為只輸出完整打卡紀錄（一個 Sheet）
+- 員工資料設定時填入薪資 UI 的兩行（`salaryValueSpan.innerText`、
+  `basicSalaryInput.value`）
+
+**index.html 移除內容**：
+- 整個「薪資設定」卡片（form-leave-salary，含 basic-salary 滑桿）
+  — 其 `onsubmit="handleLeaveSalaryUpdate(event)"` 是既有 bug（handler 不存在）
+
+**state.js / app.js / ui-manager.js 移除內容**：
+- DOM 綁定：`basicSalaryInput`、`salaryValueSpan`、`formLeaveSalary`、
+  `adminMonthlySalaryDisplay`、`exportPayrollBtn`
+
+**保留（待重新設計時決定）**：
+- i18n 各語系的薪資翻譯鍵（`LEAVE_SALARY_SETTINGS`、`BASIC_SALARY`、
+  `MONTHLY_SALARY_PREFIX` 等）
+- `docs/rules/薪資與加班計算規則整理.md` 等規劃素材
+
+**測試結果**：55 測試全綠，4 suite pass。
+
+---
+
 ### 移除：薪資計算死碼（待重新設計）
 
 **決策**：薪資計算邏輯將重新設計，先刪除過時死碼，騰空位給之後的規劃。

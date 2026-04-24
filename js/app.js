@@ -148,8 +148,7 @@ function getDOMElements() {
     adminPrevMonthBtn = document.getElementById('admin-prev-month-btn');
     adminNextMonthBtn = document.getElementById('admin-next-month-btn');
     adminCalendarGrid = document.getElementById('admin-calendar-grid');
-    //薪水
-    adminMonthlySalaryDisplay = document.getElementById('admin-monthly-salary-display');
+    // 薪資 DOM 綁定已移除，待重新設計
 
     // 管理員專用：日紀錄與審批
     adminDailyRecordsCard = document.getElementById('admin-daily-records-card');
