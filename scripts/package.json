@@ -1,0 +1,15 @@
+{
+  "name": "wenhui-attendance-scripts",
+  "version": "0.1.0",
+  "description": "一次性資料遷移與維運腳本（獨立於前端與 Cloud Functions）",
+  "private": true,
+  "scripts": {
+    "migrate:dry": "node migrate-to-firestore.js --dry-run",
+    "migrate": "node migrate-to-firestore.js",
+    "migrate:clear": "node migrate-to-firestore.js --clear"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "googleapis": "^144.0.0"
+  }
+}

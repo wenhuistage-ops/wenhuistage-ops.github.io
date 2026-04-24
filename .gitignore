@@ -22,8 +22,11 @@ coverage/
 # Firebase 服務帳號金鑰（勿提交）
 serviceAccountKey.json
 firebase-functions/node_modules/
+firebase-functions/functions/node_modules/
 firebase-functions/.firebaserc
 .firebaserc
+scripts/node_modules/
+scripts/serviceAccountKey.json
 
 # IDE/Editor
 .vscode

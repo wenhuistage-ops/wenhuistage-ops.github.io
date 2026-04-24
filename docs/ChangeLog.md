@@ -7,6 +7,39 @@
 
 ## 2026-04-25
 
+### 階段三 D 前置：migrate-to-firestore.js 完整實作
+
+**脈絡**：使用者已升級 Blaze、完成 DEPLOY.md 8 步驟（Cloud Functions 部署完成），
+要開始遷移實際 Google Sheets 資料到 Firestore。
+
+**新增 / 更新**：
+- `scripts/migrate-to-firestore.js`：完整實作（原骨架約 90 行 → 完整 300 行）
+  - 使用 `firebase-admin` + `googleapis` 讀 Sheets 寫 Firestore
+  - 支援 `--dry-run` / `--clear` / `--only=<target>` 三個模式
+  - 批次寫入（每 400 筆一批，避開 Firestore 500 operation limit）
+  - doc id 策略：`employees.userId`、`attendance.<userId>_<ts>_<idx>`、`locations.<id|loc_N>`
+  - 座標解析：`(lat,lng)` 格式拆成獨立 lat/lng 欄位
+  - 全部欄位對應與 GS writeEmployee_ / punch / getLocationsCached 同步
+- `scripts/package.json`：新增 devDependencies（firebase-admin + googleapis）
+- `scripts/MIGRATE.md`：**使用者逐步指南**（8 個 Step + 欄位對應表 + 疑難排解）
+- `.gitignore`：追加 `scripts/node_modules/`、`scripts/serviceAccountKey.json`
+
+**關鍵提醒（寫在 MIGRATE.md Step 1）**：
+- ❌ 不要對正式 Sheet 本體執行
+- ✅ 先 **建立副本** 再執行 migration
+- ✅ 先 `npm run migrate:dry` 驗證欄位正確，再正式 `npm run migrate`
+
+**下一步使用者要做**：
+1. 複製正式 Sheet 為測試副本
+2. Firebase Console 下載服務帳號金鑰 → 放 `scripts/serviceAccountKey.json`
+3. 把金鑰 email 加入副本 Sheet 的共用
+4. `cd scripts && npm install && npm run migrate:dry` 驗證
+5. 確認 OK 後 `npm run migrate`
+
+測試：4 suite / 55 全綠。
+
+---
+
 ### 階段三 C（完結）：Cloud Functions 全部 17 個 action 實作完成
 
 **本輪新增 11 個 Cloud Functions + 1 個 attendance helper**
