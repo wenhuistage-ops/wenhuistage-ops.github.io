@@ -24,7 +24,7 @@ async function preloadTranslations(langs = ['en-US', 'ja']) {
 
     try {
       console.log(`⏳ 正在預加載語言 ${lang}...`);
-      const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
+      const res = await fetch(`./i18n/${lang}.json`);
       if (!res.ok) {
         throw new Error(`HTTP 錯誤: ${res.status}`);
       }
@@ -54,7 +54,7 @@ async function loadTranslations(lang) {
     } else {
       // 從網路 fetch
       console.log(`🌐 從網路加載語言 ${lang}...`);
-      const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
+      const res = await fetch(`./i18n/${lang}.json`);
       if (!res.ok) {
         throw new Error(`HTTP 錯誤: ${res.status}`);
       }
