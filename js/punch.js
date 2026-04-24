@@ -333,47 +333,6 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
 
 // #endregion
 
-// ===================================
-// #region 2. 自動打卡
-// ===================================
-
-/**
- * 檢查 URL 參數，若有 ?action=punch 則自動觸發打卡。
- */
-function checkAutoPunch() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const action = urlParams.get('action');
-
-    // 🌟 修正點：使用全域變數 🌟
-    let targetButton = null;
-
-    if (action === 'in' && punchInBtn) { // punchInBtn 來自 state.js
-        targetButton = punchInBtn;
-    } else if (action === 'out' && punchOutBtn) { // punchOutBtn 來自 state.js
-        targetButton = punchOutBtn;
-    }
-
-    if (targetButton) {
-        // sessionToken 是在 app.js 的登入流程中設置的，這裡直接檢查即可
-        if (localStorage.getItem("sessionToken")) {
-            showNotification(t("PUNCH_AUTO_TRIGGERED") || '正在自動打卡...', "info");
-
-            setTimeout(() => {
-                // 觸發目標打卡按鈕的點擊事件
-                targetButton.click();
-                // 清除 URL 參數
-                history.replaceState(null, '', window.location.pathname);
-            }, 500);
-
-        } else {
-            showNotification(t("PUNCH_REQUIRE_LOGIN") || '請先登入才能自動打卡！', "warning");
-        }
-    }
-}
-// #endregion
-
-// ===================================
-
 
 // ===================================
 // #region 4. 補打卡 UI 與 API 邏輯
