@@ -7,6 +7,33 @@
 
 ## 2026-04-24
 
+### 移除：薪資計算死碼（待重新設計）
+
+**決策**：薪資計算邏輯將重新設計，先刪除過時死碼，騰空位給之後的規劃。
+
+**刪除**：
+- `js/modules/payroll.js`：簡化版（固定 1.33 倍率），瀏覽器載入後被 admin.js
+  的勞基法版本覆蓋而從未實際執行。與 admin.js 的回傳格式也不相容。
+- `tests/admin.test.js` 的「薪資計算」區塊（27 測試）：依賴上述已刪模組
+- `index.html` 中 `<script>` 載入 payroll.js 的標籤
+
+**保留（待規劃）**：
+- `admin.js` 中的 13 個薪資計算函式（OVERTIME_RATES、INSURANCE_RATES、
+  calculateEffectiveHours、calculateDailySalary、calculateDailySalaryFromPunches、
+  classifyOvertimeHours、calculateOvertimeFees、calculatePayrollIncome、
+  calculatePayrollDeductions、generatePayrollSummary、DAY_TYPE、
+  isExplicitNonHolidayValue、determineDayType）
+- 原因：admin.js 的 Excel 匯出（generatePayrollSheet、
+  generateSamplePayrollFormatSheet、匯出 handler）仍呼叫這些函式，貿然移除
+  會導致 ReferenceError。需先決定「薪資匯出」是否也要連帶重新設計
+- `index.html` 的 form-leave-salary UI 表單
+- `i18n` 的薪資相關翻譯鍵（保留待重新設計時沿用或汰換）
+- `docs/rules/薪資與加班計算規則整理.md` 等規劃素材
+
+**測試結果**：82 → 55（減少 27 個薪資測試），4 個 suite 全綠。
+
+---
+
 ### 修復：超出範圍打卡錯誤訊息未翻譯
 
 **問題**：使用者打卡超出地點範圍時，畫面顯示原始字串
