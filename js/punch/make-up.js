@@ -18,17 +18,20 @@ along with 0riginAttendance-System. If not, see <https://www.gnu.org/licenses/>.
 Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this project.
  */
 // ===================================
-// js/punch.js
-// 目前僅剩「補打卡 UI 與 API 邏輯」，其他區塊已拆出：
-//   - 異常紀錄：js/punch/abnormal-records.js
-//   - 自動打卡：js/punch/auto-punch.js
-//   - 地理位置：js/punch/geolocation.js
-//   - 打卡主流程：js/punch/punch-flow.js
-// 依賴: state.js、core.js、ui.js
+// 補打卡模組（原 punch.js Region 4）
+//
+// 職責：
+// - validateAdjustTime：驗證補打卡日期時間是否在合法範圍內
+// - bindPunchEvents：綁定補打卡 Modal、請假/休假按鈕等 UI 事件
+//
+// 依賴全域：state.js 的 DOM 綁定、core.js 的 callApifetch/showNotification、
+//           ui.js 的 generalButtonState、checkAbnormal（abnormal-records.js）
+//
+// 被 app.js:296 呼叫進行事件綁定初始化。
 // ===================================
 
 // ===================================
-// #region 4. 補打卡 UI 與 API 邏輯
+// #region 補打卡 UI 與 API 邏輯
 // ===================================
 
 function validateAdjustTime(value) {
@@ -450,3 +453,10 @@ function bindPunchEvents() {
     }
 }
 // #endregion
+
+console.log('✓ make-up 模組已加載');
+
+// CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { validateAdjustTime, bindPunchEvents };
+}

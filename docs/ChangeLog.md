@@ -7,6 +7,53 @@
 
 ## 2026-04-24
 
+### 重構：punch.js 拆分完成（第四步：補打卡 UI）
+
+**動作**：將 Region 4「補打卡 UI 與 API 邏輯」搬至 `js/punch/make-up.js`，
+punch.js 完全移除（`git mv` 保留歷史）。
+
+**檔案變動**：
+| 檔案 | 變化 |
+|------|------|
+| `js/punch.js` | **已刪除**（原 441 行 → 0） |
+| `js/punch/make-up.js` | 新增 461 行（自 punch.js 搬移並重寫檔頭 + UMD export） |
+| `index.html` | 移除 `js/punch.js` 載入，改為 `js/punch/make-up.js` |
+
+**模組內容**：
+- `validateAdjustTime(value)` — 純函式，驗證補打卡日期在合法範圍
+- `bindPunchEvents()` — 超大事件綁定中心（補打卡 Modal、請假/休假按鈕、API 呼叫）
+
+**相容性**：
+- `app.js:296` 的 `bindPunchEvents()` 呼叫透過全域相容
+- 載入順序：abnormal-records → auto-punch → geolocation → punch-flow → make-up
+
+### 🎉 punch.js 拆分全部完成
+
+| 階段 | punch.js 行數 | 變化 |
+|------|---------------|------|
+| 原始 | 1029 | — |
+| Region 3（異常紀錄） | 799 | -230 |
+| Region 2（自動打卡） | 758 | -41 |
+| Region 1（核心打卡） | 441 | -317 |
+| **Region 4（補打卡 UI）** | **0 / 已刪除** | **-441** |
+
+### js/punch/ 最終結構
+
+```
+js/punch/
+├── abnormal-records.js  (253 行)  異常紀錄查詢與渲染
+├── auto-punch.js        ( 57 行)  URL 參數自動觸發打卡
+├── geolocation.js       (188 行)  GPS 權限、精確定位、重試
+├── punch-flow.js        (198 行)  doPunch 主流程、權限降級、無定位打卡
+└── make-up.js           (461 行)  補打卡 UI、事件綁定、請假/休假申請
+```
+
+總計 1157 行（因各模組加檔頭註解與 UMD export 約 +128 行），原 1029 行核心邏輯完整保留、關注點清晰分離。
+
+測試結果：4 suite / 55 測試全綠。
+
+---
+
 ### 重構：punch.js 拆分第三步（抽出核心打卡邏輯）
 
 **動作**：將 punch.js Region 1「核心打卡邏輯」拆為兩個關注點獨立的模組。
