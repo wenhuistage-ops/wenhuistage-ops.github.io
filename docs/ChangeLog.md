@@ -7,6 +7,45 @@
 
 ## 2026-04-24
 
+### 重構：抽出 index.html 模板至 templates/（階段二完結）
+
+**調查發現**：index.html 的 5 個內嵌 `<template>` 與配套的
+`js/template-loader.js` **完全未被任何程式碼使用**——`UIComponentGenerator`
+實際上是純 `document.createElement` 動態生成，不讀取 `<template>` 元素。
+
+**動作**：
+- 建立 `templates/` 目錄
+- 將 5 個 `<template>` 片段保留至 `templates/ui-components.html`
+  （未來重啟外部模板機制時可直接沿用）
+- 建立 `templates/README.md` 記錄目的、現況與重啟指南
+- 刪除 `index.html` 的 `<div id="templates">...</div>`（line 81-142，62 行）
+- 刪除 `js/template-loader.js`（125 行死碼）
+- 從 `index.html` 移除 template-loader.js 的 `<script defer>` 載入
+
+**檔案變動**：
+| 檔案 | 變化 |
+|------|------|
+| `index.html` | 731 → 673 行（-58 行，-8%） |
+| `js/template-loader.js` | **已刪除**（125 行死碼） |
+| `templates/ui-components.html` | 新增（79 行，保留素材） |
+| `templates/README.md` | 新增（使用指南） |
+
+**保留**：
+- `js/ui-component-generator.js`（實際被 admin.js 使用，非死碼）
+
+**測試結果**：4 suite / 55 測試全綠。
+
+### 🎉 階段二全部完成
+
+所有階段二檢查清單項目已完成或轉為其他形式：
+- [x] admin.js 拆分 — 改為透過刪除薪資達成 2511→1179 行（-53%）
+- [x] punch.js 拆分 — 1029 行 → 5 個子模組於 js/punch/
+- [x] 抽出 index.html 模板至 templates/ — 刪除死碼 + 保留素材
+- [x] admin.js 與 modules/payroll.js 衝突 — 兩邊都刪
+- [x] Excel 匯出簡化 — 只輸出完整打卡紀錄
+
+---
+
 ### 重構：punch.js 拆分完成（第四步：補打卡 UI）
 
 **動作**：將 Region 4「補打卡 UI 與 API 邏輯」搬至 `js/punch/make-up.js`，

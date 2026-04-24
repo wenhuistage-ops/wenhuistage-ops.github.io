@@ -1,0 +1,79 @@
+<!--
+  UI 元件模板庫（原 index.html 內嵌 <div id="templates">）
+
+  狀態：目前未被任何 JS 使用（template-loader.js 已於 2026-04-24 刪除）。
+  保留原因：為將來重啟「外部模板載入」機制保留素材。
+
+  若要啟用這些模板：
+  1. 將本檔內容 fetch 後 innerHTML 到 index.html 某個隱藏容器
+  2. 或透過 Vite build 階段 inline 到 index.html
+  3. 再實作 template-loader（runtime 讀取 + 填充）
+
+  模板欄位慣例：
+    - data-id-suffix：會被填入具體 ID 後綴
+    - data-i18n：i18n key
+    - data-text：插入 textContent
+    - data-text-value：插入顯示值
+    - data-class：設定 class
+    - data-attr-xxx：設定 attr
+-->
+
+<!-- Tab Button Template -->
+<template id="tab-button-template">
+    <button data-id-suffix="tab" data-i18n="TAB_PLACEHOLDER"
+        class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">
+        <span data-text>標籤</span>
+    </button>
+</template>
+
+<!-- Info Item Template (梯度卡片) -->
+<template id="info-item-template">
+    <div
+        class="info-item bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-xl shadow-md border-l-4 border-yellow-500">
+        <p class="text-base font-semibold text-yellow-800 dark:text-yellow-300 flex items-center"
+            data-i18n="INFO_LABEL">
+            <i class="fas fa-crown mr-2 text-yellow-600 dark:text-yellow-400"></i>
+            <span data-text>標籤</span>
+        </p>
+        <p class="text-3xl font-extrabold text-yellow-700 dark:text-yellow-200 mt-2" data-text-value>N/A</p>
+    </div>
+</template>
+
+<!-- Toggle Setting Template -->
+<template id="toggle-setting-template">
+    <div
+        class="flex justify-between items-center p-4 rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
+        <label class="setting-label text-base font-semibold text-yellow-800 dark:text-yellow-300"
+            data-i18n="SETTING_LABEL">
+            <span data-text>設定標籤</span>:
+        </label>
+        <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" data-id-suffix="toggle" class="sr-only peer" data-onchange="handleToggle">
+            <div
+                class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 dark:peer-focus:ring-yellow-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-yellow-600">
+            </div>
+            <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300" data-status-text>關閉</span>
+        </label>
+    </div>
+</template>
+
+<!-- Card Wrapper Template -->
+<template id="card-template">
+    <div class="card p-6">
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4" data-i18n="CARD_TITLE" data-text>卡片標題</h2>
+        <p class="text-gray-500 mb-4" data-i18n="CARD_DESCRIPTION" data-text-desc>卡片描述</p>
+        <div class="card-content" data-content><!-- 內容將插入於此 --></div>
+    </div>
+</template>
+
+<!-- Form Input Group Template -->
+<template id="form-input-template">
+    <div>
+        <label data-id-suffix="label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            data-i18n="LABEL">
+            <span data-text>標籤</span>
+        </label>
+        <input type="text" data-id-suffix="input"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+</template>
