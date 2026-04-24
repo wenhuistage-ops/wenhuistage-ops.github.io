@@ -1,124 +1,196 @@
 /**
  * 測試管理員功能
- * 測試薪資計算、權限校驗、員工管理
+ * 薪資計算：直接測試 js/modules/payroll.js 真實模組（非內聯假函式）
+ * 其他區段：純邏輯規格測試（無對應 admin.js 實作，作為行為規格）
  */
 
+const {
+  MIN_MONTHLY_SALARY,
+  HOURLY_RATE,
+  OVERTIME_MULTIPLIER,
+  HOURS_PER_DAY,
+  calculateDailySalary,
+  calculateOvertimeFees,
+  calculateEffectiveHours,
+  calculateDailySalaryFromPunches,
+  calculateMonthlySalary,
+  generatePayrollSummary,
+} = require('../js/modules/payroll');
+
 describe('管理員功能 - Admin Module', () => {
-  describe('薪資計算系統', () => {
-    // 2025 台灣最低月薪
-    const MIN_MONTHLY_SALARY = 33840;
-    const HOURLY_RATE = MIN_MONTHLY_SALARY / 240; // 約 141/小時
-    const OVERTIME_RATE = HOURLY_RATE * 1.33; // 加班時薪
-
-    function calculateDailySalary(hoursWorked, monthlySalary = MIN_MONTHLY_SALARY) {
-      const dailyRate = monthlySalary / 30;
-      return dailyRate * Math.min(hoursWorked, 8); // 一天最多 8 小時正常工時
-    }
-
-    function calculateOvertimePay(overtimeHours, monthlySalary = MIN_MONTHLY_SALARY) {
-      const hourlyRate = monthlySalary / 240;
-      return overtimeHours * hourlyRate * 1.33; // 加班費 1.33 倍
-    }
-
-    function calculateMonthlySalary(data) {
-      const {
-        baseSalary = MIN_MONTHLY_SALARY,
-        normalHours = 0,
-        overtimeHours = 0,
-        absenceHours = 0,
-      } = data;
-
-      // 計算基本薪資扣除
-      const hourlyRate = baseSalary / 240;
-      const absenceDeduction = absenceHours * hourlyRate;
-
-      // 計算加班費
-      const overtimePay = overtimeHours * hourlyRate * 1.33;
-
-      // 最終薪資
-      const totalSalary = baseSalary - absenceDeduction + overtimePay;
-
-      return {
-        baseSalary,
-        absenceDeduction: parseFloat(absenceDeduction.toFixed(2)),
-        overtimePay: parseFloat(overtimePay.toFixed(2)),
-        totalSalary: parseFloat(totalSalary.toFixed(2)),
-      };
-    }
-
-    it('應正確計算日薪', () => {
-      const salary = calculateDailySalary(8); // 一天工作 8 小時
-      // 月薪 33840 / 30 * 8 = 9024
-      expect(salary).toBeGreaterThan(8000);
-      expect(salary).toBeLessThan(10000);
+  describe('薪資計算 - modules/payroll.js（真實模組）', () => {
+    describe('常數定義', () => {
+      it('最低月薪為 33840', () => {
+        expect(MIN_MONTHLY_SALARY).toBe(33840);
+      });
+      it('時薪為月薪 / 240', () => {
+        expect(HOURLY_RATE).toBeCloseTo(33840 / 240, 5);
+      });
+      it('加班倍率為 1.33', () => {
+        expect(OVERTIME_MULTIPLIER).toBe(1.33);
+      });
+      it('每日正常工時為 8', () => {
+        expect(HOURS_PER_DAY).toBe(8);
+      });
     });
 
-    it('應正確計算加班費', () => {
-      const overtime = calculateOvertimePay(2); // 2 小時加班
-      expect(overtime).toBeGreaterThan(0);
-      expect(overtime).toBeLessThan(400); // 合理範圍
+    describe('calculateEffectiveHours', () => {
+      it('應計算 8 小時工時', () => {
+        expect(calculateEffectiveHours('09:00', '17:00')).toBe(8);
+      });
+      it('應計算半小時精度', () => {
+        expect(calculateEffectiveHours('09:00', '17:30')).toBe(8.5);
+      });
+      it('下班早於上班應回 0', () => {
+        expect(calculateEffectiveHours('17:00', '09:00')).toBe(0);
+      });
+      it('空參數應回 0', () => {
+        expect(calculateEffectiveHours(null, null)).toBe(0);
+        expect(calculateEffectiveHours('', '')).toBe(0);
+      });
     });
 
-    it('應計算正常工作月薪', () => {
-      const result = calculateMonthlySalary({
-        baseSalary: 33840,
-        normalHours: 160,
-        overtimeHours: 0,
-        absenceHours: 0,
+    describe('calculateDailySalary', () => {
+      it('平日 8 小時應回 8 × 時薪', () => {
+        expect(calculateDailySalary(8, 141, 'normal')).toBe(8 * 141);
+      });
+      it('平日超過 8 小時應封頂於 8', () => {
+        expect(calculateDailySalary(10, 141, 'normal')).toBe(8 * 141);
+      });
+      it('週末應適用 2 倍率', () => {
+        expect(calculateDailySalary(8, 141, 'weekend')).toBe(8 * 141 * 2);
+      });
+      it('假日應適用 2 倍率', () => {
+        expect(calculateDailySalary(4, 141, 'holiday')).toBe(4 * 141 * 2);
+      });
+      it('未知日期類型應回 0', () => {
+        expect(calculateDailySalary(8, 141, 'unknown')).toBe(0);
+      });
+    });
+
+    describe('calculateOvertimeFees', () => {
+      it('平日加班套 1.33 倍', () => {
+        expect(calculateOvertimeFees({ regular: 2 }, 100)).toBeCloseTo(
+          2 * 100 * 1.33,
+          5
+        );
+      });
+      it('週末加班套 2 × 1.33 倍', () => {
+        expect(calculateOvertimeFees({ weekend: 2 }, 100)).toBeCloseTo(
+          2 * 100 * 2 * 1.33,
+          5
+        );
+      });
+      it('假日加班套 2 × 1.33 倍', () => {
+        expect(calculateOvertimeFees({ holiday: 1 }, 100)).toBeCloseTo(
+          1 * 100 * 2 * 1.33,
+          5
+        );
+      });
+      it('複合情況', () => {
+        const fees = calculateOvertimeFees(
+          { regular: 2, weekend: 1, holiday: 0.5 },
+          100
+        );
+        const expected =
+          2 * 100 * 1.33 + 1 * 100 * 2 * 1.33 + 0.5 * 100 * 2 * 1.33;
+        expect(fees).toBeCloseTo(expected, 5);
+      });
+      it('空對象應回 0', () => {
+        expect(calculateOvertimeFees({}, 100)).toBe(0);
+      });
+    });
+
+    describe('calculateDailySalaryFromPunches', () => {
+      it('由打卡時間計算日薪', () => {
+        expect(calculateDailySalaryFromPunches('09:00', '17:00', 141, 'normal'))
+          .toBe(8 * 141);
+      });
+      it('無效時間應回 0', () => {
+        expect(calculateDailySalaryFromPunches(null, '17:00', 141)).toBe(0);
+      });
+    });
+
+    describe('calculateMonthlySalary', () => {
+      it('應計算正常工作月薪（無加班、無缺勤）', () => {
+        const r = calculateMonthlySalary({
+          baseSalary: 33840,
+          normalHours: 160,
+          overtimeHours: 0,
+          absenceHours: 0,
+        });
+        expect(r.baseSalary).toBe(33840);
+        expect(r.absenceDeduction).toBe(0);
+        expect(r.overtimePay).toBe(0);
+        expect(r.totalSalary).toBe(33840);
       });
 
-      expect(result.baseSalary).toBe(33840);
-      expect(result.absenceDeduction).toBe(0);
-      expect(result.overtimePay).toBe(0);
-      expect(result.totalSalary).toBe(33840);
-    });
-
-    it('應計算有缺勤的月薪', () => {
-      const result = calculateMonthlySalary({
-        baseSalary: 33840,
-        normalHours: 160,
-        overtimeHours: 0,
-        absenceHours: 8, // 缺勤 8 小時
+      it('應扣除缺勤', () => {
+        const r = calculateMonthlySalary({
+          baseSalary: 33840,
+          absenceHours: 8,
+        });
+        expect(r.absenceDeduction).toBeCloseTo((33840 / 240) * 8, 1);
+        expect(r.totalSalary).toBeLessThan(33840);
       });
 
-      expect(result.absenceDeduction).toBeGreaterThan(0);
-      expect(result.totalSalary).toBeLessThan(33840);
-    });
-
-    it('應計算有加班的月薪', () => {
-      const result = calculateMonthlySalary({
-        baseSalary: 33840,
-        normalHours: 160,
-        overtimeHours: 10, // 加班 10 小時
-        absenceHours: 0,
+      it('應加上加班費', () => {
+        const r = calculateMonthlySalary({
+          baseSalary: 33840,
+          overtimeHours: 10,
+        });
+        const hourlyRate = 33840 / 240;
+        expect(r.overtimePay).toBeCloseTo(
+          10 * hourlyRate * OVERTIME_MULTIPLIER,
+          1
+        );
+        expect(r.totalSalary).toBeGreaterThan(33840);
       });
 
-      expect(result.overtimePay).toBeGreaterThan(0);
-      expect(result.totalSalary).toBeGreaterThan(33840);
-    });
-
-    it('應計算複雜情況（加班+缺勤）', () => {
-      const result = calculateMonthlySalary({
-        baseSalary: 33840,
-        normalHours: 160,
-        overtimeHours: 5,
-        absenceHours: 4,
+      it('應計算複雜情況（加班+缺勤）', () => {
+        const r = calculateMonthlySalary({
+          baseSalary: 33840,
+          overtimeHours: 5,
+          absenceHours: 4,
+        });
+        expect(r.absenceDeduction).toBeGreaterThan(0);
+        expect(r.overtimePay).toBeGreaterThan(0);
+        expect(r.totalSalary).toBeCloseTo(
+          33840 - r.absenceDeduction + r.overtimePay,
+          2
+        );
       });
 
-      expect(result.absenceDeduction).toBeGreaterThan(0);
-      expect(result.overtimePay).toBeGreaterThan(0);
-      expect(result.totalSalary).toBeCloseTo(33840 - result.absenceDeduction + result.overtimePay, 2);
+      it('應處理零薪資', () => {
+        const r = calculateMonthlySalary({
+          baseSalary: 0,
+          normalHours: 0,
+          overtimeHours: 0,
+          absenceHours: 0,
+        });
+        expect(r.totalSalary).toBe(0);
+      });
     });
 
-    it('應處理零薪資情況', () => {
-      const result = calculateMonthlySalary({
-        baseSalary: 0,
-        normalHours: 0,
-        overtimeHours: 0,
-        absenceHours: 0,
+    describe('generatePayrollSummary', () => {
+      it('應生成摘要結構', () => {
+        const records = [{ punchInTime: '09:00', punchOutTime: '17:00' }];
+        const summary = generatePayrollSummary(records, HOURLY_RATE, {
+          baseSalary: MIN_MONTHLY_SALARY,
+        });
+        expect(summary).toHaveProperty('grossSalary');
+        expect(summary).toHaveProperty('deductions');
+        expect(summary).toHaveProperty('netSalary');
+        expect(summary.records).toBe(1);
       });
 
-      expect(result.totalSalary).toBe(0);
+      it('加班記錄應反映於 grossSalary', () => {
+        const records = [{ punchInTime: '09:00', punchOutTime: '19:00' }]; // 10h，含 2h 加班
+        const summary = generatePayrollSummary(records, HOURLY_RATE, {
+          baseSalary: MIN_MONTHLY_SALARY,
+        });
+        expect(summary.grossSalary).toBeGreaterThan(MIN_MONTHLY_SALARY);
+      });
     });
   });
 

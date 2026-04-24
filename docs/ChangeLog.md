@@ -7,6 +7,23 @@
 
 ## 2026-04-24
 
+### 階段二：測試基礎建設
+
+#### 修改
+- `js/modules/payroll.js` 尾部新增 UMD export（`typeof module !== 'undefined'` 保護）—瀏覽器不受影響，Node.js/Jest 可 `require`
+- `tests/admin.test.js`「薪資計算」改寫：從內聯假函式改為 `require('../js/modules/payroll')` 真實測試，新增常數、`calculateEffectiveHours`、`calculateDailySalary`、`calculateOvertimeFees`、`calculateDailySalaryFromPunches`、`calculateMonthlySalary`、`generatePayrollSummary` 覆蓋（+16 測試）
+- `tests/punch.test.js`「補打卡驗證」修正 `toDateString()` 字串比較 bug，改用時間戳比較；測試日期改相對今日，避免硬編碼過期
+
+#### 測試結果
+- 從 `52 tests (50 pass, 2 fail)` 提升至 `73 tests (73 pass)`
+- admin.test.js 從 26 → 42 個測試
+
+#### 待後續處理
+- `admin.js` 與 `modules/payroll.js` 兩套薪資實作衝突——admin.js 勞基法完整版（實際生效）、modules/payroll.js 簡化原型版（被覆蓋為死碼）。需於階段二拆分 admin.js 時統一
+- admin.js 黃金測試需先抽純函式到可 require 模組（例如 `js/admin/salary-calculator.js`）
+
+---
+
 ### 階段一：清理與奠基
 
 #### 新增

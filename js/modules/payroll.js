@@ -237,3 +237,23 @@ function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, 
 
 
 console.log('✓ payroll 模塊已加載');
+
+// CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    MIN_MONTHLY_SALARY,
+    HOURLY_RATE,
+    OVERTIME_MULTIPLIER,
+    HOURS_PER_DAY,
+    calculateDailySalary,
+    calculateOvertimeFees,
+    calculateEffectiveHours,
+    calculateDailySalaryFromPunches,
+    calculatePayrollIncome,
+    calculatePayrollDeductions,
+    generatePayrollSummary,
+    calculateMonthlySalary,
+    generatePayrollSheet,
+    generateSamplePayrollFormatSheet,
+  };
+}
