@@ -3,6 +3,8 @@
   "APP_TITLE": "Sistem Absensi Wenhui",
   "WELCOME_BACK": "Selamat Datang Kembali!",
   "BTN_LOGOUT": "Keluar",
+  "BTN_CANCEL": "Batal",
+  "BTN_CONFIRM": "Konfirmasi",
   "CHECKING_LOGIN": "Memeriksa Status Masuk...",
   "SUBTITLE_LOGIN": "Selamat Datang di Sistem Absensi Wenhui",
   "BTN_LOGOIN": "Masuk dengan LINE",

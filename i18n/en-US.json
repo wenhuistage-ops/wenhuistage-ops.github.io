@@ -3,6 +3,8 @@
   "APP_TITLE": "Wenhui Attendance",
   "WELCOME_BACK": "Welcome Back!",
   "BTN_LOGOUT": "Logout",
+  "BTN_CANCEL": "Cancel",
+  "BTN_CONFIRM": "Confirm",
   "CHECKING_LOGIN": "Checking Login Status...",
   "SUBTITLE_LOGIN": "Welcome to Wenhui Attendance",
   "BTN_LOGOIN": "Login with LINE",

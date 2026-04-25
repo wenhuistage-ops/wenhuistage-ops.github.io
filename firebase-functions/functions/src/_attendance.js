@@ -99,14 +99,26 @@ function summarizeByDay(records) {
     const hh = String(t.getUTCHours()).padStart(2, "0");
     const mm = String(t.getUTCMinutes()).padStart(2, "0");
 
-    day.record.push({
+    const newRecord = {
       time: `${hh}:${mm}`,
       type: r.type || "",
       location: r.locationName || "",
       note: r.note || "",
       audit: r.audit || "",
       adjustmentType: r.adjustmentType || "",
-    });
+    };
+
+    // 去重：同一天若已有 type + time + location 相同的記錄就跳過
+    // 避免來源 Sheet 重複申請（例如同一天兩筆 08:00 病假）造成顯示重複
+    const isDup = day.record.some(
+      (p) =>
+        p.time === newRecord.time &&
+        p.type === newRecord.type &&
+        p.location === newRecord.location
+    );
+    if (!isDup) {
+      day.record.push(newRecord);
+    }
   });
 
   // 對每一日做輕量判斷

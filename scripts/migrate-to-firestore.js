@@ -278,8 +278,16 @@ async function migrateAttendance(sheets, db) {
     .map((r, idx) => {
       const timestamp = toFirestoreTimestamp(r[0]);
       const userId = String(r[1] || "").trim();
-      const coords = String(r[5] || "").trim(); // 格式: (lat,lng) 或 "申請時間: ..." 或 "無定位"
-      const coordsMatch = coords.match(/^\(([\d.\-]+),([\d.\-]+)\)$/);
+      const coordsRaw = String(r[5] || "").trim(); // 格式: (lat,lng) 或 "申請時間: ..." 或 "無定位"
+      const coordsMatch = coordsRaw.match(/^\(([\d.\-]+),([\d.\-]+)\)$/);
+
+      // 從 GPS 欄位嘗試解析「申請時間: YYYY-MM-DD HH:MM」（補打卡/請假/休假時用）
+      // 對應 GS 將申請時間塞進 GPS 欄位的習慣
+      let applicationTime = null;
+      const appMatch = coordsRaw.match(/申請時間:\s*([0-9\/\-]+\s+[0-9:]+(?::[0-9]+)?)/);
+      if (appMatch) {
+        applicationTime = toFirestoreTimestamp(appMatch[1]);
+      }
 
       // 用 userId + timestamp(ms) 作為 doc id 以避免重複
       const tsMs = timestamp ? timestamp.toMillis() : Date.now() + idx;
@@ -293,13 +301,14 @@ async function migrateAttendance(sheets, db) {
           dept: String(r[2] || "").trim(),
           name: String(r[3] || "").trim(),
           type: String(r[4] || "").trim(),
-          coords,
+          coords: coordsRaw,
           lat: coordsMatch ? Number(coordsMatch[1]) : null,
           lng: coordsMatch ? Number(coordsMatch[2]) : null,
           locationName: String(r[6] || "").trim(),
           adjustmentType: String(r[7] || "").trim(), // 補打卡 / 系統請假記錄
           audit: String(r[8] || "").trim(), // ? / v / x
           note: String(r[9] || "").trim(),
+          applicationTime, // null 或 Timestamp（補打卡/請假/休假才有）
           migratedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
       };

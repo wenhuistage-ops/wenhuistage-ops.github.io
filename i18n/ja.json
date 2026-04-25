@@ -3,6 +3,8 @@
   "APP_TITLE": "ゼロ勤怠システム",
   "WELCOME_BACK": "おかえりなさい！",
   "BTN_LOGOUT": "ログアウト",
+  "BTN_CANCEL": "キャンセル",
+  "BTN_CONFIRM": "確認",
   "CHECKING_LOGIN": "ログイン状態を確認中...",
   "SUBTITLE_LOGIN": "ゼロ勤怠システムへようこそ",
   "BTN_LOGOIN": "LINEでログイン",

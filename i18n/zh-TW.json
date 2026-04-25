@@ -3,6 +3,8 @@
   "APP_TITLE": "文輝考勤系統",
   "WELCOME_BACK": "歡迎回來！",
   "BTN_LOGOUT": "登出",
+  "BTN_CANCEL": "取消",
+  "BTN_CONFIRM": "確認",
   "CHECKING_LOGIN": "正在檢查登入狀態…",
   "SUBTITLE_LOGIN": "歡迎使用文輝考勤系統",
   "BTN_LOGOIN": "使用LINE登入",
