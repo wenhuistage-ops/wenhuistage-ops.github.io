@@ -930,6 +930,7 @@ function initAdminEvents() {
     // 註冊月薪收折與匯出功能（確保 DOM 元素已存在）
     setupAdminExport();
     setupTestNotificationButton();
+    setupBreakTimesEditor();
 }
 
 /**
@@ -1179,6 +1180,112 @@ function setupTestNotificationButton() {
             generalButtonState(btn, 'idle');
         }
     });
+}
+
+// 休息時間設定編輯器
+function setupBreakTimesEditor() {
+    const listEl = document.getElementById('break-times-list');
+    const addBtn = document.getElementById('break-times-add-btn');
+    const saveBtn = document.getElementById('break-times-save-btn');
+    if (!listEl || !addBtn || !saveBtn || listEl.dataset.bound === '1') return;
+    listEl.dataset.bound = '1';
+
+    function rowHtml(b) {
+        const name = (b && b.name) || '';
+        const start = (b && b.start) || '';
+        const end = (b && b.end) || '';
+        const nameLabel = t('BREAK_NAME_LABEL') || '休息名稱';
+        const startLabel = t('BREAK_START_LABEL') || '開始時間';
+        const endLabel = t('BREAK_END_LABEL') || '結束時間';
+        const removeLabel = t('BTN_REMOVE_BREAK') || '移除';
+        const inputCls = 'p-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white';
+        // 用 inline style 確保 row 是橫向 grid（避開 Tailwind JIT 對 grid-cols-12 等 class 未 build 的問題）
+        return `
+            <div class="break-row p-3 rounded-md bg-gray-50 dark:bg-gray-700"
+                 style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end;">
+                <div style="min-width:0;">
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${nameLabel}</label>
+                    <input type="text" class="break-name ${inputCls}" style="width:100%;" value="${String(name).replace(/"/g, '&quot;')}" />
+                </div>
+                <div style="min-width:0;">
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${startLabel}</label>
+                    <input type="time" class="break-start ${inputCls}" style="width:100%;" value="${start}" />
+                </div>
+                <div style="min-width:0;">
+                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${endLabel}</label>
+                    <input type="time" class="break-end ${inputCls}" style="width:100%;" value="${end}" />
+                </div>
+                <div>
+                    <button type="button" class="break-remove-btn text-sm font-semibold rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900"
+                            style="padding:8px 10px;" title="${removeLabel}">✕</button>
+                </div>
+            </div>`;
+    }
+
+    function render(breaks) {
+        const safeHtml = (breaks || []).map(rowHtml).join('');
+        listEl.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(safeHtml) : safeHtml;
+    }
+
+    function collect() {
+        return [...listEl.querySelectorAll('.break-row')].map((row) => ({
+            name: (row.querySelector('.break-name')?.value || '').trim(),
+            start: (row.querySelector('.break-start')?.value || '').trim(),
+            end: (row.querySelector('.break-end')?.value || '').trim(),
+        }));
+    }
+
+    listEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.break-remove-btn');
+        if (!btn) return;
+        const row = btn.closest('.break-row');
+        if (row) row.remove();
+    });
+
+    addBtn.addEventListener('click', () => {
+        const current = collect();
+        current.push({ name: '', start: '12:00', end: '13:00' });
+        render(current);
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        const breaks = collect();
+        const loadingText = t('LOADING') || '處理中...';
+        generalButtonState(saveBtn, 'processing', loadingText);
+        try {
+            const res = await callApifetch({ action: 'setBreakTimes', breaks }, 'loadingMsg');
+            if (res && res.ok) {
+                showNotification(t('MSG_BREAK_TIMES_SAVED'), 'success');
+                if (Array.isArray(res.breaks)) render(res.breaks);
+            } else {
+                const code = (res && res.code) || 'UNKNOWN_ERROR';
+                const msg = t(code) || (res && res.msg) || '';
+                showNotification(t('MSG_BREAK_TIMES_SAVE_FAILED', { msg }), 'error');
+            }
+        } catch (err) {
+            console.error('setBreakTimes 失敗', err);
+            showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+        } finally {
+            generalButtonState(saveBtn, 'idle');
+        }
+    });
+
+    // 首次載入：抓資料
+    (async () => {
+        try {
+            const res = await callApifetch({ action: 'getBreakTimes' });
+            if (res && res.ok && Array.isArray(res.breaks)) {
+                render(res.breaks);
+            } else {
+                render([]);
+                showNotification(t('MSG_BREAK_TIMES_LOAD_FAILED'), 'error');
+            }
+        } catch (err) {
+            console.error('getBreakTimes 失敗', err);
+            render([]);
+            showNotification(t('MSG_BREAK_TIMES_LOAD_FAILED'), 'error');
+        }
+    })();
 }
 // #endregion
 // ===================================

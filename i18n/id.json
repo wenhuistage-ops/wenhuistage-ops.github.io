@@ -263,5 +263,19 @@
   "DAY_KIND_PUBLIC_HOLIDAY": "Hari Libur Nasional",
   "DAY_KIND_REGULAR_LEAVE": "Hari Libur Reguler",
   "DAY_KIND_REST_DAY": "Hari Istirahat",
-  "DAY_KIND_WORKDAY": "Hari Kerja"
+  "DAY_KIND_WORKDAY": "Hari Kerja",
+  "BREAK_TIMES_TITLE": "Pengaturan Waktu Istirahat",
+  "BREAK_TIMES_DESC": "Periode waktu berikut adalah waktu istirahat perusahaan, akan otomatis dikurangkan dari jam kerja.",
+  "BREAK_NAME_LABEL": "Nama Istirahat",
+  "BREAK_START_LABEL": "Mulai",
+  "BREAK_END_LABEL": "Selesai",
+  "BTN_ADD_BREAK": "Tambah Istirahat",
+  "BTN_REMOVE_BREAK": "Hapus",
+  "MSG_BREAK_TIMES_SAVED": "Waktu istirahat tersimpan",
+  "MSG_BREAK_TIMES_SAVE_FAILED": "Penyimpanan gagal: {msg}",
+  "MSG_BREAK_TIMES_LOAD_FAILED": "Gagal memuat waktu istirahat",
+  "ERR_BREAK_TIME_FORMAT": "Format waktu salah (harus HH:MM)",
+  "ERR_BREAK_TIME_ORDER": "Waktu selesai harus setelah waktu mulai",
+  "ERR_BREAK_NAME_EMPTY": "Nama istirahat tidak boleh kosong",
+  "ERR_TOO_MANY_BREAKS": "Maksimal 10 periode istirahat"
 }

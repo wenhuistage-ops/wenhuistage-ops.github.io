@@ -263,5 +263,19 @@
   "DAY_KIND_PUBLIC_HOLIDAY": "Public Holiday",
   "DAY_KIND_REGULAR_LEAVE": "Regular Leave Day",
   "DAY_KIND_REST_DAY": "Rest Day",
-  "DAY_KIND_WORKDAY": "Workday"
+  "DAY_KIND_WORKDAY": "Workday",
+  "BREAK_TIMES_TITLE": "Break Time Settings",
+  "BREAK_TIMES_DESC": "These time periods are company breaks. Hours will be deducted automatically from work time.",
+  "BREAK_NAME_LABEL": "Break Name",
+  "BREAK_START_LABEL": "Start",
+  "BREAK_END_LABEL": "End",
+  "BTN_ADD_BREAK": "Add Break",
+  "BTN_REMOVE_BREAK": "Remove",
+  "MSG_BREAK_TIMES_SAVED": "Break times saved",
+  "MSG_BREAK_TIMES_SAVE_FAILED": "Save failed: {msg}",
+  "MSG_BREAK_TIMES_LOAD_FAILED": "Failed to load break times",
+  "ERR_BREAK_TIME_FORMAT": "Invalid time format (must be HH:MM)",
+  "ERR_BREAK_TIME_ORDER": "End time must be later than start time",
+  "ERR_BREAK_NAME_EMPTY": "Break name cannot be empty",
+  "ERR_TOO_MANY_BREAKS": "Maximum 10 break periods"
 }

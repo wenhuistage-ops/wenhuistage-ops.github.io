@@ -262,5 +262,19 @@
   "DAY_KIND_PUBLIC_HOLIDAY": "Ngày lễ",
   "DAY_KIND_REGULAR_LEAVE": "Ngày nghỉ định kỳ",
   "DAY_KIND_REST_DAY": "Ngày nghỉ bù",
-  "DAY_KIND_WORKDAY": "Ngày làm việc"
+  "DAY_KIND_WORKDAY": "Ngày làm việc",
+  "BREAK_TIMES_TITLE": "Thiết lập thời gian nghỉ",
+  "BREAK_TIMES_DESC": "Các khoảng thời gian dưới đây là giờ nghỉ của công ty, sẽ được tự động trừ khỏi giờ làm việc.",
+  "BREAK_NAME_LABEL": "Tên giờ nghỉ",
+  "BREAK_START_LABEL": "Bắt đầu",
+  "BREAK_END_LABEL": "Kết thúc",
+  "BTN_ADD_BREAK": "Thêm giờ nghỉ",
+  "BTN_REMOVE_BREAK": "Xóa",
+  "MSG_BREAK_TIMES_SAVED": "Đã lưu thời gian nghỉ",
+  "MSG_BREAK_TIMES_SAVE_FAILED": "Lưu thất bại: {msg}",
+  "MSG_BREAK_TIMES_LOAD_FAILED": "Tải thời gian nghỉ thất bại",
+  "ERR_BREAK_TIME_FORMAT": "Sai định dạng thời gian (HH:MM)",
+  "ERR_BREAK_TIME_ORDER": "Giờ kết thúc phải sau giờ bắt đầu",
+  "ERR_BREAK_NAME_EMPTY": "Tên giờ nghỉ không được trống",
+  "ERR_TOO_MANY_BREAKS": "Tối đa 10 khoảng thời gian nghỉ"
 }

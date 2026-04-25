@@ -263,5 +263,19 @@
   "DAY_KIND_PUBLIC_HOLIDAY": "祝日",
   "DAY_KIND_REGULAR_LEAVE": "法定休日",
   "DAY_KIND_REST_DAY": "休息日",
-  "DAY_KIND_WORKDAY": "出勤日"
+  "DAY_KIND_WORKDAY": "出勤日",
+  "BREAK_TIMES_TITLE": "休憩時間設定",
+  "BREAK_TIMES_DESC": "下記の時間帯は会社の休憩時間で、勤務時間から自動的に控除されます。",
+  "BREAK_NAME_LABEL": "休憩名",
+  "BREAK_START_LABEL": "開始時刻",
+  "BREAK_END_LABEL": "終了時刻",
+  "BTN_ADD_BREAK": "休憩時間を追加",
+  "BTN_REMOVE_BREAK": "削除",
+  "MSG_BREAK_TIMES_SAVED": "休憩時間を保存しました",
+  "MSG_BREAK_TIMES_SAVE_FAILED": "保存失敗：{msg}",
+  "MSG_BREAK_TIMES_LOAD_FAILED": "休憩時間の読み込みに失敗しました",
+  "ERR_BREAK_TIME_FORMAT": "時刻形式が不正です（HH:MM）",
+  "ERR_BREAK_TIME_ORDER": "終了時刻は開始時刻より後にしてください",
+  "ERR_BREAK_NAME_EMPTY": "休憩名を入力してください",
+  "ERR_TOO_MANY_BREAKS": "休憩時間は最大10件まで"
 }

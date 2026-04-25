@@ -40,3 +40,7 @@ exports.rejectReview = require("./src/rejectReview");
 
 // ===== 通知測試 =====
 exports.testNotification = require("./src/testNotification");
+
+// ===== 公司設定 =====
+exports.getBreakTimes = require("./src/getBreakTimes");
+exports.setBreakTimes = require("./src/setBreakTimes");
