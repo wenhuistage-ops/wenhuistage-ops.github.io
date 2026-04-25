@@ -7,10 +7,21 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifySession } = require("./_helpers");
+const {
+  admin,
+  db,
+  COLLECTIONS,
+  verifySession,
+  notifyAdmins,
+  LINE_CHANNEL_ACCESS_TOKEN,
+} = require("./_helpers");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  {
+    region: "asia-southeast1",
+    cors: true,
+    secrets: [LINE_CHANNEL_ACCESS_TOKEN],
+  },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const { date, type, reason, note } = request.data || {};
@@ -47,7 +58,17 @@ module.exports = onCall(
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // TODO: 觸發 notifyAdmins（異步通知佇列）
+    // 異步通知管理員（fire-and-forget，不 await）
+    const notifMsg =
+      `📋 新${typeText}申請\n` +
+      `👤 申請人：${user.name || ""}\n` +
+      `📅 日期：${date}\n` +
+      `📝 原因：${reason}\n` +
+      (note ? `📋 備註：${note}\n` : "") +
+      `🕒 申請時間：${applicationTime.toISOString()}`;
+    notifyAdmins(notifMsg, LINE_CHANNEL_ACCESS_TOKEN.value()).catch((err) =>
+      console.error("submitLeave notifyAdmins 失敗:", err)
+    );
 
     return {
       ok: true,

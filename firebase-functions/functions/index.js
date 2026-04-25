@@ -38,5 +38,5 @@ exports.getReviewRequest = require("./src/getReviewRequest");
 exports.approveReview = require("./src/approveReview");
 exports.rejectReview = require("./src/rejectReview");
 
-// ===== 選擇性 =====
-// exports.testNotification = require("./src/testNotification"); // 後續異步通知系統時補上
+// ===== 通知測試 =====
+exports.testNotification = require("./src/testNotification");

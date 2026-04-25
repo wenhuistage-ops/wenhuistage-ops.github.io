@@ -240,6 +240,86 @@ async function consumeOneTimeToken(oneTimeToken) {
   return sessionToken;
 }
 
+/**
+ * 取得管理員清單（dept === '管理員'）
+ * @returns {Promise<Array<{userId, name, dept}>>}
+ */
+async function getAdminList() {
+  const snap = await db
+    .collection(COLLECTIONS.EMPLOYEES)
+    .where("dept", "==", "管理員")
+    .get();
+  return snap.docs.map((doc) => ({
+    userId: doc.id,
+    name: doc.data().name || "",
+    dept: doc.data().dept || "",
+  }));
+}
+
+/**
+ * 推送 LINE 訊息給單一使用者（對應 GS sendLinePushMessage）
+ * @param {string} userId - LINE userId
+ * @param {string} message - 訊息內容
+ * @param {string} accessToken - LINE_CHANNEL_ACCESS_TOKEN.value()
+ */
+async function sendLinePush(userId, message, accessToken) {
+  if (!accessToken) {
+    console.warn("sendLinePush: LINE_CHANNEL_ACCESS_TOKEN 未設定");
+    return { ok: false, msg: "TOKEN_MISSING" };
+  }
+  try {
+    const resp = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        to: userId,
+        messages: [{ type: "text", text: message }],
+      }),
+    });
+    if (resp.ok) return { ok: true };
+    const text = await resp.text();
+    console.warn(`LINE push 失敗 ${userId}: ${resp.status} ${text}`);
+    return { ok: false, status: resp.status, body: text };
+  } catch (err) {
+    console.error(`LINE push 例外 ${userId}:`, err?.message);
+    return { ok: false, error: err?.message };
+  }
+}
+
+/**
+ * 通知所有管理員（對應 GS notifyAdmins）
+ * 異步發送，回傳成功 / 失敗計數
+ *
+ * 重要：呼叫端應「不 await」此函式（fire-and-forget），
+ * 才能立即回應前端不阻塞。Cloud Function 會等所有非同步工作完成才結束實例，
+ * 所以即使前端已收到回應，通知仍會送出。
+ *
+ * @param {string} message - 通知文字
+ * @param {string} accessToken - LINE_CHANNEL_ACCESS_TOKEN.value()
+ */
+async function notifyAdmins(message, accessToken) {
+  try {
+    const admins = await getAdminList();
+    if (admins.length === 0) {
+      console.warn("notifyAdmins: 沒有管理員");
+      return { ok: false, msg: "NO_ADMIN" };
+    }
+    const results = await Promise.all(
+      admins.map((a) => sendLinePush(a.userId, message, accessToken))
+    );
+    const successCount = results.filter((r) => r.ok).length;
+    const failCount = results.length - successCount;
+    console.log(`notifyAdmins: 成功 ${successCount} / 失敗 ${failCount}`);
+    return { ok: successCount > 0, successCount, failCount };
+  } catch (err) {
+    console.error("notifyAdmins 例外:", err?.message);
+    return { ok: false, error: err?.message };
+  }
+}
+
 module.exports = {
   admin,
   db,
@@ -257,4 +337,7 @@ module.exports = {
   upsertEmployee,
   createOneTimeToken,
   consumeOneTimeToken,
+  getAdminList,
+  sendLinePush,
+  notifyAdmins,
 };
