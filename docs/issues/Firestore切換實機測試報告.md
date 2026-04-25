@@ -109,6 +109,7 @@ A、B、E、F 已修復；G 依使用者指示暫不處理。
 | E zh-TW 缺翻譯鍵 | `d2bb8af`（5 語系補 BTN_CANCEL / BTN_CONFIRM） | 195 鍵（之前 192）|
 | F firebase-functions SDK | `d2bb8af`（v6.0.1 → v7.2.5）+ 17 functions redeploy | 部署成功，無相容性問題 |
 | G 勞基法異常規則 | **暫停** | 待重新設計薪資計算時一併處理 |
+| H 管理員 LINE 通知 | `54336af`（getAdminList / sendLinePush / notifyAdmins helpers + submitLeave / adjustPunch 接入 + 新 testNotification） | 6/6 管理員收到測試訊息 ✓ |
 
 ---
 
