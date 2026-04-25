@@ -4,7 +4,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifyAdmin } = require("./_helpers");
+const { db, COLLECTIONS, verifyAdmin, formatTaipei } = require("./_helpers");
 
 module.exports = onCall(
   { region: "asia-southeast1", cors: true },
@@ -30,23 +30,14 @@ module.exports = onCall(
 
         const punchDate = d.timestamp?.toDate?.() || null;
         const applicationTime = d.applicationTime?.toDate?.() || null;
-        const fmt = (dt) => {
-          if (!dt) return "";
-          const y = dt.getFullYear();
-          const m = String(dt.getMonth() + 1).padStart(2, "0");
-          const day = String(dt.getDate()).padStart(2, "0");
-          const h = String(dt.getHours()).padStart(2, "0");
-          const mi = String(dt.getMinutes()).padStart(2, "0");
-          return `${y}-${m}-${day} ${h}:${mi}`;
-        };
 
         return {
           id: doc.id, // Firestore 用 docId 取代 GS 的 rowNumber
           name: d.name || "",
           type: d.type || "",
           remark: isLeave ? d.reason || d.locationName || "" : adjustmentType,
-          applicationTime: fmt(applicationTime),
-          targetTime: fmt(punchDate),
+          applicationTime: formatTaipei(applicationTime),
+          targetTime: formatTaipei(punchDate),
         };
       })
       .filter(Boolean);

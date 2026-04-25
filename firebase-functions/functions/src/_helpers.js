@@ -320,6 +320,27 @@ async function notifyAdmins(message, accessToken) {
   }
 }
 
+// Cloud Functions runtime 是 UTC，凡是要呈現給使用者（LINE 通知文字、管理員 UI）
+// 的時間都需轉為 Asia/Taipei (UTC+8) 顯示，避免顯示成「少 8 小時」。
+const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
+function toTaipei(date) {
+  return new Date(date.getTime() + TAIPEI_OFFSET_MS);
+}
+function formatTaipei(date, opts = {}) {
+  if (!date) return "";
+  const t = toTaipei(date);
+  const y = t.getUTCFullYear();
+  const m = String(t.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(t.getUTCDate()).padStart(2, "0");
+  const h = String(t.getUTCHours()).padStart(2, "0");
+  const mi = String(t.getUTCMinutes()).padStart(2, "0");
+  if (opts.withSeconds) {
+    const s = String(t.getUTCSeconds()).padStart(2, "0");
+    return `${y}-${m}-${day} ${h}:${mi}:${s}`;
+  }
+  return `${y}-${m}-${day} ${h}:${mi}`;
+}
+
 module.exports = {
   admin,
   db,
@@ -340,4 +361,6 @@ module.exports = {
   getAdminList,
   sendLinePush,
   notifyAdmins,
+  toTaipei,
+  formatTaipei,
 };

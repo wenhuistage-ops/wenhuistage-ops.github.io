@@ -10,6 +10,7 @@ const {
   COLLECTIONS,
   verifySession,
   notifyAdmins,
+  formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
 } = require("./_helpers");
 
@@ -51,20 +52,12 @@ module.exports = onCall(
     });
 
     // 異步通知管理員（fire-and-forget）
-    const fmt = (dt) => {
-      const y = dt.getFullYear();
-      const m = String(dt.getMonth() + 1).padStart(2, "0");
-      const d = String(dt.getDate()).padStart(2, "0");
-      const h = String(dt.getHours()).padStart(2, "0");
-      const mi = String(dt.getMinutes()).padStart(2, "0");
-      return `${y}-${m}-${d} ${h}:${mi}`;
-    };
     const notifMsg =
       `🕒 新補打卡申請\n` +
       `👤 申請人：${user.name || ""}\n` +
       `📝 類型：補打卡（${type || ""}）\n` +
-      `📅 補打卡時間：${fmt(punchDate)}\n` +
-      `🕒 申請時間：${fmt(applicationTime)}\n` +
+      `📅 補打卡時間：${formatTaipei(punchDate)}\n` +
+      `🕒 申請時間：${formatTaipei(applicationTime)}\n` +
       `📍 部門：${user.dept || "未設定"}` +
       (note ? `\n📋 備註：${note}` : "");
     notifyAdmins(notifMsg, LINE_CHANNEL_ACCESS_TOKEN.value()).catch((err) =>

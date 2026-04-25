@@ -13,6 +13,7 @@ const {
   verifyAdmin,
   notifyAdmins,
   getAdminList,
+  formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
 } = require("./_helpers");
 
@@ -29,12 +30,9 @@ module.exports = onCall(
 
     const admins = await getAdminList();
     const now = new Date();
-    const fmt = (dt) =>
-      `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")} ` +
-      `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}:${String(dt.getSeconds()).padStart(2, "0")}`;
     const message =
       `🧪 測試通知（Cloud Functions）\n` +
-      `📅 ${fmt(now)}\n` +
+      `📅 ${formatTaipei(now, { withSeconds: true })}\n` +
       `👥 管理員數量：${admins.length}\n` +
       `🚀 來自 wenhui-check-in-system`;
 
