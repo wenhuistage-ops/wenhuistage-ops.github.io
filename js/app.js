@@ -143,7 +143,9 @@ function getDOMElements() {
 
     locationName = document.getElementById('location-name');
     // 管理員專用：員工日曆
-    adminSelectEmployee = document.getElementById('admin-select-employee');
+    // Phase 1：合併員工選擇器，#admin-select-employee 已移除，
+    // adminSelectEmployee 全域變數指向唯一的 #admin-select-employee-mgmt
+    adminSelectEmployee = document.getElementById('admin-select-employee-mgmt');
     adminEmployeeCalendarCard = document.getElementById('admin-employee-calendar-card');
     adminPrevMonthBtn = document.getElementById('admin-prev-month-btn');
     adminNextMonthBtn = document.getElementById('admin-next-month-btn');

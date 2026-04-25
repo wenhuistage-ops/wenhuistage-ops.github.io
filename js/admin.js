@@ -607,27 +607,12 @@ async function loadEmployeeList() {
             const employees = data.employeesList;
             allEmployeeList = employees; // 儲存員工列表 (來自 state.js)
 
-            // 清空並填充下拉菜單 (使用全域變數)
-            // ✅ XSS防護：使用 DOM API 代替 innerHTML
-            adminSelectEmployee.replaceChildren();
-            const option0 = document.createElement('option');
-            option0.value = '';
-            option0.textContent = '-- 請選擇一位員工 --';
-            adminSelectEmployee.appendChild(option0);
-
-            employees.forEach(employee => {
-                const option = document.createElement('option');
-                option.value = employee.userId;
-                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)`;
-                adminSelectEmployee.appendChild(option);
-            });
-
-            // 清空並填充下拉菜單 (使用全域變數)
+            // Phase 1：合併員工選擇器，只填充唯一的 mgmt select
             // ✅ XSS防護：使用 DOM API 代替 innerHTML
             adminSelectEmployeeMgmt.replaceChildren();
             const mgmtOption0 = document.createElement('option');
             mgmtOption0.value = '';
-            mgmtOption0.textContent = '-- 請選擇一位員工 --';
+            mgmtOption0.textContent = t('OPT_SELECT_EMPLOYEE') || '-- 請選擇一位員工 --';
             adminSelectEmployeeMgmt.appendChild(mgmtOption0);
 
             employees.forEach(employee => {
@@ -679,24 +664,26 @@ function setupRequestToggle() {
  * 統一管理員頁面事件的綁定
  */
 function initAdminEvents() {
-    // 1. 處理員工選擇事件
-    adminSelectEmployee.addEventListener('change', async (e) => {
-
-        adminSelectedUserId = e.target.value; // 來自 state.js
-        currentManagingEmployee = allEmployeeList.find(emp => emp.userId === adminSelectedUserId);;
-
-        if (adminSelectedUserId) {
-            adminEmployeeCalendarCard.style.display = 'block';
-            await renderAdminCalendar(adminSelectedUserId, adminCurrentDate); // 來自 state.js
-        } else {
-            adminEmployeeCalendarCard.style.display = 'none';
-        }
-    });
-
-    // 1. 處理員工選擇事件
+    // Phase 1：合併員工選擇器
+    // 一個 select 觸發：員工資料設定卡 + 員工日曆卡 + 後續所有 dashboard 卡
     adminSelectEmployeeMgmt.addEventListener('change', async (e) => {
         const selectedUserId = e.target.value;
         const employee = allEmployeeList.find(emp => emp.userId === selectedUserId);
+
+        // 全域 state（給其他模組用）
+        adminSelectedUserId = selectedUserId || null;
+        currentManagingEmployee = employee || null;
+
+        // 同步顯示／隱藏員工日曆卡（原本在獨立 handler 內）
+        if (selectedUserId) {
+            adminEmployeeCalendarCard.style.display = 'block';
+            renderAdminCalendar(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderAdminCalendar 失敗：', err)
+            );
+        } else {
+            adminEmployeeCalendarCard.style.display = 'none';
+        }
+
         if (employee) {
             // 修正屬性名稱：src 和您的資料屬性
             mgmtEmployeeName.textContent = employee.name;
@@ -1052,7 +1039,7 @@ function setupAdminExport() {
     const pad = n => String(n).padStart(2, '0');
 
     btn.addEventListener('click', async () => {
-        const selectEl = document.getElementById('admin-select-employee') || document.getElementById('admin-select-employee-mgmt');
+        const selectEl = document.getElementById('admin-select-employee-mgmt');
         const userId = selectEl && selectEl.value
             ? selectEl.value
             : (currentManagingEmployee && currentManagingEmployee.userId);
