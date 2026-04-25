@@ -452,11 +452,11 @@ async function fetchAndRenderReviewRequests() {
                 renderReviewRequests(pendingRequests);
             }
         } else {
-            showNotification("取得待審核請求失敗：" + res.msg, "error"); // 來自 core.js
+            showNotification(t("MSG_FETCH_REVIEW_FAILED", { msg: res.msg || "" }), "error"); // 來自 core.js
             emptyEl.style.display = 'block';
         }
     } catch (error) {
-        showNotification("取得待審核請求失敗，請檢查網路。", "error");
+        showNotification(t("MSG_FETCH_REVIEW_NETWORK_ERROR"), "error");
         emptyEl.style.display = 'block';
         console.error("Failed to fetch review requests:", error);
     } finally {
@@ -553,8 +553,8 @@ async function handleReviewAction(button, index, action) {
     const loadingText = t('LOADING') || '處理中...';
 
     // 🌟 修正點 (問題8.6)：添加確認對話框
-    const actionText = action === 'approve' ? '核准' : '拒絕';
-    const confirmMsg = `確定要${ actionText } 此項申請嗎？`;
+    const actionText = t(action === 'approve' ? 'ACTION_APPROVE' : 'ACTION_REJECT');
+    const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
     const confirmed = await showConfirmDialog(confirmMsg);
 
     if (!confirmed) {
@@ -887,12 +887,12 @@ function initAdminEvents() {
         const lng = locationLngInput.value;
 
         if (!name || !lat || !lng) {
-            showNotification("請填寫所有欄位並取得位置", "error");
+            showNotification(t("MSG_FILL_FIELDS_AND_LOCATION"), "error");
             return;
         }
 
         // 🌟 修正點 (問題8.6)：添加確認對話框
-        const confirmMsg = `確定要新增地點 "${name}" 嗎？`;
+        const confirmMsg = t('CONFIRM_ADD_LOCATION', { name: name });
         const confirmed = await showConfirmDialog(confirmMsg);
 
         if (!confirmed) {
@@ -907,7 +907,7 @@ function initAdminEvents() {
                 lng: encodeURIComponent(lng)
             });
             if (res.ok) {
-                showNotification("地點新增成功！", "success");
+                showNotification(t("MSG_LOCATION_ADDED"), "success");
                 // 清空輸入欄位
                 locationName.value = ''; // 假設您有宣告 locationName
                 locationLatInput.value = '';
@@ -917,7 +917,7 @@ function initAdminEvents() {
                 getLocationBtn.disabled = false;
                 addLocationBtn.disabled = true;
             } else {
-                showNotification("新增地點失敗：" + res.msg, "error");
+                showNotification(t("MSG_ADD_LOCATION_FAILED", { msg: res.msg || "" }), "error");
             }
         } catch (err) {
             console.error(err);
@@ -969,13 +969,13 @@ document.getElementById('test-api-btn').addEventListener('click', async () => {
     try {
         const res = await callApifetch({ action: testAction });
         if (res && res.ok) {
-            showNotification("API 測試成功！回應：" + JSON.stringify(res), "success");
+            showNotification(t("MSG_API_TEST_SUCCESS", { response: JSON.stringify(res) }), "success");
         } else {
-            showNotification("API 測試失敗：" + (res ? res.msg : "無回應資料"), "error");
+            showNotification(t("MSG_API_TEST_FAILED", { msg: (res && res.msg) || "" }), "error");
         }
     } catch (error) {
         console.error("API 呼叫發生錯誤:", error);
-        showNotification("API 呼叫失敗，請檢查網路連線或後端服務。", "error");
+        showNotification(t("MSG_API_CALL_FAILED"), "error");
     }
 });
 // #endregion
@@ -1053,7 +1053,7 @@ function setupAdminExport() {
             ? selectEl.value
             : (currentManagingEmployee && currentManagingEmployee.userId);
         if (!userId) {
-            alert('請先選擇員工');
+            alert(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT'));
             return;
         }
 
@@ -1081,7 +1081,7 @@ function setupAdminExport() {
                 userId: userId
             });
             if (!response.ok) {
-                alert('無法取得完整的打卡記錄');
+                alert(t('MSG_FETCH_RECORDS_FAILED'));
                 return;
             }
 
@@ -1143,11 +1143,11 @@ function setupAdminExport() {
                 URL.revokeObjectURL(url);
             } catch (err) {
                 console.error('Excel 匯出失敗', err);
-                alert('匯出失敗，請看 console 取得詳細錯誤訊息。');
+                alert(t('MSG_EXPORT_FAILED'));
             }
         } catch (err) {
             console.error('取得打卡記錄失敗', err);
-            alert('無法取得打卡記錄，請重試。');
+            alert(t('MSG_FETCH_RECORDS_RETRY'));
         }
     });
 }

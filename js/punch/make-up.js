@@ -249,19 +249,19 @@ function bindPunchEvents() {
                     outDateTime = adjustOutTimeInput?.value;
 
                     if (!inDateTime || !outDateTime) {
-                        showNotification("請選擇上班和下班時間", "error");
+                        showNotification(t("MSG_PLEASE_SELECT_PUNCH_TIMES"), "error");
                         return;
                     }
                     if (!validateAdjustTime(inDateTime) || !validateAdjustTime(outDateTime)) return;
 
                     // 檢查下班時間是否晚於上班時間
                     if (new Date(outDateTime) <= new Date(inDateTime)) {
-                        showNotification("下班時間必須晚於上班時間", "error");
+                        showNotification(t("MSG_OUT_BEFORE_IN"), "error");
                         return;
                     }
 
                     // 添加確認對話框
-                    const confirmMsg = `確定要補打卡嗎？\n上班: ${inDateTime}\n下班: ${outDateTime}`;
+                    const confirmMsg = t('CONFIRM_REPAIR_BOTH', { in: inDateTime, out: outDateTime });
                     const confirmed = await showConfirmDialog(confirmMsg);
                     if (!confirmed) return;
 
@@ -270,7 +270,7 @@ function bindPunchEvents() {
                     const adjustDateTimeInput = document.getElementById("adjustDateTime");
                     const datetime = adjustDateTimeInput?.value;
                     if (!datetime) {
-                        showNotification("請選擇補打卡日期時間", "error");
+                        showNotification(t("MSG_PLEASE_SELECT_REPAIR_DATETIME"), "error");
                         return;
                     }
                     if (!validateAdjustTime(datetime)) return;
@@ -278,8 +278,8 @@ function bindPunchEvents() {
                     outDateTime = type === 'out' ? datetime : null;
 
                     // 添加確認對話框
-                    const typeText = type === 'in' ? '上班' : '下班';
-                    const confirmMsg = `確定要補打 ${typeText} 卡嗎？\n時間: ${datetime}`;
+                    const typeText = t(type === 'in' ? 'PUNCH_IN' : 'PUNCH_OUT');
+                    const confirmMsg = t('CONFIRM_REPAIR_SINGLE', { type: typeText, datetime: datetime });
                     const confirmed = await showConfirmDialog(confirmMsg);
                     if (!confirmed) return;
                 }
@@ -303,7 +303,7 @@ function bindPunchEvents() {
 
                         if (!inRes.ok) {
                             const msg = t(inRes.code || "UNKNOWN_ERROR", inRes.params || {});
-                            showNotification("上班打卡失敗：" + msg, "error");
+                            showNotification(t("MSG_PUNCH_IN_FAILED", { msg: msg }), "error");
                             return;
                         }
 
@@ -364,7 +364,7 @@ function bindPunchEvents() {
                 }
 
                 // 添加確認對話框
-                const confirmMsg = `確定要在 ${date} 提交 ${reason} 的申請嗎？`;
+                const confirmMsg = t('CONFIRM_LEAVE_VACATION', { date: date, reason: reason });
                 const confirmed = await showConfirmDialog(confirmMsg);
 
                 if (!confirmed) {
@@ -392,7 +392,7 @@ function bindPunchEvents() {
 
                 } catch (err) {
                     console.error(err);
-                    showNotification('網絡錯誤，請稍後再試', 'error');
+                    showNotification(t('MSG_NETWORK_ERROR_RETRY'), 'error');
                 } finally {
                     if (adjustmentFormContainer.children.length > 0) {
                         generalButtonState(leaveButton, 'idle');
@@ -411,7 +411,7 @@ function bindPunchEvents() {
                 }
 
                 // 添加確認對話框
-                const confirmMsg = `確定要在 ${date} 提交 ${vacationType} 的申請嗎？`;
+                const confirmMsg = t('CONFIRM_LEAVE_VACATION', { date: date, reason: vacationType });
                 const confirmed = await showConfirmDialog(confirmMsg);
 
                 if (!confirmed) {
@@ -439,7 +439,7 @@ function bindPunchEvents() {
 
                 } catch (err) {
                     console.error(err);
-                    showNotification('網絡錯誤，請稍後再試', 'error');
+                    showNotification(t('MSG_NETWORK_ERROR_RETRY'), 'error');
                 } finally {
                     if (adjustmentFormContainer.children.length > 0) {
                         generalButtonState(vacationButton, 'idle');
