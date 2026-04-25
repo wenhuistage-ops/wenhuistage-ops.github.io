@@ -96,7 +96,23 @@
 
 ---
 
-## 三、目前發現的待辦（尚未修復）
+## 三、待辦項目修復記錄（2026-04-25 後續）
+
+A、B、E、F 已修復；G 依使用者指示暫不處理。
+
+| 待辦 | 修復 commit | 驗證結果 |
+|------|------------|---------|
+| A 補打卡 applicationTime 為空 | `d2bb8af` + 重 migrate attendance | `2026-04-24 23:55` 正確填入 |
+| B 請假記錄重複顯示 | `d2bb8af`（_attendance.js summarizeByDay 加去重） | 4 月重複數從 N → 0 |
+| C internal warning 殘留 | 已於 db routing 修復後消失 | – |
+| D Cleanup policy | `firebase functions:artifacts:setpolicy` 設 1 天保留 | – |
+| E zh-TW 缺翻譯鍵 | `d2bb8af`（5 語系補 BTN_CANCEL / BTN_CONFIRM） | 195 鍵（之前 192）|
+| F firebase-functions SDK | `d2bb8af`（v6.0.1 → v7.2.5）+ 17 functions redeploy | 部署成功，無相容性問題 |
+| G 勞基法異常規則 | **暫停** | 待重新設計薪資計算時一併處理 |
+
+---
+
+## 四、原始待辦清單（保留作歷史）
 
 ### A. 🟡 `getReviewRequest` 的 `applicationTime` 為空字串
 **現象**：
