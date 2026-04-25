@@ -689,11 +689,15 @@ function initAdminEvents() {
             mgmtEmployeeName.textContent = employee.name;
             //mgmtEmployeeId.textContent = employee.userId;
             const joinTimeSource = employee.firstLoginTime;
-            let seniorityText = 'N/A';
-            let joinDateText = 'N/A';
+            const naText = t('VALUE_NA') || 'N/A';
+            let seniorityText = naText;
+            let joinDateText = naText;
 
-            if (joinTimeSource) {
-                const joinDate = new Date(joinTimeSource);
+            // 防 Invalid Date：缺值或解析失敗均顯示 N/A，不嘗試 toLocaleDateString
+            const joinDate = joinTimeSource ? new Date(joinTimeSource) : null;
+            const hasValidJoinDate = joinDate && !isNaN(joinDate.getTime());
+
+            if (hasValidJoinDate) {
                 // 假設 currentLang 已經定義 (在 state.js 中)
                 const formattedDate = joinDate.toLocaleDateString(currentLang, {
                     year: 'numeric',
@@ -728,7 +732,7 @@ function initAdminEvents() {
                 if (years > 0) seniorityText += `${ years } ${ t("YEAR") || '年' } `;
                 // 只有當月份 > 0 或者總年資不到一年時才顯示月份
                 if (months > 0 || (years === 0 && months === 0)) seniorityText += `${ months } ${ t("MONTH") || '個月' } `;
-                seniorityText = seniorityText.trim() || 'N/A';
+                seniorityText = seniorityText.trim() || naText;
             }
 
             // P2-3 優化：動態生成 Info Items

@@ -337,54 +337,50 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             </select>
                         </div>
 
-                        <div id="employee-detail-card" style="display: none;">
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div
-                                    class="setting-card lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
-                                    <div
-                                        class="flex items-center mb-6 border-b border-gray-200 dark:border-gray-700 pb-6">
-                                        <img id="mgmt-employee-avatar"
-                                            src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
-                                            onerror="this.onerror=null;this.src='https://placehold.co/80x80/E0F2FE/1E3A8A?text=User'"
-                                            alt="Employee Avatar"
-                                            class="w-20 h-20 rounded-full object-cover mr-6 border-4 border-indigo-400 dark:border-indigo-500 shadow-lg flex-shrink-0 ring-2 ring-indigo-200 dark:ring-indigo-700">
-                                        <div class="truncate flex-grow">
-                                            <h4 data-i18n="LABEL_EMPLOYEE_NAME" class="text-2xl font-bold text-gray-900 dark:text-white truncate"
-                                                id="mgmt-employee-name">
-                                                員工姓名：
-                                            </h4>
-                                            <p class="text-base font-mono text-gray-500 dark:text-gray-400 mt-2"
-                                                style="display: none;" id="mgmt-employee-id">ID: N/A</p>
-                                        </div>
-                                    </div>
-                                    <div id="employee-info-container" class="flex flex-col gap-4">
-                                        <!-- Info Items will be generated dynamically here -->
-                                    </div>
+                        <div id="employee-detail-card" style="display: none;" class="space-y-6">
+                            <!-- Hero：頭像 + 姓名 -->
+                            <div class="flex items-center pb-6 border-b border-gray-200 dark:border-gray-700">
+                                <img id="mgmt-employee-avatar"
+                                    src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
+                                    onerror="this.onerror=null;this.src='https://placehold.co/80x80/E0F2FE/1E3A8A?text=User'"
+                                    alt="Employee Avatar"
+                                    style="width:64px;height:64px;flex-shrink:0;"
+                                    class="rounded-full object-cover mr-4 border-2 border-indigo-300 dark:border-indigo-500">
+                                <div class="truncate flex-grow">
+                                    <h4 data-i18n="LABEL_EMPLOYEE_NAME" class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate"
+                                        id="mgmt-employee-name">
+                                        員工姓名：
+                                    </h4>
+                                    <p class="text-sm font-mono text-gray-500 dark:text-gray-400 mt-1"
+                                        style="display: none;" id="mgmt-employee-id">ID: N/A</p>
                                 </div>
+                            </div>
 
+                            <!-- 員工資訊 Info Items（年資/入職/職務）-->
+                            <div id="employee-info-container" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <!-- Info Items 由 JS 動態生成 -->
+                            </div>
 
-                                <div
-                                    class="setting-card lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
-                                    <h5 class="setting-title text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center"
-                                        data-i18n="PERMISSION_ACCOUNT_SETTINGS">
-                                        <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                        權限設定與帳號控制
-                                    </h5>
+                            <!-- 權限與帳號控制 -->
+                            <div>
+                                <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                    data-i18n="PERMISSION_ACCOUNT_SETTINGS">
+                                    <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                    權限設定與帳號控制
+                                </h5>
 
-                                    <div id="employee-settings-container" class="space-y-4">
-                                        <!-- Toggle settings will be generated dynamically here -->
-                                    </div>
+                                <div id="employee-settings-container" class="space-y-3">
+                                    <!-- Toggle settings 由 JS 動態生成 -->
                                 </div>
+                            </div>
 
-                                <!-- 薪資設定卡片已移除，待重新設計後重建 -->
-
-                                <div
-                                    class="setting-card lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
-                                    <h5 class="setting-title text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center"
-                                        data-i18n="PUNCH_POLICY_SETTINGS">
-                                        <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                        打卡政策設定
-                                    </h5>
+                            <!-- 打卡政策設定 -->
+                            <div>
+                                <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                    data-i18n="PUNCH_POLICY_SETTINGS">
+                                    <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                    打卡政策設定
+                                </h5>
                                     <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div
@@ -411,8 +407,6 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                         </button>
                                     </form>
                                 </div>
-
-                            </div>
                         </div>
 
                         <div id="mgmt-placeholder" style="display: block;"
