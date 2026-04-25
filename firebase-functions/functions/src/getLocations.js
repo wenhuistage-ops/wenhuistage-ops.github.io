@@ -32,12 +32,16 @@ module.exports = onCall(
     const snap = await db.collection(COLLECTIONS.LOCATIONS).get();
     const locations = snap.docs.map((doc) => {
       const d = doc.data();
+      const r = Number(d.radius || 100);
       return {
         id: doc.id,
         name: d.name || "",
         lat: Number(d.lat || 0),
         lng: Number(d.lng || 0),
-        radius: Number(d.radius || 100),
+        // GS 慣例前端讀 scope（容許誤差/打卡半徑），保留 radius 為後備
+        // 兩者必須一致，否則前端紅圈與後端打卡判斷會不同步
+        scope: r,
+        radius: r,
       };
     });
 
