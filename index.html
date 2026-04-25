@@ -516,6 +516,16 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 </div>
                             </div>
 
+                            <!-- B3.5 點月曆 cell 後的當日打卡紀錄（緊接月曆下方，由 click 觸發）-->
+                            <div id="admin-daily-records-card" class="card p-6 dash-full" style="display: none;">
+                                <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
+                                <ul id="admin-daily-records-list" class="space-y-3"></ul>
+                                <div id="admin-records-loading" data-i18n="RECORDS_LOADING" style="display: none;"
+                                    class="text-center text-gray-500 py-4">正在載入紀錄...</div>
+                                <div id="admin-daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" style="display: none;"
+                                    class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
+                            </div>
+
                             <!-- B4. 週工時圖（全寬，已是 .card p-6）-->
                             <div id="admin-weekly-chart-card" class="card p-6 dash-full"></div>
 
@@ -553,16 +563,6 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <i class="fas fa-table mr-2 text-emerald-500"></i>打卡紀錄
                                 </h3>
                                 <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_6">(待 Phase 6 實作)</p>
-                            </div>
-
-                            <!-- B9. 既有 daily-records 卡（全寬，由月曆 click 觸發）-->
-                            <div id="admin-daily-records-card" class="card p-6 dash-full" style="display: none;">
-                                <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
-                                <ul id="admin-daily-records-list" class="space-y-3"></ul>
-                                <div id="admin-records-loading" data-i18n="RECORDS_LOADING" style="display: none;"
-                                    class="text-center text-gray-500 py-4">正在載入紀錄...</div>
-                                <div id="admin-daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" style="display: none;"
-                                    class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
                             </div>
 
                             <!-- B10. 員工設定（摺疊，全寬）-->
