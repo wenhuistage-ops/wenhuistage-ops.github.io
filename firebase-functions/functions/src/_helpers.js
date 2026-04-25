@@ -9,13 +9,20 @@
  */
 
 const admin = require("firebase-admin");
+const { getFirestore } = require("firebase-admin/firestore");
 const { defineSecret } = require("firebase-functions/params");
 
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-const db = admin.firestore();
+// 明確使用 'default'（asia-east1）資料庫——非 SDK 預設的 (default) nam5
+// 之所以指定，是因為專案中同時存在兩個 database：
+//   - (default) 在 nam5（自動建立的標準 default）
+//   - default 在 asia-east1（使用者手動建立、距離台灣近）
+// 為避免 SDK routing 不確定性造成 NOT_FOUND，全部明確指 'default'
+const FIRESTORE_DATABASE_ID = "default";
+const db = getFirestore(admin.app(), FIRESTORE_DATABASE_ID);
 
 // LINE secrets — 部署前需執行：
 //   firebase functions:secrets:set LINE_CHANNEL_ID
@@ -192,18 +199,22 @@ async function upsertEmployee(profile) {
 }
 
 /**
- * 產生新的 session 文件（對應 GS writeSession_ 的一次性 token 邏輯）
- * @returns {string} oneTimeToken
+ * 產生新的 session 直接寫入 sessions collection（對應 GS writeSession_ 的單階段流程）
+ *
+ * 注意：GS 的設計是 oneTimeToken 與 sessionToken 是同一個值（直接在 SHEET_SESSION 第 1 欄）。
+ * 前端 LINE callback 拿到 sToken 後直接當 sessionToken 用，不會再呼叫 exchangeToken。
+ * 故 getProfile 直接寫 sessions，回傳的 token 即為可用的 sessionToken。
+ *
+ * @returns {string} sessionToken（直接可用）
  */
 async function createOneTimeToken(userId) {
-  const oneTimeToken = db.collection(COLLECTIONS.ONE_TIME_TOKENS).doc().id; // 用 Firestore doc id 作 token
-  await db.collection(COLLECTIONS.ONE_TIME_TOKENS).doc(oneTimeToken).set({
+  const sessionToken = db.collection(COLLECTIONS.SESSIONS).doc().id;
+  await db.collection(COLLECTIONS.SESSIONS).doc(sessionToken).set({
     userId,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     expiredAt: new Date(Date.now() + SESSION_TTL_MS),
-    used: false,
   });
-  return oneTimeToken;
+  return sessionToken;
 }
 
 /**

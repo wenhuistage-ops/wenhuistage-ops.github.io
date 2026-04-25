@@ -10,16 +10,31 @@
 
 const { db, COLLECTIONS } = require("./_helpers");
 
+// 系統使用台灣時區（Asia/Taipei = UTC+8），但 Cloud Functions runtime 預設 UTC，
+// 故所有日期/時間呈現需明確轉換為 Asia/Taipei，避免少 8 小時。
+const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
+
 /**
- * 解析 "YYYY-MM" 為該月起訖 Date
+ * 將 Date 物件轉為 Asia/Taipei 時區的「假 UTC Date」，
+ * 之後對它呼叫 getUTC* 系列等同於拿到台灣時區的時間欄位
+ */
+function toTaipei(date) {
+  return new Date(date.getTime() + TAIPEI_OFFSET_MS);
+}
+
+/**
+ * 解析 "YYYY-MM"（台灣時區月份）為該月在 UTC 上的起訖 Date
+ *
+ * 例如 "2026-04" 在 Asia/Taipei = 2026-03-31 16:00 UTC ~ 2026-04-30 16:00 UTC
  */
 function parseMonth(monthStr) {
   const m = String(monthStr || "").match(/^(\d{4})-(\d{1,2})$/);
   if (!m) return null;
   const year = Number(m[1]);
   const month = Number(m[2]) - 1;
-  const start = new Date(year, month, 1, 0, 0, 0);
-  const end = new Date(year, month + 1, 1, 0, 0, 0);
+  // Taipei 月初 = UTC 同月初 - 8h
+  const start = new Date(Date.UTC(year, month, 1, 0, 0, 0) - TAIPEI_OFFSET_MS);
+  const end = new Date(Date.UTC(year, month + 1, 1, 0, 0, 0) - TAIPEI_OFFSET_MS);
   return { start, end, year, month };
 }
 
@@ -72,15 +87,17 @@ function summarizeByDay(records) {
     if (!r.date) return;
     const d = r.date instanceof Date ? r.date : new Date(r.date);
     if (isNaN(d.getTime())) return;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    // 用 Asia/Taipei 時區計算日期 key 與時間
+    const t = toTaipei(d);
+    const key = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
 
     if (!byDay.has(key)) {
       byDay.set(key, { date: key, record: [] });
     }
     const day = byDay.get(key);
 
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mm = String(d.getMinutes()).padStart(2, "0");
+    const hh = String(t.getUTCHours()).padStart(2, "0");
+    const mm = String(t.getUTCMinutes()).padStart(2, "0");
 
     day.record.push({
       time: `${hh}:${mm}`,
@@ -157,15 +174,19 @@ function detectAbnormal(records, month) {
 
   const result = [];
   const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const todayTaipei = toTaipei(today);
+  const todayKey = `${todayTaipei.getUTCFullYear()}-${String(todayTaipei.getUTCMonth() + 1).padStart(2, "0")}-${String(todayTaipei.getUTCDate()).padStart(2, "0")}`;
 
   let counter = 0;
+  // 用台灣時區一天一天迭代（從 range.start 對應的 Taipei 日期）
+  const startTaipei = toTaipei(range.start);
+  const endTaipei = toTaipei(range.end);
   for (
-    let d = new Date(range.start);
-    d < range.end && d <= today;
-    d.setDate(d.getDate() + 1)
+    let d = new Date(startTaipei);
+    d < endTaipei;
+    d.setUTCDate(d.getUTCDate() + 1)
   ) {
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
     if (key > todayKey) break;
 
     const day = byDate.get(key);

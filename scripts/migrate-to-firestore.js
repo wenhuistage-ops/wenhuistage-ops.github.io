@@ -27,7 +27,12 @@
 
 const path = require("path");
 const admin = require("firebase-admin");
+const { getFirestore } = require("firebase-admin/firestore");
 const { google } = require("googleapis");
+
+// 必須與 Cloud Functions 使用同一個 database（asia-east1 的 'default'）
+// 不指定的話 SDK 會用 '(default)' nam5
+const FIRESTORE_DATABASE_ID = "default";
 
 // ============================================================================
 // 設定
@@ -86,16 +91,60 @@ function requirePreconditions() {
 }
 
 /**
- * 將 Google Sheets 回傳的 cell 值轉為適合 Firestore 的型別
- * - 空字串 → ""
- * - 數字字串但 header 已知是 number → Number()
- * - ISO 日期字串或含時間的日期 → Timestamp
+ * 解析中文 Google Sheets 常見的 12 小時制日期字串：
+ *   "2026/4/25 上午 7:38:43"  → Date(2026-04-25 07:38:43)
+ *   "2026/4/25 下午 12:26:00" → Date(2026-04-25 12:26:00)
+ *   "2026/4/25 下午 1:30:00"  → Date(2026-04-25 13:30:00)
+ *   "2026/4/25 下午 12:00:00" → Date(2026-04-25 12:00:00)（中午）
+ *   "2026/4/25 上午 12:00:00" → Date(2026-04-25 00:00:00)（凌晨）
+ */
+function parseChineseDateTime(s) {
+  const m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(上午|下午)\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!m) return null;
+  const [, y, mo, d, ampm, h, mi, sec] = m;
+  let hour = parseInt(h, 10);
+  if (ampm === "下午" && hour < 12) hour += 12;
+  if (ampm === "上午" && hour === 12) hour = 0;
+  const iso =
+    `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}` +
+    `T${String(hour).padStart(2, "0")}:${String(mi).padStart(2, "0")}:${String(sec || 0).padStart(2, "0")}`;
+  const dt = new Date(iso);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+/**
+ * 將 Google Sheets 回傳的 cell 值轉為 Firestore Timestamp
  */
 function toFirestoreTimestamp(value) {
-  if (!value) return null;
-  if (value instanceof Date) return admin.firestore.Timestamp.fromDate(value);
-  const d = new Date(value);
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : admin.firestore.Timestamp.fromDate(value);
+  }
+
+  // Excel 序列號（數字）
+  if (typeof value === "number" && value > 1) {
+    const ms = (value - 25569) * 86400000;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? null : admin.firestore.Timestamp.fromDate(d);
+  }
+
+  const s = String(value).trim();
+  if (!s) return null;
+
+  // 中文 12 小時制（Google Sheets 預設台灣 locale 的格式）
+  const cn = parseChineseDateTime(s);
+  if (cn) return admin.firestore.Timestamp.fromDate(cn);
+
+  // 直接解析
+  let d = new Date(s);
   if (!isNaN(d.getTime())) return admin.firestore.Timestamp.fromDate(d);
+
+  // 退回：把 / 換 -，空白換 T
+  const normalized = s.replace(/\//g, "-").replace(/\s+/, "T");
+  d = new Date(normalized);
+  if (!isNaN(d.getTime())) return admin.firestore.Timestamp.fromDate(d);
+
+  console.warn(`⚠️  無法解析時間值: ${JSON.stringify(value)}（型別 ${typeof value}）`);
   return null;
 }
 
@@ -112,10 +161,12 @@ async function initGoogleSheets() {
 }
 
 async function readSheet(sheets, sheetName) {
+  // FORMATTED_VALUE 拿到 Sheet 顯示什麼就回什麼字串（日期、數字等）
+  // 比 UNFORMATTED_VALUE 更可預測，且日期格式一致
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: CONFIG.spreadsheetId,
     range: sheetName,
-    valueRenderOption: "UNFORMATTED_VALUE",
+    valueRenderOption: "FORMATTED_VALUE",
     dateTimeRenderOption: "FORMATTED_STRING",
   });
   return res.data.values || [];
@@ -312,7 +363,8 @@ async function main() {
   admin.initializeApp({
     credential: admin.credential.cert(require(CONFIG.serviceAccountKey)),
   });
-  const db = admin.firestore();
+  const db = getFirestore(admin.app(), FIRESTORE_DATABASE_ID);
+  console.log(`💾 寫入目標 database: ${FIRESTORE_DATABASE_ID}（asia-east1）`);
 
   // 初始化 Sheets API
   const sheets = await initGoogleSheets();
