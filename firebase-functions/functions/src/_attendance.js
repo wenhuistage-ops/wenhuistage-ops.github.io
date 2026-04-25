@@ -70,12 +70,22 @@ async function getMonthlyAttendance(month, userId) {
  *
  * 回傳陣列格式：
  *   [
- *     { date: 'YYYY-MM-DD', reason: 'STATUS_OK' | 'STATUS_BOTH_MISSING'
- *       | 'STATUS_PUNCH_IN_MISSING' | 'STATUS_PUNCH_OUT_MISSING'
- *       | 'STATUS_LEAVE_PENDING' | 'STATUS_VACATION_PENDING'
- *       | 'STATUS_LEAVE_APPROVED' | 'STATUS_VACATION_APPROVED',
- *       hours: number, punchInTime, punchOutTime, isHoliday, record: [...] }
+ *     { date: 'YYYY-MM-DD',
+ *       reason: 'STATUS_PUNCH_NORMAL'      // 上下班都有
+ *             | 'STATUS_BOTH_MISSING'      // 完全沒打
+ *             | 'STATUS_PUNCH_IN_MISSING'  // 沒上班
+ *             | 'STATUS_PUNCH_OUT_MISSING' // 沒下班
+ *             | 'STATUS_LEAVE_PENDING'     // 請假審核中
+ *             | 'STATUS_LEAVE_APPROVED'    // 請假已批准
+ *             | 'STATUS_VACATION_PENDING'  // 休假審核中
+ *             | 'STATUS_VACATION_APPROVED' // 休假已批准
+ *             | 'STATUS_REPAIR_PENDING'    // 補打卡審核中
+ *             | 'STATUS_REPAIR_APPROVED',  // 補打卡通過
+ *       hours, punchInTime, punchOutTime, isHoliday, record: [...] }
  *   ]
+ *
+ * 對應 i18n 鍵見 i18n/zh-TW.json 的 STATUS_* 區段，
+ * 對應顏色 class 見 js/ui.js switch reason。
  *
  * 完整異常清單與判斷規則見 docs/rules/異常清單顯示規則.md
  * TODO：對齊 GS Utils.gs 的 checkAttendance / checkAttendanceCalendar
@@ -129,14 +139,18 @@ function summarizeByDay(records) {
 
     const leaveRecord = day.record.find((p) => p.adjustmentType === "系統請假記錄" || /請假/.test(p.type));
     const vacationRecord = day.record.find((p) => /休假/.test(p.type));
+    const adjustRecord = day.record.find((p) => p.adjustmentType === "補打卡");
     const approvedAudit = (r) => r && r.audit === "v";
     const pendingAudit = (r) => r && r.audit === "?";
 
-    let reason = "STATUS_OK";
+    // 判斷順序對應 i18n STATUS_* 與 ui.js 顏色 switch
+    let reason = "STATUS_PUNCH_NORMAL"; // 預設：上下班都正常
     if (approvedAudit(leaveRecord)) reason = "STATUS_LEAVE_APPROVED";
     else if (pendingAudit(leaveRecord)) reason = "STATUS_LEAVE_PENDING";
     else if (approvedAudit(vacationRecord)) reason = "STATUS_VACATION_APPROVED";
     else if (pendingAudit(vacationRecord)) reason = "STATUS_VACATION_PENDING";
+    else if (approvedAudit(adjustRecord)) reason = "STATUS_REPAIR_APPROVED";
+    else if (pendingAudit(adjustRecord)) reason = "STATUS_REPAIR_PENDING";
     else if (!hasIn && !hasOut) reason = "STATUS_BOTH_MISSING";
     else if (!hasIn) reason = "STATUS_PUNCH_IN_MISSING";
     else if (!hasOut) reason = "STATUS_PUNCH_OUT_MISSING";
@@ -206,7 +220,12 @@ function detectAbnormal(records, month) {
     if (!day) {
       // 沒有記錄
       result.push({ date: key, reason: "STATUS_BOTH_MISSING", id: `abnormal-${counter}` });
-    } else if (day.reason !== "STATUS_OK" && day.reason !== "STATUS_LEAVE_APPROVED" && day.reason !== "STATUS_VACATION_APPROVED") {
+    } else if (
+      day.reason !== "STATUS_PUNCH_NORMAL" &&
+      day.reason !== "STATUS_LEAVE_APPROVED" &&
+      day.reason !== "STATUS_VACATION_APPROVED" &&
+      day.reason !== "STATUS_REPAIR_APPROVED"
+    ) {
       result.push({ date: key, reason: day.reason, id: `abnormal-${counter}` });
     }
   }
