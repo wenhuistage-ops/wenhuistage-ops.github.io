@@ -253,6 +253,9 @@ async function preloadAdjacentAdminMonths(currentDate, userId) {
 async function renderAdminDailyRecords(dateKey, userId) {
     // 確保使用全域變數，而非 document.getElementById
     adminDailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", { dateKey: dateKey });
+    if (typeof renderDayKindBadge === 'function') {
+        renderDayKindBadge(adminDailyRecordsTitle, dateKey);
+    }
 
     adminDailyRecordsList.replaceChildren();
     adminDailyRecordsEmpty.style.display = 'none';

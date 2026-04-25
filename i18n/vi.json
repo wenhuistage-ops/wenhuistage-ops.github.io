@@ -258,5 +258,9 @@
   "CHART_MODE_TOTAL": "Tổng",
   "CHART_HOURS_UNIT": "giờ",
   "CHART_NO_DATA": "Không có dữ liệu tuần này",
-  "CHART_HINT": "Bấm vào một ngày để xem biểu đồ tuần"
+  "CHART_HINT": "Bấm vào một ngày để xem biểu đồ tuần",
+  "DAY_KIND_PUBLIC_HOLIDAY": "Ngày lễ",
+  "DAY_KIND_REGULAR_LEAVE": "Ngày nghỉ định kỳ",
+  "DAY_KIND_REST_DAY": "Ngày nghỉ bù",
+  "DAY_KIND_WORKDAY": "Ngày làm việc"
 }

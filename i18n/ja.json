@@ -259,5 +259,9 @@
   "CHART_MODE_TOTAL": "合計",
   "CHART_HOURS_UNIT": "時間",
   "CHART_NO_DATA": "今週のデータなし",
-  "CHART_HINT": "日付をクリックして週間グラフを表示"
+  "CHART_HINT": "日付をクリックして週間グラフを表示",
+  "DAY_KIND_PUBLIC_HOLIDAY": "祝日",
+  "DAY_KIND_REGULAR_LEAVE": "法定休日",
+  "DAY_KIND_REST_DAY": "休息日",
+  "DAY_KIND_WORKDAY": "出勤日"
 }

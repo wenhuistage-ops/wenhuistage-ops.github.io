@@ -259,5 +259,9 @@
   "CHART_MODE_TOTAL": "Total",
   "CHART_HOURS_UNIT": "jam",
   "CHART_NO_DATA": "Tidak ada data minggu ini",
-  "CHART_HINT": "Klik tanggal untuk melihat grafik mingguan"
+  "CHART_HINT": "Klik tanggal untuk melihat grafik mingguan",
+  "DAY_KIND_PUBLIC_HOLIDAY": "Hari Libur Nasional",
+  "DAY_KIND_REGULAR_LEAVE": "Hari Libur Reguler",
+  "DAY_KIND_REST_DAY": "Hari Istirahat",
+  "DAY_KIND_WORKDAY": "Hari Kerja"
 }

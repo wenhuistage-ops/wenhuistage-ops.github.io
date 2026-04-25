@@ -259,5 +259,9 @@
   "CHART_MODE_TOTAL": "總計",
   "CHART_HOURS_UNIT": "小時",
   "CHART_NO_DATA": "此週無資料",
-  "CHART_HINT": "點擊任一日期查看該週工時"
+  "CHART_HINT": "點擊任一日期查看該週工時",
+  "DAY_KIND_PUBLIC_HOLIDAY": "國定假日",
+  "DAY_KIND_REGULAR_LEAVE": "例假日",
+  "DAY_KIND_REST_DAY": "休息日",
+  "DAY_KIND_WORKDAY": "工作日"
 }

@@ -110,6 +110,26 @@ function getHolidayName(dateKey) {
     return rec ? rec.name : '';
 }
 
+/**
+ * 判斷某日的「假日類型」（對應勞基法分類）
+ * @returns {{ kind: 'public'|'regular'|'rest'|'workday', name: string, color: string }}
+ *   public  = 國定假日（caption 有值）
+ *   regular = 例假日（週日，強制休息）
+ *   rest    = 休息日（週六，可加班但有特別費率）
+ *   workday = 一般工作日
+ */
+function getDayKind(dateKey) {
+    const name = getHolidayName(dateKey);
+    if (name) return { kind: 'public', name, color: 'red' };
+    if (!dateKey) return { kind: 'workday', name: '', color: 'gray' };
+    const [y, m, d] = String(dateKey).split('-').map(Number);
+    if (!y || !m || !d) return { kind: 'workday', name: '', color: 'gray' };
+    const dow = new Date(y, m - 1, d).getDay();
+    if (dow === 0) return { kind: 'regular', name: '', color: 'red' };       // 週日 = 例假日
+    if (dow === 6) return { kind: 'rest', name: '', color: 'orange' };       // 週六 = 休息日
+    return { kind: 'workday', name: '', color: 'gray' };
+}
+
 // 模組載入時即同步 hydrate 「今年」與「明年」的 cache（如果有），讓首次月曆 render 不需要 await
 try {
     const _now = new Date();
@@ -124,10 +144,11 @@ if (typeof window !== 'undefined') {
     window.ensureHolidaysLoaded = ensureHolidaysLoaded;
     window.isHoliday = isHoliday;
     window.getHolidayName = getHolidayName;
+    window.getDayKind = getDayKind;
 }
 
 console.log('✓ holidays-client 模組已加載');
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ensureHolidaysLoaded, isHoliday, getHolidayName };
+    module.exports = { ensureHolidaysLoaded, isHoliday, getHolidayName, getDayKind };
 }

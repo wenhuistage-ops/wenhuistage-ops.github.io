@@ -259,5 +259,9 @@
   "CHART_MODE_TOTAL": "Total",
   "CHART_HOURS_UNIT": "hr",
   "CHART_NO_DATA": "No data this week",
-  "CHART_HINT": "Click any date to see the weekly chart"
+  "CHART_HINT": "Click any date to see the weekly chart",
+  "DAY_KIND_PUBLIC_HOLIDAY": "Public Holiday",
+  "DAY_KIND_REGULAR_LEAVE": "Regular Leave Day",
+  "DAY_KIND_REST_DAY": "Rest Day",
+  "DAY_KIND_WORKDAY": "Workday"
 }

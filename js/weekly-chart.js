@@ -88,7 +88,7 @@ function _modeKey(mode) {
 
 const _WEEK_KEYS = ['WEEK_SUNDAY','WEEK_MONDAY','WEEK_TUESDAY','WEEK_WEDNESDAY','WEEK_THURSDAY','WEEK_FRIDAY','WEEK_SATURDAY'];
 
-function renderWeeklyChart(container, records, selectedDateKey, mode = 'normal') {
+function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') {
     if (!container) return;
     const tt = (typeof t === 'function') ? t : (k) => k;
 
@@ -193,10 +193,16 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'normal')
     container.querySelectorAll('.weekly-chart-col').forEach((col) => {
         col.addEventListener('click', () => {
             const newDate = col.dataset.date;
-            if (newDate && newDate !== selectedDateKey) {
-                // 切換選中日
+            if (!newDate) return;
+            // 切換選中日（同週內任一天）。若同一天則只觸發 event 給外部監聽
+            if (newDate !== selectedDateKey) {
                 renderWeeklyChart(container, records, newDate, mode);
             }
+            // 通知外部（ui.js）同步切換打卡紀錄
+            container.dispatchEvent(new CustomEvent('weeklyChart:select', {
+                bubbles: true,
+                detail: { date: newDate, mode },
+            }));
         });
         col.style.cursor = 'pointer';
     });

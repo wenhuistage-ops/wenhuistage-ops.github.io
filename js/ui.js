@@ -425,7 +425,7 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
             const chartCard = isForAdmin
                 ? document.getElementById('admin-weekly-chart-card')
                 : document.getElementById('weekly-chart-card');
-            if (chartCard) renderWeeklyChart(chartCard, records, dateStr, 'normal');
+            if (chartCard) renderWeeklyChart(chartCard, records, dateStr, 'total');
         }
     };
 
@@ -469,9 +469,67 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
                     defaultDateKey = inMonth[inMonth.length - 1].date;
                 }
             }
-            renderWeeklyChart(chartCard, records, defaultDateKey, 'normal');
+            renderWeeklyChart(chartCard, records, defaultDateKey, 'total');
+
+            // 監聽 chart 內 column 點擊，同步切換打卡紀錄（避免重複綁定：先解綁舊的）
+            if (chartCard._weeklyChartSelectListener) {
+                chartCard.removeEventListener('weeklyChart:select', chartCard._weeklyChartSelectListener);
+            }
+            const listener = (e) => {
+                const dk = e.detail?.date;
+                if (!dk) return;
+                if (isForAdmin && adminSelectedUserId) {
+                    renderAdminDailyRecords(dk, adminSelectedUserId);
+                } else if (!isForAdmin) {
+                    renderDailyRecords(dk);
+                }
+            };
+            chartCard.addEventListener('weeklyChart:select', listener);
+            chartCard._weeklyChartSelectListener = listener;
         }
     }
+}
+
+// 共用 helper：在指定 title 元素之後插入「假日類型」badge
+// （國定假日 / 例假日 / 休息日 / 工作日 + 假日名稱 hover 顯示）
+function renderDayKindBadge(titleEl, dateKey) {
+    if (!titleEl || !dateKey) return;
+    // 移除舊 badge（如果有）
+    const next = titleEl.nextElementSibling;
+    if (next && next.classList && next.classList.contains('day-kind-badge-row')) {
+        next.remove();
+    }
+    if (typeof window.getDayKind !== 'function') return;
+    const info = window.getDayKind(dateKey);
+    const KIND_KEY = {
+        public: 'DAY_KIND_PUBLIC_HOLIDAY',
+        regular: 'DAY_KIND_REGULAR_LEAVE',
+        rest: 'DAY_KIND_REST_DAY',
+        workday: 'DAY_KIND_WORKDAY',
+    };
+    const COLORS = {
+        public: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200',
+        regular: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200',
+        rest: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200',
+        workday: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+    };
+    const i18nKey = KIND_KEY[info.kind] || 'DAY_KIND_WORKDAY';
+    const colorClass = COLORS[info.kind] || COLORS.workday;
+    const labelText = t(i18nKey) || info.kind;
+    const row = document.createElement('div');
+    row.className = 'day-kind-badge-row flex items-center gap-2 mb-3 -mt-1';
+    const badge = document.createElement('span');
+    badge.setAttribute('data-i18n', i18nKey);
+    badge.className = `text-xs font-semibold px-2 py-1 rounded-md ${colorClass}`;
+    badge.textContent = labelText;
+    row.appendChild(badge);
+    if (info.name) {
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'text-sm font-medium text-red-600 dark:text-red-300';
+        nameSpan.textContent = info.name;
+        row.appendChild(nameSpan);
+    }
+    titleEl.parentNode.insertBefore(row, titleEl.nextSibling);
 }
 
 // 新增：渲染每日紀錄的函式 (修正非同步問題)
@@ -485,6 +543,7 @@ async function renderDailyRecords(dateKey) {
     dailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", {
         dateKey: dateKey
     });
+    renderDayKindBadge(dailyRecordsTitle, dateKey);
 
     dailyRecordsCard.style.display = 'block';
     dailyRecordsList.replaceChildren();
