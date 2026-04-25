@@ -487,16 +487,21 @@ function renderReviewRequests(requests) {
             detailText = `${ req.name || "（未知）" } - ${ req.remark || "（無原因）" } `;
         }
 
+        const unknownText = t('UNKNOWN') || '（未知）';
+        const labelTimeKey = isLeaveRequest ? 'LABEL_LEAVE_VACATION_TIME' : 'LABEL_REPAIR_TIME';
+        const badgeKey = isLeaveRequest ? 'BADGE_LEAVE_VACATION' : 'BADGE_REPAIR';
+
+        // 將 prefix label 與 badge 用 data-i18n 包起，讓切換語言後 renderTranslations 自動更新
         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
         const requestItemHtml = `
         <div class="flex flex-col space-y-1">
             <div class="flex items-center justify-between w-full">
                 <div>
                     <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">申請時間: ${req.applicationTime || "（未知）"}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}: ${req.targetTime || "（未知）"}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="LABEL_APPLICATION_TIME">申請時間</span>：${req.applicationTime || unknownText}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="${labelTimeKey}">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}</span>：${req.targetTime || unknownText}</p>
                 </div>
-                <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
+                <span data-i18n="${badgeKey}" class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
             </div>
         </div>
 

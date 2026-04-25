@@ -241,7 +241,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                 <div id="daily-records-card" class="card p-6" style="display: none;">
                     <h4 id="daily-records-title" class="text-xl font-bold text-gray-800 mb-2 dark:text-white mb-1"></h4>
-                    <div id="daily-records-loading" class="text-center text-gray-500 py-4" style="display: none;">
+                    <div id="daily-records-loading" data-i18n="RECORDS_LOADING" class="text-center text-gray-500 py-4" style="display: none;">
                         正在載入紀錄...</div>
                     <ul id="daily-records-list" class="space-y-3"></ul>
                     <div id="daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" class="text-center text-gray-500 py-4"
@@ -279,9 +279,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             <!-- Form View -->
             <section id="Form-view" class="space-y-6" style="display: none;">
                 <div class="card p-6">
-                    <h2 class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
+                    <h2 data-i18n="FEATURE_LOCKED" class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
                         未解鎖功能</h2>
-                    <p class="text-gray-500 mb-4">請聯絡開發人員</p>
+                    <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4">請聯絡開發人員</p>
                 </div>
             </section>
 
@@ -320,13 +320,13 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             員工資料設定
                         </h2>
                         <div class="mb-4">
-                            <label for="admin-select-employee-mgmt"
+                            <label data-i18n="LABEL_SELECT_EMPLOYEE" for="admin-select-employee-mgmt"
                                 class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                選擇員工:
+                                選擇員工：
                             </label>
                             <select id="admin-select-employee-mgmt"
                                 class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option value="">-- 請選擇一位員工 --</option>
+                                <option data-i18n="OPT_SELECT_EMPLOYEE" value="">-- 請選擇一位員工 --</option>
                             </select>
                         </div>
 
@@ -342,9 +342,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                             alt="Employee Avatar"
                                             class="w-20 h-20 rounded-full object-cover mr-6 border-4 border-indigo-400 dark:border-indigo-500 shadow-lg flex-shrink-0 ring-2 ring-indigo-200 dark:ring-indigo-700">
                                         <div class="truncate flex-grow">
-                                            <h4 class="text-2xl font-bold text-gray-900 dark:text-white truncate"
+                                            <h4 data-i18n="LABEL_EMPLOYEE_NAME" class="text-2xl font-bold text-gray-900 dark:text-white truncate"
                                                 id="mgmt-employee-name">
-                                                員工姓名: N/A
+                                                員工姓名：
                                             </h4>
                                             <p class="text-base font-mono text-gray-500 dark:text-gray-400 mt-2"
                                                 style="display: none;" id="mgmt-employee-id">ID: N/A</p>
@@ -412,7 +412,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             class="mb-4 text-center py-10 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl shadow-inner">
                             <i class="fas fa-info-circle text-3xl text-indigo-400 mb-2"></i>
                             <p class="font-semibold" data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
-                            <p class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
+                            <p data-i18n="HINT_DATA_AUTO_LOAD" class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
                         </div>
                     </div>
 
@@ -420,35 +420,33 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                         <h2 data-i18n="EMPLOYEE_CALENDAR_TITLE"
                             class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工日曆檢視</h2>
                         <div class="mb-4">
-                            <label for="admin-select-employee"
-                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">選擇員工:</label>
+                            <label data-i18n="LABEL_SELECT_EMPLOYEE" for="admin-select-employee"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">選擇員工：</label>
                             <select id="admin-select-employee"
                                 class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option value="">-- 請選擇一位員工 --</option>
+                                <option data-i18n="OPT_SELECT_EMPLOYEE" value="">-- 請選擇一位員工 --</option>
                             </select>
                         </div>
 
                         <div id="admin-employee-calendar-card" style="display: none;">
                             <div class="flex justify-between items-center mb-4">
-                                <button id="admin-prev-month-btn" class="p-2 text-blue-600 dark:text-blue-400">&lt;
-                                    上個月</button>
+                                <button id="admin-prev-month-btn" data-i18n="BTN_PREV_MONTH" class="p-2 text-blue-600 dark:text-blue-400">&lt; 上個月</button>
                                 <h3 id="admin-current-month-display" class="text-lg font-semibold dark:text-white"></h3>
-                                <button id="admin-next-month-btn" class="p-2 text-blue-600 dark:text-blue-400">下個月
-                                    &gt;</button>
+                                <button id="admin-next-month-btn" data-i18n="BTN_NEXT_MONTH" class="p-2 text-blue-600 dark:text-blue-400">下個月 &gt;</button>
                             </div>
                             <div id="admin-calendar-grid" class="grid grid-cols-7 gap-1 text-center text-sm">
-                                <div class="font-bold text-red-600 dark:text-red-400">日</div>
-                                <div class="font-bold">一</div>
-                                <div class="font-bold">二</div>
-                                <div class="font-bold">三</div>
-                                <div class="font-bold">四</div>
-                                <div class="font-bold">五</div>
-                                <div class="font-bold text-blue-600 dark:text-blue-400">六</div>
+                                <div data-i18n="WEEK_SUNDAY" class="font-bold text-red-600 dark:text-red-400">日</div>
+                                <div data-i18n="WEEK_MONDAY" class="font-bold">一</div>
+                                <div data-i18n="WEEK_TUESDAY" class="font-bold">二</div>
+                                <div data-i18n="WEEK_WEDNESDAY" class="font-bold">三</div>
+                                <div data-i18n="WEEK_THURSDAY" class="font-bold">四</div>
+                                <div data-i18n="WEEK_FRIDAY" class="font-bold">五</div>
+                                <div data-i18n="WEEK_SATURDAY" class="font-bold text-blue-600 dark:text-blue-400">六</div>
                             </div>
 
                             <p id="admin-calendar-info" class="text-sm text-gray-500 mt-4 dark:text-gray-400"></p>
                             <!-- 在管理員日曆 HTML 中，放在日曆格子之後 -->
-                            <button id="export-admin-month-excel-btn" class="mt-2 w-full py-2 px-3 rounded-lg
+                            <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL" class="mt-2 w-full py-2 px-3 rounded-lg
                                        bg-green-100 text-green-800
                                        dark:bg-green-600 dark:text-white
                                        border border-green-200 dark:border-green-700
@@ -457,7 +455,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                        focus:outline-none focus:ring-2 focus:ring-green-400">
                                 匯出月曆 Excel
                             </button>
-                            <button id="test-notification-btn" class="mt-2 w-full py-2 px-3 rounded-lg
+                            <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION" class="mt-2 w-full py-2 px-3 rounded-lg
                                        bg-blue-100 text-blue-800
                                        dark:bg-blue-600 dark:text-white
                                        border border-blue-200 dark:border-blue-700
@@ -475,10 +473,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             <ul id="admin-daily-records-list" class="space-y-3">
                             </ul>
 
-                            <div id="admin-records-loading" style="display: none;"
+                            <div id="admin-records-loading" data-i18n="RECORDS_LOADING" style="display: none;"
                                 class="text-center text-gray-500 py-4">
                                 正在載入紀錄...</div>
-                            <div id="admin-daily-records-empty" style="display: none;"
+                            <div id="admin-daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" style="display: none;"
                                 class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
                         </div>
                     </div>
@@ -492,7 +490,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                         <!-- 地標搜尋（Admin 新增地點） -->
                         <div id="admin-map-search" class="mb-3">
-                            <label for="admin-map-search-input" class="sr-only">搜尋地標</label>
+                            <label data-i18n="LABEL_SEARCH_LANDMARK" for="admin-map-search-input" class="sr-only">搜尋地標</label>
                             <div class="relative">
                                 <input id="admin-map-search-input" type="text" placeholder="搜尋地標或地址..."
                                     autocomplete="off"
@@ -509,7 +507,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                         <div id="admin-add-location-map"
                             class="w-full h-64 rounded-lg mb-4 bg-gray-200 dark:bg-gray-800 relative">
                             <!-- 覆蓋層：地圖載入中（會在 JS 中隱藏） -->
-                            <div id="admin-map-loading" class="admin-map-loading text-sm">地圖載入中...</div>
+                            <div id="admin-map-loading" data-i18n="MAP_LOADING" class="admin-map-loading text-sm">地圖載入中...</div>
                         </div>
 
                         <div class="space-y-4">
@@ -532,7 +530,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                             <!-- 新增：設定打卡地點範圍（公尺） -->
                             <div>
-                                <label for="location-radius-slider"
+                                <label data-i18n="LABEL_PUNCH_RADIUS" for="location-radius-slider"
                                     class="block text-sm font-medium text-gray-700">打卡範圍</label>
                                 <div class="mt-2 flex items-center space-x-3">
                                     <input id="location-radius-slider" type="range" min="10" max="500" step="10"
@@ -540,7 +538,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <span id="location-radius-display"
                                         class="w-20 text-sm text-gray-700 dark:text-gray-200 text-right">50 m</span>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-1">拖移滑桿以調整允許打卡的半徑（公尺）。</p>
+                                <p data-i18n="HINT_PUNCH_RADIUS" class="text-xs text-gray-500 mt-1">拖移滑桿以調整允許打卡的半徑（公尺）。</p>
                             </div>
 
                             <button data-i18n="GET_LOCATION_BTN" id="get-location-btn"
@@ -582,9 +580,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                 <section id="scheduling-view" class="space-y-6" style="display: none;">
                     <div class="card p-6">
-                        <h2 class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
+                        <h2 data-i18n="FEATURE_LOCKED" class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
                             未解鎖功能</h2>
-                        <p class="text-gray-500 mb-4">請聯絡開發人員</p>
+                        <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4">請聯絡開發人員</p>
                     </div>
                     <div class="card p-6 mt-6" style="display: none;">
                         <h2 data-i18n="API_TEST_TITLE"
