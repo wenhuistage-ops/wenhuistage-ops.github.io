@@ -80,16 +80,13 @@ function bindPunchEvents() {
                 let isFullDayForm = false;
 
                 if (isBothMissing) {
-                    // 本日未打卡：顯示兩個按鈕（上班和下班）
+                    // 本日未打卡：UI 同時顯示上下班輸入框，使用單一按鈕一次補兩筆
+                    // （避免舊版兩個按鈕在 isBothTimeInputs 分支下永遠送 inDateTime 的 bug）
                     formTitle = "本日未打卡";
                     buttonsHtml = `
-                        <button data-type="in" data-i18n="BTN_ADJUST_IN"
+                        <button data-type="full" data-i18n="BTN_ADJUST_FULL"
                                 class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
-                            補全上班打卡
-                        </button>
-                        <button data-type="out" data-i18n="BTN_ADJUST_OUT"
-                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
-                            補全下班打卡
+                            補全日打卡
                         </button>`;
                     defaultTime = "08:00"; // 上班卡預設早上8點
                 } else if (hasPunchInMissing) {
@@ -148,7 +145,7 @@ function bindPunchEvents() {
                                 </div>
                             `}
                         </div>
-                        <div class="grid grid-cols-1 ${isBothMissing ? 'sm:grid-cols-2' : 'sm:grid-cols-1'} gap-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-1 gap-2">
                             ${buttonsHtml}
                         </div>
                     </div>
@@ -324,7 +321,7 @@ function bindPunchEvents() {
 
                         if (outRes.ok) {
                             adjustmentFormContainer.replaceChildren();
-                            // 🚀 P5-3 優化：移除補打卡後的異常記錄檢查，減少 API 調用
+                            refreshAbnormalAfterApplication();
                         }
                     } else {
                         // 單次打卡
@@ -342,7 +339,7 @@ function bindPunchEvents() {
 
                         if (res.ok) {
                             adjustmentFormContainer.replaceChildren();
-                            // 🚀 P5-3 優化：移除補打卡後的異常記錄檢查，減少 API 調用
+                            refreshAbnormalAfterApplication();
                         }
                     }
 
@@ -390,7 +387,7 @@ function bindPunchEvents() {
 
                     if (res.ok) {
                         adjustmentFormContainer.replaceChildren();
-                        // 🚀 P5-3 優化：移除請假後的異常記錄檢查，減少 API 調用
+                        refreshAbnormalAfterApplication();
                     }
 
                 } catch (err) {
@@ -437,7 +434,7 @@ function bindPunchEvents() {
 
                     if (res.ok) {
                         adjustmentFormContainer.replaceChildren();
-                        // 🚀 P5-3 優化：移除休假後的異常記錄檢查，減少 API 調用
+                        refreshAbnormalAfterApplication();
                     }
 
                 } catch (err) {
@@ -450,6 +447,18 @@ function bindPunchEvents() {
                 }
             }
         });
+    }
+}
+
+// 補打卡／請假／休假成功後刷新異常列表（讓「審核中」徽章立即出現）
+function refreshAbnormalAfterApplication() {
+    try {
+        if (typeof cacheManager !== 'undefined' && cacheManager?.clear) {
+            cacheManager.clear('abnormal');
+        }
+    } catch (_) { /* cache 失敗不影響流程 */ }
+    if (typeof checkAbnormal === 'function') {
+        checkAbnormal(1, true).catch(err => console.error('刷新異常記錄失敗:', err));
     }
 }
 // #endregion

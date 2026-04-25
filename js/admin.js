@@ -921,6 +921,7 @@ function initAdminEvents() {
 
     // 註冊月薪收折與匯出功能（確保 DOM 元素已存在）
     setupAdminExport();
+    setupTestNotificationButton();
 }
 
 /**
@@ -1142,6 +1143,32 @@ function setupAdminExport() {
         } catch (err) {
             console.error('取得打卡記錄失敗', err);
             alert('無法取得打卡記錄，請重試。');
+        }
+    });
+}
+
+function setupTestNotificationButton() {
+    const btn = document.getElementById('test-notification-btn');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+
+    btn.addEventListener('click', async () => {
+        const loadingText = t('LOADING') || '處理中...';
+        generalButtonState(btn, 'processing', loadingText);
+        try {
+            const res = await callApifetch({ action: 'testNotification' }, 'loadingMsg');
+            if (res && res.ok) {
+                const adminCount = res.adminCount != null ? res.adminCount : '';
+                showNotification(`${res.msg || '測試通知發送成功'}（管理員 ${adminCount} 位）`, 'success');
+            } else {
+                const code = (res && res.code) || 'UNKNOWN_ERROR';
+                showNotification(t(code) || (res && res.msg) || '測試通知發送失敗', 'error');
+            }
+        } catch (err) {
+            console.error('testNotification 失敗', err);
+            showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+        } finally {
+            generalButtonState(btn, 'idle');
         }
     });
 }
