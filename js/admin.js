@@ -1199,25 +1199,30 @@ function setupBreakTimesEditor() {
         const endLabel = t('BREAK_END_LABEL') || '結束時間';
         const removeLabel = t('BTN_REMOVE_BREAK') || '移除';
         const inputCls = 'p-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white';
-        // 改用 flex-wrap：窄螢幕自動換行；時間欄位給足夠 min-width 讓「上午 06:00」能完整顯示
+        // 兩列：第一列 = 休息名稱（填滿）+ 移除按鈕
+        // 第二列 = 開始時間 + 結束時間（左右並列）
         return `
             <div class="break-row p-3 rounded-md bg-gray-50 dark:bg-gray-700"
-                 style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
-                <div style="flex:1 1 140px;min-width:120px;">
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${nameLabel}</label>
-                    <input type="text" class="break-name ${inputCls}" style="width:100%;box-sizing:border-box;" value="${String(name).replace(/"/g, '&quot;')}" />
+                 style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;gap:8px;align-items:flex-end;">
+                    <div style="flex:1 1 auto;min-width:0;">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${nameLabel}</label>
+                        <input type="text" class="break-name ${inputCls}" style="width:100%;box-sizing:border-box;" value="${String(name).replace(/"/g, '&quot;')}" />
+                    </div>
+                    <div style="flex:0 0 auto;">
+                        <button type="button" class="break-remove-btn text-sm font-semibold rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900"
+                                style="padding:8px 10px;" title="${removeLabel}">✕</button>
+                    </div>
                 </div>
-                <div style="flex:0 0 130px;min-width:130px;">
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${startLabel}</label>
-                    <input type="time" class="break-start ${inputCls}" style="width:100%;box-sizing:border-box;" value="${start}" />
-                </div>
-                <div style="flex:0 0 130px;min-width:130px;">
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${endLabel}</label>
-                    <input type="time" class="break-end ${inputCls}" style="width:100%;box-sizing:border-box;" value="${end}" />
-                </div>
-                <div style="flex:0 0 auto;align-self:flex-end;">
-                    <button type="button" class="break-remove-btn text-sm font-semibold rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900"
-                            style="padding:8px 10px;" title="${removeLabel}">✕</button>
+                <div style="display:flex;gap:8px;">
+                    <div style="flex:1 1 0;min-width:0;">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${startLabel}</label>
+                        <input type="time" class="break-start ${inputCls}" style="width:100%;box-sizing:border-box;" value="${start}" />
+                    </div>
+                    <div style="flex:1 1 0;min-width:0;">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${endLabel}</label>
+                        <input type="time" class="break-end ${inputCls}" style="width:100%;box-sizing:border-box;" value="${end}" />
+                    </div>
                 </div>
             </div>`;
     }
