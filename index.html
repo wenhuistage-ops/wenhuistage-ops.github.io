@@ -28,6 +28,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title data-i18n="APP_TITLE">APP_TITLE</title>
     <link rel="stylesheet" href="./dist/compiled.css">
+    <style>
+        /* 國定假日紅字優先級提升：避免 leave-approved 等 dateClass 蓋掉 holiday-text */
+        .day-cell.holiday-text { color: #ef4444 !important; font-weight: 700 !important; }
+        html.dark .day-cell.holiday-text { color: #fb7185 !important; font-weight: 700 !important; }
+    </style>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -661,6 +666,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script defer src="js/punch/geolocation.js"></script>
     <script defer src="js/punch/punch-flow.js"></script>
     <script defer src="js/punch/make-up.js"></script>
+    <script defer src="js/holidays-client.js"></script>
     <script defer src="js/weekly-chart.js"></script>
     <script defer src="js/ui.js"></script>
     <script defer src="js/location.js"></script>

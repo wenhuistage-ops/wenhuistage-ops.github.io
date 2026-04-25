@@ -246,6 +246,21 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         month: month + 1
     });
 
+    // 預載當年（與相鄰年）國定假日，第一次有等待，後續從 cache 取
+    if (typeof ensureHolidaysLoaded === 'function') {
+        ensureHolidaysLoaded(year).then(() => {
+            // 載入完後若日曆還在頁面上，補標紅字
+            calendarGrid.querySelectorAll('.day-cell[data-date]').forEach((cell) => {
+                const dk = cell.dataset.date;
+                if (typeof isHoliday === 'function' && isHoliday(dk)) {
+                    cell.classList.add('holiday-text');
+                    const name = (typeof getHolidayName === 'function') ? getHolidayName(dk) : '';
+                    if (name) cell.title = name;
+                }
+            });
+        });
+    }
+
     // 移除舊的累計時數行
     const existingTotalRows = calendarGrid.parentNode.querySelectorAll('.total-hours-row');
     existingTotalRows.forEach(row => row.remove());
@@ -289,16 +304,19 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         let dateClass = 'normal-day';
 
         const todayRecords = recordsByDate[dateKey] || [];
-        // 初始化假日判斷，預設為 false
-        let isHoliday = false;
+        // 假日判斷：優先從 holidays-client 取（台灣國定假日 + 補假），
+        // 退路用 dailyStatus.isHoliday（GS 後端標記）。
+        let isHolidayDay = false;
+        if (typeof window !== 'undefined' && typeof window.isHoliday === 'function') {
+            isHolidayDay = window.isHoliday(dateKey);
+        }
 
         if (todayRecords.length > 0) {
             const record = todayRecords[0];
             const reason = record.reason;
 
-            // 🌟 新增：取得假日狀態 🌟
-            // 假設 isHoliday 來自 checkAttendance1 處理後的 dailyStatus 結構
-            isHoliday = record.isHoliday || false;
+            // dailyStatus.isHoliday 作為退路（若 holidays-client 還沒 ready）
+            if (!isHolidayDay) isHolidayDay = record.isHoliday || false;
 
             // 設定背景顏色 (根據打卡狀態)
             switch (reason) {
@@ -336,9 +354,14 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
                     break;
             }
         }
-        if (isHoliday) {
+        if (isHolidayDay) {
             // 由於是假日，將日期文字設為紅色 (需在 CSS 中定義 .holiday-text)
             dayCell.classList.add('holiday-text');
+            // 顯示假日名稱（hover tooltip）
+            if (typeof window !== 'undefined' && typeof window.getHolidayName === 'function') {
+                const name = window.getHolidayName(dateKey);
+                if (name) dayCell.title = name;
+            }
         }
 
         const isToday = (year === today.getFullYear() && month === today.getMonth() && i === today.getDate());

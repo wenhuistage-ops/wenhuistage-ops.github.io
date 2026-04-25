@@ -256,8 +256,18 @@ html.dark .notification {
     font-weight: bold;
 }
 
-.day-cell.holiday-text {
-    color: #ef4444;
+.day-cell.holiday-text,
+.day-cell.holiday-text.leave-approved,
+.day-cell.holiday-text.leave-pending,
+.day-cell.holiday-text.vacation-approved,
+.day-cell.holiday-text.vacation-pending,
+.day-cell.holiday-text.day-off,
+.day-cell.holiday-text.normal-day,
+.day-cell.holiday-text.abnormal-day,
+.day-cell.holiday-text.pending-virtual,
+.day-cell.holiday-text.approved-virtual,
+.day-cell.holiday-text.pending-adjustment {
+    color: #ef4444 !important;
     font-weight: bold;
 }
 
@@ -337,8 +347,18 @@ html.dark .day-cell.today {
     /* dark:text-green-200 */
 }
 
-html.dark .day-cell.holiday-text {
-    color: #fb7185;
+html.dark .day-cell.holiday-text,
+html.dark .day-cell.holiday-text.leave-approved,
+html.dark .day-cell.holiday-text.leave-pending,
+html.dark .day-cell.holiday-text.vacation-approved,
+html.dark .day-cell.holiday-text.vacation-pending,
+html.dark .day-cell.holiday-text.day-off,
+html.dark .day-cell.holiday-text.normal-day,
+html.dark .day-cell.holiday-text.abnormal-day,
+html.dark .day-cell.holiday-text.pending-virtual,
+html.dark .day-cell.holiday-text.approved-virtual,
+html.dark .day-cell.holiday-text.pending-adjustment {
+    color: #fb7185 !important;
     font-weight: bold;
 }
 
