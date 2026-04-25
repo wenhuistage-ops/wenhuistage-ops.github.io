@@ -251,5 +251,13 @@
   "CONFIRM_REPAIR_SINGLE": "確定要補打 {type} 卡嗎？\n時間：{datetime}",
   "CONFIRM_LEAVE_VACATION": "確定要在 {date} 提交「{reason}」的申請嗎？",
   "MSG_APPROVE_ERROR": "批准請求時發生錯誤",
-  "MSG_REJECT_ERROR": "拒絕請求時發生錯誤"
+  "MSG_REJECT_ERROR": "拒絕請求時發生錯誤",
+  "WEEKLY_CHART_TITLE": "週工時",
+  "CHART_MODE_NORMAL": "正常",
+  "CHART_MODE_OVERTIME": "加班",
+  "CHART_MODE_REST": "休息",
+  "CHART_MODE_TOTAL": "總計",
+  "CHART_HOURS_UNIT": "小時",
+  "CHART_NO_DATA": "此週無資料",
+  "CHART_HINT": "點擊任一日期查看該週工時"
 }

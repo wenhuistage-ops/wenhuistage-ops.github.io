@@ -251,5 +251,13 @@
   "CONFIRM_REPAIR_SINGLE": "{type}打刻を修正しますか？\n時刻：{datetime}",
   "CONFIRM_LEAVE_VACATION": "{date} に「{reason}」の申請を提出しますか？",
   "MSG_APPROVE_ERROR": "リクエストの承認中にエラーが発生しました",
-  "MSG_REJECT_ERROR": "リクエストの却下中にエラーが発生しました"
+  "MSG_REJECT_ERROR": "リクエストの却下中にエラーが発生しました",
+  "WEEKLY_CHART_TITLE": "週間勤務時間",
+  "CHART_MODE_NORMAL": "通常",
+  "CHART_MODE_OVERTIME": "残業",
+  "CHART_MODE_REST": "休憩",
+  "CHART_MODE_TOTAL": "合計",
+  "CHART_HOURS_UNIT": "時間",
+  "CHART_NO_DATA": "今週のデータなし",
+  "CHART_HINT": "日付をクリックして週間グラフを表示"
 }

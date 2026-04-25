@@ -251,5 +251,13 @@
   "CONFIRM_REPAIR_SINGLE": "Konfirmasi absen susulan {type}?\nWaktu: {datetime}",
   "CONFIRM_LEAVE_VACATION": "Konfirmasi mengajukan \"{reason}\" pada {date}?",
   "MSG_APPROVE_ERROR": "Kesalahan saat menyetujui permintaan",
-  "MSG_REJECT_ERROR": "Kesalahan saat menolak permintaan"
+  "MSG_REJECT_ERROR": "Kesalahan saat menolak permintaan",
+  "WEEKLY_CHART_TITLE": "Jam Mingguan",
+  "CHART_MODE_NORMAL": "Normal",
+  "CHART_MODE_OVERTIME": "Lembur",
+  "CHART_MODE_REST": "Istirahat",
+  "CHART_MODE_TOTAL": "Total",
+  "CHART_HOURS_UNIT": "jam",
+  "CHART_NO_DATA": "Tidak ada data minggu ini",
+  "CHART_HINT": "Klik tanggal untuk melihat grafik mingguan"
 }

@@ -250,5 +250,13 @@
   "CONFIRM_REPAIR_SINGLE": "Xác nhận bổ sung chấm công {type}?\nThời gian: {datetime}",
   "CONFIRM_LEAVE_VACATION": "Xác nhận nộp đơn \"{reason}\" vào ngày {date}?",
   "MSG_APPROVE_ERROR": "Lỗi khi duyệt yêu cầu",
-  "MSG_REJECT_ERROR": "Lỗi khi từ chối yêu cầu"
+  "MSG_REJECT_ERROR": "Lỗi khi từ chối yêu cầu",
+  "WEEKLY_CHART_TITLE": "Giờ làm tuần",
+  "CHART_MODE_NORMAL": "Thông thường",
+  "CHART_MODE_OVERTIME": "Tăng ca",
+  "CHART_MODE_REST": "Nghỉ",
+  "CHART_MODE_TOTAL": "Tổng",
+  "CHART_HOURS_UNIT": "giờ",
+  "CHART_NO_DATA": "Không có dữ liệu tuần này",
+  "CHART_HINT": "Bấm vào một ngày để xem biểu đồ tuần"
 }

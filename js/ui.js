@@ -396,6 +396,14 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         } else if (!isForAdmin) {
             renderDailyRecords(dateStr);
         }
+
+        // 同步渲染週工時長條圖
+        if (typeof renderWeeklyChart === 'function') {
+            const chartCard = isForAdmin
+                ? document.getElementById('admin-weekly-chart-card')
+                : document.getElementById('weekly-chart-card');
+            if (chartCard) renderWeeklyChart(chartCard, records, dateStr, 'normal');
+        }
     };
 
     // 保存監聽器引用以便後續移除
@@ -420,6 +428,27 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
 
     calendarGrid.parentNode.appendChild(totalRow);
     renderTranslations(totalRow); // 如果有翻譯需求，渲染翻譯
+
+    // 預設渲染週工時長條圖：若所在月為當月則 default 為今天，否則該月最後有資料的一天
+    if (typeof renderWeeklyChart === 'function') {
+        const chartCard = isForAdmin
+            ? document.getElementById('admin-weekly-chart-card')
+            : document.getElementById('weekly-chart-card');
+        if (chartCard) {
+            const isCurrentMonth = (year === today.getFullYear() && month === today.getMonth());
+            let defaultDateKey = null;
+            if (isCurrentMonth) {
+                defaultDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            } else {
+                // 找該月最後一筆有資料的日期
+                const inMonth = (records || []).filter((r) => r.date && r.date.startsWith(currentMonthKey));
+                if (inMonth.length) {
+                    defaultDateKey = inMonth[inMonth.length - 1].date;
+                }
+            }
+            renderWeeklyChart(chartCard, records, defaultDateKey, 'normal');
+        }
+    }
 }
 
 // 新增：渲染每日紀錄的函式 (修正非同步問題)

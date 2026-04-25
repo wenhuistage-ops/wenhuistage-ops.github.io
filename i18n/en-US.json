@@ -251,5 +251,13 @@
   "CONFIRM_REPAIR_SINGLE": "Confirm repair {type} punch?\nTime: {datetime}",
   "CONFIRM_LEAVE_VACATION": "Confirm submitting \"{reason}\" application on {date}?",
   "MSG_APPROVE_ERROR": "Error while approving request",
-  "MSG_REJECT_ERROR": "Error while rejecting request"
+  "MSG_REJECT_ERROR": "Error while rejecting request",
+  "WEEKLY_CHART_TITLE": "Weekly Hours",
+  "CHART_MODE_NORMAL": "Normal",
+  "CHART_MODE_OVERTIME": "Overtime",
+  "CHART_MODE_REST": "Rest",
+  "CHART_MODE_TOTAL": "Total",
+  "CHART_HOURS_UNIT": "hr",
+  "CHART_NO_DATA": "No data this week",
+  "CHART_HINT": "Click any date to see the weekly chart"
 }
