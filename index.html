@@ -32,6 +32,102 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         /* 國定假日紅字優先級提升：避免 leave-approved 等 dateClass 蓋掉 holiday-text */
         .day-cell.holiday-text { color: #ef4444 !important; font-weight: 700 !important; }
         html.dark .day-cell.holiday-text { color: #fb7185 !important; font-weight: 700 !important; }
+
+        /* Phase 2：管理員 view 在桌機 break out #app-container 的 max-w-md，
+           讓員工 dashboard 真的能 2/3 col。手機/平板維持原 max-w-md 視覺。 */
+        @media (min-width: 1024px) {
+            #admin-view {
+                position: relative;
+                left: 50%;
+                transform: translateX(-50%);
+                width: min(calc(100vw - 2rem), 1280px);
+                max-width: none;
+            }
+        }
+
+        /* Phase 2：員工管理 dashboard 響應式 grid */
+        .employee-dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        @media (min-width: 640px) {
+            .employee-dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1024px) {
+            .employee-dashboard-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        .employee-dashboard-grid > .dash-full { grid-column: 1 / -1; }
+        /* dash-2col：平板撐滿全寬（2-col grid 內等同 dash-full）；桌機跨 2 of 3 col */
+        @media (min-width: 640px) {
+            .employee-dashboard-grid > .dash-2col { grid-column: 1 / -1; }
+        }
+        @media (min-width: 1024px) {
+            .employee-dashboard-grid > .dash-2col { grid-column: span 2; }
+        }
+
+        /* KPI 4 格：手機 2-col、平板以上 4-col */
+        .employee-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        @media (min-width: 640px) {
+            .employee-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        .employee-kpi-cell {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background: rgba(99, 102, 241, 0.06);
+        }
+        html.dark .employee-kpi-cell { background: rgba(99, 102, 241, 0.12); }
+        .employee-kpi-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        html.dark .employee-kpi-label { color: #9ca3af; }
+        .employee-kpi-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-top: 0.25rem;
+            color: #1f2937;
+        }
+        html.dark .employee-kpi-value { color: #f3f4f6; }
+        .employee-kpi-unit {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #9ca3af;
+            margin-left: 0.25rem;
+        }
+
+        /* placeholder 卡片提示 */
+        .dashboard-placeholder {
+            color: #9ca3af;
+            font-size: 0.85rem;
+            padding: 1.5rem 0;
+            text-align: center;
+            font-style: italic;
+        }
+
+        /* 員工設定摺疊區 summary 樣式 */
+        #employee-settings-fold summary {
+            cursor: pointer;
+            list-style: none;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        html.dark #employee-settings-fold summary { color: #e5e7eb; }
+        #employee-settings-fold summary::-webkit-details-marker { display: none; }
+        #employee-settings-fold summary::after {
+            content: '▸';
+            transition: transform 0.2s;
+        }
+        #employee-settings-fold[open] summary::after { transform: rotate(90deg); }
+        #employee-settings-fold[open] > div { margin-top: 1rem; }
     </style>
 
     <script>
@@ -320,13 +416,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                 <section id="employee-mgmt-view" class="space-y-6" style="display: block;">
 
-                    <div class="card p-6 mt-6">
-
-                        <h2 data-i18n="EMPLOYEE_INFO_SETTINGS"
-                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">
-                            員工資料設定
-                        </h2>
-                        <div class="mb-4">
+                    <!-- A. 員工選擇器卡（最頂端，全寬，含 placeholder）-->
+                    <div class="card p-6">
+                        <h2 data-i18n="EMPLOYEE_MGMT_TITLE"
+                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工管理</h2>
+                        <div>
                             <label data-i18n="LABEL_SELECT_EMPLOYEE" for="admin-select-employee-mgmt"
                                 class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 選擇員工：
@@ -337,142 +431,203 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             </select>
                         </div>
 
-                        <div id="employee-detail-card" style="display: none;" class="space-y-6">
-                            <!-- Hero：頭像 + 姓名 -->
-                            <div class="flex items-center pb-6 border-b border-gray-200 dark:border-gray-700">
-                                <img id="mgmt-employee-avatar"
-                                    src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
-                                    onerror="this.onerror=null;this.src='https://placehold.co/80x80/E0F2FE/1E3A8A?text=User'"
-                                    alt="Employee Avatar"
-                                    style="width:64px;height:64px;flex-shrink:0;"
-                                    class="rounded-full object-cover mr-4 border-2 border-indigo-300 dark:border-indigo-500">
-                                <div class="truncate flex-grow">
-                                    <h4 data-i18n="LABEL_EMPLOYEE_NAME" class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate"
-                                        id="mgmt-employee-name">
-                                        員工姓名：
-                                    </h4>
-                                    <p class="text-sm font-mono text-gray-500 dark:text-gray-400 mt-1"
-                                        style="display: none;" id="mgmt-employee-id">ID: N/A</p>
-                                </div>
-                            </div>
-
-                            <!-- 員工資訊 Info Items（年資/入職/職務）-->
-                            <div id="employee-info-container" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <!-- Info Items 由 JS 動態生成 -->
-                            </div>
-
-                            <!-- 權限與帳號控制 -->
-                            <div>
-                                <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
-                                    data-i18n="PERMISSION_ACCOUNT_SETTINGS">
-                                    <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                    權限設定與帳號控制
-                                </h5>
-
-                                <div id="employee-settings-container" class="space-y-3">
-                                    <!-- Toggle settings 由 JS 動態生成 -->
-                                </div>
-                            </div>
-
-                            <!-- 打卡政策設定 -->
-                            <div>
-                                <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
-                                    data-i18n="PUNCH_POLICY_SETTINGS">
-                                    <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                    打卡政策設定
-                                </h5>
-                                    <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div
-                                                class="flex items-center p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
-                                                <input type="checkbox" id="require-gps" name="requireGps"
-                                                    class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
-                                                <label for="require-gps"
-                                                    class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
-                                                    data-i18n="REQUIRE_GPS"> GPS 定位</label>
-                                            </div>
-                                            <div
-                                                class="flex items-center p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
-                                                <input type="checkbox" id="allow-manual-adjust" name="allowManualAdjust"
-                                                    class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
-                                                <label for="allow-manual-adjust"
-                                                    class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
-                                                    data-i18n="ALLOW_MANUAL_ADJUST">Wifi BSSID</label>
-                                            </div>
-                                        </div>
-                                        <button type="submit"
-                                            class="mt-6 py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md w-full transition duration-150"
-                                            data-i18n="BTN_SAVE">
-                                            儲存政策
-                                        </button>
-                                    </form>
-                                </div>
-                        </div>
-
                         <div id="mgmt-placeholder" style="display: block;"
-                            class="mb-4 text-center py-10 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl shadow-inner">
-                            <i class="fas fa-info-circle text-3xl text-indigo-400 mb-2"></i>
+                            class="mt-4 text-center py-8 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                            <i class="fas fa-info-circle text-2xl text-indigo-400 mb-2"></i>
                             <p class="font-semibold" data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
                             <p data-i18n="HINT_DATA_AUTO_LOAD" class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
                         </div>
                     </div>
 
-                    <div class="card p-6 mt-6">
-                        <h2 data-i18n="EMPLOYEE_CALENDAR_TITLE"
-                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工日曆檢視</h2>
+                    <!-- B. employee-detail-card 改為 dashboard wrapper（選了員工才顯示）-->
+                    <div id="employee-detail-card" style="display: none;">
+                        <div class="employee-dashboard-grid">
 
-                        <div id="admin-employee-calendar-card" style="display: none;">
-                            <div class="flex justify-between items-center mb-4">
-                                <button id="admin-prev-month-btn" data-i18n="BTN_PREV_MONTH" class="p-2 text-blue-600 dark:text-blue-400">&lt; 上個月</button>
-                                <h3 id="admin-current-month-display" class="text-lg font-semibold dark:text-white"></h3>
-                                <button id="admin-next-month-btn" data-i18n="BTN_NEXT_MONTH" class="p-2 text-blue-600 dark:text-blue-400">下個月 &gt;</button>
+                            <!-- B1. Hero 卡（全寬）：頭像 + 姓名 + info items -->
+                            <div class="card p-6 dash-full">
+                                <div class="flex items-center pb-4 mb-4 border-b border-gray-200 dark:border-gray-700">
+                                    <img id="mgmt-employee-avatar"
+                                        src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
+                                        onerror="this.onerror=null;this.src='https://placehold.co/80x80/E0F2FE/1E3A8A?text=User'"
+                                        alt="Employee Avatar"
+                                        style="width:64px;height:64px;flex-shrink:0;"
+                                        class="rounded-full object-cover mr-4 border-2 border-indigo-300 dark:border-indigo-500">
+                                    <div class="truncate flex-grow">
+                                        <h4 data-i18n="LABEL_EMPLOYEE_NAME"
+                                            class="text-xl font-bold text-gray-900 dark:text-white truncate"
+                                            id="mgmt-employee-name">
+                                            員工姓名：
+                                        </h4>
+                                        <p class="text-sm font-mono text-gray-500 dark:text-gray-400 mt-1"
+                                            style="display: none;" id="mgmt-employee-id">ID: N/A</p>
+                                    </div>
+                                </div>
+                                <div id="employee-info-container" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <!-- Info Items 由 JS 動態生成（年資/入職/職務）-->
+                                </div>
                             </div>
-                            <div id="admin-calendar-grid" class="grid grid-cols-7 gap-1 text-center text-sm">
-                                <div data-i18n="WEEK_SUNDAY" class="font-bold text-red-600 dark:text-red-400">日</div>
-                                <div data-i18n="WEEK_MONDAY" class="font-bold">一</div>
-                                <div data-i18n="WEEK_TUESDAY" class="font-bold">二</div>
-                                <div data-i18n="WEEK_WEDNESDAY" class="font-bold">三</div>
-                                <div data-i18n="WEEK_THURSDAY" class="font-bold">四</div>
-                                <div data-i18n="WEEK_FRIDAY" class="font-bold">五</div>
-                                <div data-i18n="WEEK_SATURDAY" class="font-bold text-blue-600 dark:text-blue-400">六</div>
+
+                            <!-- B2. KPI 4 格（全寬，Phase 3 實作數值）-->
+                            <div class="card p-6 dash-full" id="employee-kpi-card">
+                                <h3 data-i18n="KPI_MONTH_SUMMARY_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">本月統計</h3>
+                                <div class="employee-kpi-grid">
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_TOTAL_HOURS">本月工時</div>
+                                        <div><span class="employee-kpi-value" id="kpi-total-hours">--</span><span class="employee-kpi-unit" data-i18n="CHART_HOURS_UNIT">小時</span></div>
+                                    </div>
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_NORMAL_HOURS">正常</div>
+                                        <div><span class="employee-kpi-value" id="kpi-normal-hours">--</span><span class="employee-kpi-unit" data-i18n="CHART_HOURS_UNIT">小時</span></div>
+                                    </div>
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_OVERTIME_HOURS">加班</div>
+                                        <div><span class="employee-kpi-value" id="kpi-overtime-hours">--</span><span class="employee-kpi-unit" data-i18n="CHART_HOURS_UNIT">小時</span></div>
+                                    </div>
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_LEAVE_DAYS">請假天數</div>
+                                        <div><span class="employee-kpi-value" id="kpi-leave-days">--</span><span class="employee-kpi-unit" data-i18n="CONSECUTIVE_DAYS_UNIT">天</span></div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <p id="admin-calendar-info" class="text-sm text-gray-500 mt-4 dark:text-gray-400"></p>
-                            <!-- 在管理員日曆 HTML 中，放在日曆格子之後 -->
-                            <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL" class="mt-2 w-full py-2 px-3 rounded-lg
-                                       bg-green-100 text-green-800
-                                       dark:bg-green-600 dark:text-white
-                                       border border-green-200 dark:border-green-700
-                                       text-sm font-medium shadow-sm
-                                       hover:bg-green-200 dark:hover:bg-green-700
-                                       focus:outline-none focus:ring-2 focus:ring-green-400">
-                                匯出月曆 Excel
-                            </button>
-                            <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION" class="mt-2 w-full py-2 px-3 rounded-lg
-                                       bg-blue-100 text-blue-800
-                                       dark:bg-blue-600 dark:text-white
-                                       border border-blue-200 dark:border-blue-700
-                                       text-sm font-medium shadow-sm
-                                       hover:bg-blue-200 dark:hover:bg-blue-700
-                                       focus:outline-none focus:ring-2 focus:ring-blue-400">
-                                測試通知功能
-                            </button>
+                            <!-- B3. 月曆卡（全寬）-->
+                            <div class="card p-6 dash-full">
+                                <h3 data-i18n="EMPLOYEE_CALENDAR_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">員工日曆檢視</h3>
 
-                        </div>
+                                <div id="admin-employee-calendar-card" style="display: none;">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <button id="admin-prev-month-btn" data-i18n="BTN_PREV_MONTH" class="p-2 text-blue-600 dark:text-blue-400">&lt; 上個月</button>
+                                        <h3 id="admin-current-month-display" class="text-lg font-semibold dark:text-white"></h3>
+                                        <button id="admin-next-month-btn" data-i18n="BTN_NEXT_MONTH" class="p-2 text-blue-600 dark:text-blue-400">下個月 &gt;</button>
+                                    </div>
+                                    <div id="admin-calendar-grid" class="grid grid-cols-7 gap-1 text-center text-sm">
+                                        <div data-i18n="WEEK_SUNDAY" class="font-bold text-red-600 dark:text-red-400">日</div>
+                                        <div data-i18n="WEEK_MONDAY" class="font-bold">一</div>
+                                        <div data-i18n="WEEK_TUESDAY" class="font-bold">二</div>
+                                        <div data-i18n="WEEK_WEDNESDAY" class="font-bold">三</div>
+                                        <div data-i18n="WEEK_THURSDAY" class="font-bold">四</div>
+                                        <div data-i18n="WEEK_FRIDAY" class="font-bold">五</div>
+                                        <div data-i18n="WEEK_SATURDAY" class="font-bold text-blue-600 dark:text-blue-400">六</div>
+                                    </div>
 
-                        <div id="admin-weekly-chart-card" class="card p-6 mt-6"></div>
+                                    <p id="admin-calendar-info" class="text-sm text-gray-500 mt-4 dark:text-gray-400"></p>
+                                </div>
+                            </div>
 
-                        <div id="admin-daily-records-card" class="card p-6 mt-6" style="display: none;">
-                            <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
+                            <!-- B4. 週工時圖（全寬，已是 .card p-6）-->
+                            <div id="admin-weekly-chart-card" class="card p-6 dash-full"></div>
 
-                            <ul id="admin-daily-records-list" class="space-y-3">
-                            </ul>
+                            <!-- B5. 連續上工卡（小卡，Phase 5）-->
+                            <div class="card p-6" id="employee-streak-card">
+                                <h3 data-i18n="CONSECUTIVE_WORKDAYS_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                    <i class="fas fa-fire mr-2 text-orange-500"></i>連續上工
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
+                            </div>
 
-                            <div id="admin-records-loading" data-i18n="RECORDS_LOADING" style="display: none;"
-                                class="text-center text-gray-500 py-4">
-                                正在載入紀錄...</div>
-                            <div id="admin-daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" style="display: none;"
-                                class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
+                            <!-- B6. 請假/休假統計卡（Phase 5）-->
+                            <div class="card p-6" id="employee-leave-stats-card">
+                                <h3 data-i18n="LEAVE_STATS_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                    <i class="fas fa-umbrella-beach mr-2 text-cyan-500"></i>請假統計
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
+                            </div>
+
+                            <!-- B7. 申請紀錄卡（跨 2 col 桌機，Phase 4）-->
+                            <div class="card p-6 dash-2col" id="employee-request-history-card">
+                                <h3 data-i18n="REQUEST_HISTORY_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                    <i class="fas fa-clipboard-list mr-2 text-indigo-500"></i>申請紀錄
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_4">(待 Phase 4 實作)</p>
+                            </div>
+
+                            <!-- B8. 打卡紀錄表格（全寬，Phase 6）-->
+                            <div class="card p-6 dash-full" id="employee-punch-table-card">
+                                <h3 data-i18n="PUNCH_TABLE_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                    <i class="fas fa-table mr-2 text-emerald-500"></i>打卡紀錄
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_6">(待 Phase 6 實作)</p>
+                            </div>
+
+                            <!-- B9. 既有 daily-records 卡（全寬，由月曆 click 觸發）-->
+                            <div id="admin-daily-records-card" class="card p-6 dash-full" style="display: none;">
+                                <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
+                                <ul id="admin-daily-records-list" class="space-y-3"></ul>
+                                <div id="admin-records-loading" data-i18n="RECORDS_LOADING" style="display: none;"
+                                    class="text-center text-gray-500 py-4">正在載入紀錄...</div>
+                                <div id="admin-daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" style="display: none;"
+                                    class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
+                            </div>
+
+                            <!-- B10. 員工設定（摺疊，全寬）-->
+                            <details id="employee-settings-fold" class="card p-6 dash-full">
+                                <summary>
+                                    <span data-i18n="EMPLOYEE_SETTINGS_TITLE">員工設定</span>
+                                </summary>
+                                <div class="space-y-6">
+                                    <!-- 權限與帳號控制 -->
+                                    <div>
+                                        <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                            data-i18n="PERMISSION_ACCOUNT_SETTINGS">
+                                            <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                            權限設定與帳號控制
+                                        </h5>
+                                        <div id="employee-settings-container" class="space-y-3">
+                                            <!-- Toggle settings 由 JS 動態生成 -->
+                                        </div>
+                                    </div>
+
+                                    <!-- 打卡政策設定 -->
+                                    <div>
+                                        <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                            data-i18n="PUNCH_POLICY_SETTINGS">
+                                            <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                            打卡政策設定
+                                        </h5>
+                                        <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
+                                                    <input type="checkbox" id="require-gps" name="requireGps"
+                                                        class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                                                    <label for="require-gps"
+                                                        class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
+                                                        data-i18n="REQUIRE_GPS">GPS 定位</label>
+                                                </div>
+                                                <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
+                                                    <input type="checkbox" id="allow-manual-adjust" name="allowManualAdjust"
+                                                        class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                                                    <label for="allow-manual-adjust"
+                                                        class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
+                                                        data-i18n="ALLOW_MANUAL_ADJUST">Wifi BSSID</label>
+                                                </div>
+                                            </div>
+                                            <button type="submit"
+                                                class="mt-6 py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md w-full transition duration-150"
+                                                data-i18n="BTN_SAVE">
+                                                儲存政策
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <!-- 動作按鈕（匯出 Excel + 測試通知）-->
+                                    <div class="flex flex-col sm:flex-row gap-2">
+                                        <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL"
+                                            class="flex-1 py-2 px-3 rounded-lg bg-green-100 text-green-800 dark:bg-green-600 dark:text-white border border-green-200 dark:border-green-700 text-sm font-medium hover:bg-green-200 dark:hover:bg-green-700">
+                                            匯出月曆 Excel
+                                        </button>
+                                        <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION"
+                                            class="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-800 dark:bg-blue-600 dark:text-white border border-blue-200 dark:border-blue-700 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-700">
+                                            測試通知功能
+                                        </button>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
                 </section>
