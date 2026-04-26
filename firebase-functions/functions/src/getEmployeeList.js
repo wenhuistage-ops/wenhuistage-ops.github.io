@@ -33,6 +33,13 @@ module.exports = onCall(
         lastLoginTime: d.lastLoginTime?.toDate?.() || null,
         isAdmin: dept === "管理員" || /admin/i.test(dept),
         lineUserId: doc.id,
+        // Phase L7：薪資與勞保（僅 admin 取得，呼叫端是 verifyAdmin 已過）
+        salaryType: d.salaryType || "monthly",
+        monthlySalary: Number(d.monthlySalary || 0),
+        hourlyRate: Number(d.hourlyRate || 0),
+        laborInsuranceGrade: d.laborInsuranceGrade != null ? Number(d.laborInsuranceGrade) : null,
+        hasLaborPension: d.hasLaborPension !== false, // 預設 true
+        laborPensionRate: Number(d.laborPensionRate || 0),
       };
     });
 

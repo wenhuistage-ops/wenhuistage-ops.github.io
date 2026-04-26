@@ -834,6 +834,9 @@ function initAdminEvents() {
 
             employeeDetailCard.style.display = 'block';
             mgmtPlaceholder.style.display = 'none';
+
+            // Phase L7：填薪資設定表單
+            _fillSalaryProfileForm(employee);
         } else {
             // 處理未選擇或找不到的情況
             employeeDetailCard.style.display = 'none';
@@ -958,7 +961,250 @@ function initAdminEvents() {
     setupEmployeeSettingTabs();
     // Phase L5 add-on：勞基法工時詳細「計算說明」彈窗
     setupKpiLaborHelpModal();
+    // Phase L7：員工薪資設定表單事件
+    setupSalaryProfileForm();
 }
+
+// ===================================
+// #region Phase L7：員工薪資與勞保設定
+// ===================================
+
+const MIN_MONTHLY_WAGE_2026 = 28590;
+const MIN_HOURLY_WAGE_2026 = 190;
+
+/**
+ * 切換薪資制度顯示（monthly / hourly）
+ */
+function _setSalaryTypeUI(type) {
+    const monthlyBlock = document.getElementById('salary-monthly-block');
+    const hourlyBlock = document.getElementById('salary-hourly-block');
+    if (!monthlyBlock || !hourlyBlock) return;
+    if (type === 'hourly') {
+        monthlyBlock.style.display = 'none';
+        hourlyBlock.style.display = 'block';
+    } else {
+        monthlyBlock.style.display = 'block';
+        hourlyBlock.style.display = 'none';
+    }
+}
+
+/**
+ * 用 LABOR_INSURANCE_GRADES 填等級下拉
+ */
+function _populateGradeOptions() {
+    const sel = document.getElementById('salary-grade-select');
+    if (!sel || sel.options.length > 1) return; // 已填過跳過
+    if (!Array.isArray(window.LABOR_INSURANCE_GRADES)) return;
+    window.LABOR_INSURANCE_GRADES.forEach((g) => {
+        const opt = document.createElement('option');
+        opt.value = String(g.grade);
+        opt.textContent = `第 ${g.grade} 級 (${g.salary.toLocaleString()})`;
+        sel.appendChild(opt);
+    });
+}
+
+/**
+ * 即時換算：月薪 → 時薪、警告基本工資、扣繳預覽
+ */
+function _refreshSalaryPreview() {
+    const isMonthly = document.getElementById('salary-type-monthly')?.checked;
+    const monthlyInput = document.getElementById('salary-monthly-input');
+    const hourlyInput = document.getElementById('salary-hourly-input');
+    const gradeSel = document.getElementById('salary-grade-select');
+    const autoChk = document.getElementById('salary-grade-auto');
+    const pensionOn = document.getElementById('salary-pension-on');
+    const pensionRateInput = document.getElementById('salary-pension-rate');
+    const previewLaborEl = document.getElementById('salary-preview-labor');
+    const previewHealthEl = document.getElementById('salary-preview-health');
+    const previewPensionEl = document.getElementById('salary-preview-pension');
+    const previewTotalEl = document.getElementById('salary-preview-total');
+    const previewHourlyEl = document.getElementById('salary-hourly-preview');
+    const minWageWarn = document.getElementById('salary-min-wage-warn');
+
+    // 月薪 → 時薪換算
+    let monthlyVal = 0;
+    if (isMonthly && monthlyInput) {
+        monthlyVal = Number(monthlyInput.value) || 0;
+        const hourly = (typeof window.monthlyToHourly === 'function')
+            ? window.monthlyToHourly(monthlyVal)
+            : Math.round(monthlyVal / 240);
+        if (previewHourlyEl) previewHourlyEl.textContent = hourly > 0 ? `${hourly} 元/小時` : '--';
+        if (minWageWarn) {
+            minWageWarn.style.display = (monthlyVal > 0 && monthlyVal < MIN_MONTHLY_WAGE_2026) ? 'block' : 'none';
+        }
+    }
+
+    // 自動推算等級
+    if (isMonthly && autoChk?.checked && monthlyVal > 0 && typeof window.inferGradeFromSalary === 'function') {
+        const inferred = window.inferGradeFromSalary(monthlyVal);
+        if (inferred && gradeSel) {
+            gradeSel.value = String(inferred.grade);
+            gradeSel.disabled = true;
+        }
+    } else if (gradeSel) {
+        gradeSel.disabled = false;
+    }
+
+    // 扣繳預覽（依當前選擇等級的投保薪資）
+    const gradeVal = Number(gradeSel?.value) || 0;
+    const gradeObj = (window.LABOR_INSURANCE_GRADES || []).find((g) => g.grade === gradeVal);
+    const insuredSalary = gradeObj ? gradeObj.salary : 0;
+    const pensionRate = pensionOn?.checked ? (Number(pensionRateInput?.value) || 0) : 0;
+
+    if (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function') {
+        const ded = window.calcEmployeeDeductions(insuredSalary, pensionRate);
+        if (previewLaborEl) previewLaborEl.textContent = ded.labor.toLocaleString();
+        if (previewHealthEl) previewHealthEl.textContent = ded.health.toLocaleString();
+        if (previewPensionEl) previewPensionEl.textContent = ded.pension.toLocaleString();
+        if (previewTotalEl) previewTotalEl.textContent = ded.total.toLocaleString();
+    } else {
+        [previewLaborEl, previewHealthEl, previewPensionEl, previewTotalEl].forEach((el) => {
+            if (el) el.textContent = '--';
+        });
+    }
+
+    // 啟停勞退率輸入
+    if (pensionRateInput) pensionRateInput.disabled = !pensionOn?.checked;
+}
+
+/**
+ * 點員工 → 把該員工的 salary profile 填入 form
+ */
+function _fillSalaryProfileForm(employee) {
+    if (!employee) return;
+    _populateGradeOptions();
+
+    const type = employee.salaryType || 'monthly';
+    const monthlyInput = document.getElementById('salary-type-monthly');
+    const hourlyInput = document.getElementById('salary-type-hourly');
+    if (monthlyInput) monthlyInput.checked = (type === 'monthly');
+    if (hourlyInput) hourlyInput.checked = (type === 'hourly');
+    _setSalaryTypeUI(type);
+
+    const monthlyEl = document.getElementById('salary-monthly-input');
+    const hourlyEl = document.getElementById('salary-hourly-input');
+    if (monthlyEl) monthlyEl.value = employee.monthlySalary || '';
+    if (hourlyEl) hourlyEl.value = employee.hourlyRate || '';
+
+    const gradeSel = document.getElementById('salary-grade-select');
+    if (gradeSel) gradeSel.value = employee.laborInsuranceGrade != null ? String(employee.laborInsuranceGrade) : '';
+
+    const autoChk = document.getElementById('salary-grade-auto');
+    if (autoChk) autoChk.checked = false; // 預設不自動
+
+    const pensionOn = document.getElementById('salary-pension-on');
+    if (pensionOn) pensionOn.checked = employee.hasLaborPension !== false;
+
+    const pensionRate = document.getElementById('salary-pension-rate');
+    if (pensionRate) pensionRate.value = employee.laborPensionRate || 0;
+
+    _refreshSalaryPreview();
+}
+
+/**
+ * 表單提交：呼叫 setEmployeeSalaryProfile
+ */
+async function handleSalaryProfileSubmit(e) {
+    e.preventDefault();
+    if (!adminSelectedUserId) {
+        showNotification(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT') || '請先選擇員工', 'error');
+        return false;
+    }
+    const isMonthly = document.getElementById('salary-type-monthly')?.checked;
+    const monthly = Number(document.getElementById('salary-monthly-input')?.value) || 0;
+    if (isMonthly && monthly > 0 && monthly < MIN_MONTHLY_WAGE_2026) {
+        showNotification(t('LABOR_BELOW_MIN_WAGE'), 'error');
+        return false;
+    }
+
+    const payload = {
+        action: 'setEmployeeSalaryProfile',
+        userId: adminSelectedUserId,
+        salaryType: isMonthly ? 'monthly' : 'hourly',
+        monthlySalary: monthly,
+        hourlyRate: Number(document.getElementById('salary-hourly-input')?.value) || 0,
+        hasLaborPension: !!document.getElementById('salary-pension-on')?.checked,
+        laborPensionRate: Number(document.getElementById('salary-pension-rate')?.value) || 0,
+    };
+    const gradeVal = Number(document.getElementById('salary-grade-select')?.value);
+    if (gradeVal >= 1 && gradeVal <= 23) payload.laborInsuranceGrade = gradeVal;
+
+    const submitBtn = document.getElementById('salary-submit-btn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = t('LOADING') || '處理中...';
+    }
+    try {
+        const res = await callApifetch(payload);
+        if (res && res.ok) {
+            showNotification(t('MSG_SALARY_SAVED') || '薪資設定已儲存', 'success');
+            // 同步更新 currentManagingEmployee（之後切員工再切回來會看到新值）
+            if (currentManagingEmployee) {
+                Object.assign(currentManagingEmployee, {
+                    salaryType: payload.salaryType,
+                    monthlySalary: payload.monthlySalary,
+                    hourlyRate: payload.hourlyRate,
+                    laborInsuranceGrade: payload.laborInsuranceGrade ?? currentManagingEmployee.laborInsuranceGrade,
+                    hasLaborPension: payload.hasLaborPension,
+                    laborPensionRate: payload.laborPensionRate,
+                });
+            }
+            // 重 render KPI（會顯示新的估算月薪）
+            renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
+        } else {
+            const code = res?.code || 'UNKNOWN_ERROR';
+            showNotification(t(code) || res?.msg || '儲存失敗', 'error');
+        }
+    } catch (err) {
+        console.error('handleSalaryProfileSubmit 失敗：', err);
+        showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = t('BTN_SAVE_SALARY') || '儲存薪資設定';
+        }
+    }
+    return false;
+}
+
+/**
+ * 綁 form 內各輸入的 input/change 事件 → 即時換算
+ */
+function setupSalaryProfileForm() {
+    const form = document.getElementById('form-salary-profile');
+    if (!form || form.dataset.bound === '1') return;
+    form.dataset.bound = '1';
+
+    _populateGradeOptions();
+
+    const fields = [
+        'salary-type-monthly', 'salary-type-hourly',
+        'salary-monthly-input', 'salary-hourly-input',
+        'salary-grade-select', 'salary-grade-auto',
+        'salary-pension-on', 'salary-pension-rate',
+    ];
+    fields.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const evt = (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio'))
+            ? 'change'
+            : (el.tagName === 'SELECT' ? 'change' : 'input');
+        el.addEventListener(evt, () => {
+            if (id === 'salary-type-monthly' || id === 'salary-type-hourly') {
+                _setSalaryTypeUI(document.getElementById('salary-type-monthly')?.checked ? 'monthly' : 'hourly');
+            }
+            _refreshSalaryPreview();
+        });
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.handleSalaryProfileSubmit = handleSalaryProfileSubmit;
+    window.setupSalaryProfileForm = setupSalaryProfileForm;
+}
+
+// #endregion
+// ===================================
 
 /**
  * Phase L5 add-on：勞基法工時詳細的「計算說明」modal
@@ -2094,8 +2340,9 @@ async function renderEmployeeKpi(userId, date) {
         const v = Number(n || 0);
         return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)) + 'h';
     };
+    let sum = null;
     if (typeof window.aggregateMonthLaborStats === 'function') {
-        const sum = window.aggregateMonthLaborStats(dailyStatus || []);
+        sum = window.aggregateMonthLaborStats(dailyStatus || []);
         // 平日
         setVal('kpi-l-normal', fmt(sum.normal));
         setVal('kpi-l-ot1', fmt(sum.ot1));
@@ -2118,6 +2365,39 @@ async function renderEmployeeKpi(userId, date) {
         console.warn('aggregateMonthLaborStats 未載入，跳過勞基法詳細');
         LABOR_IDS.forEach((id) => setVal(id, '--'));
     }
+
+    // Phase L7：薪資估算（員工有薪資設定才顯示）
+    const estimationEl = document.getElementById('kpi-salary-estimation');
+    if (!estimationEl) return;
+    const emp = currentManagingEmployee;
+    const hourly = emp?.salaryType === 'hourly'
+        ? Number(emp.hourlyRate || 0)
+        : (emp?.monthlySalary
+            ? (typeof window.monthlyToHourly === 'function'
+                ? window.monthlyToHourly(emp.monthlySalary)
+                : Math.round(emp.monthlySalary / 240))
+            : 0);
+    if (!emp || hourly <= 0 || !sum) {
+        estimationEl.style.display = 'none';
+        return;
+    }
+    estimationEl.style.display = 'grid';
+
+    // 應發 = 等價時數 × 時薪
+    const gross = Math.round(Number(sum.equivalentHours || 0) * hourly);
+    // 自付扣繳：依勞保等級
+    const grade = (window.LABOR_INSURANCE_GRADES || [])
+        .find((g) => g.grade === Number(emp.laborInsuranceGrade));
+    const insuredSalary = grade ? grade.salary : 0;
+    const pensionRate = emp.hasLaborPension ? Number(emp.laborPensionRate || 0) : 0;
+    const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
+        ? window.calcEmployeeDeductions(insuredSalary, pensionRate)
+        : { labor: 0, health: 0, pension: 0, total: 0 };
+    const net = gross - ded.total;
+
+    setVal('kpi-salary-gross', `NT$ ${gross.toLocaleString()}`);
+    setVal('kpi-salary-deduct', `-${ded.total.toLocaleString()}`);
+    setVal('kpi-salary-net', `NT$ ${net.toLocaleString()}`);
 }
 
 // ===================================

@@ -44,3 +44,6 @@ exports.testNotification = require("./src/testNotification");
 // ===== 公司設定 =====
 exports.getBreakTimes = require("./src/getBreakTimes");
 exports.setBreakTimes = require("./src/setBreakTimes");
+
+// ===== 員工薪資與勞保（管理員專用） =====
+exports.setEmployeeSalaryProfile = require("./src/setEmployeeSalaryProfile");
