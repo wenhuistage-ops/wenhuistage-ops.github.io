@@ -1248,31 +1248,23 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
     }
 
     // ===== 連續上工：從今天往前掃 =====
+    // 規則（簡化）：當天必須同時有「上班」與「下班」打卡才 +1，
+    // 否則中斷（國定假日/週末/請假/補打卡都不例外）
     const byDate = {};
     (dailyStatus || []).forEach((day) => { if (day.date) byDate[day.date] = day; });
     const fmtKey = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     const today = new Date();
     let streak = 0;
     const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    // 最多向前掃 60 天（cross-month 會超出本月 byDate，會視為「無資料」中斷；
-    // 如果跨月 streak 是真的需要，未來再加上個月 fetch）
     for (let i = 0; i < 60; i++) {
         const key = fmtKey(cursor);
         const day = byDate[key];
-        const reason = day?.reason;
-        if (reason === 'STATUS_PUNCH_NORMAL') {
+        if (day && day.punchInTime && day.punchOutTime) {
             streak += 1;
-        } else if (reason === 'STATUS_LEAVE_APPROVED' || reason === 'STATUS_VACATION_APPROVED') {
-            // skip 不算也不中斷
-        } else if (typeof window.isHoliday === 'function' && window.isHoliday(key)) {
-            // 國定假日/週末 skip
-        } else if (cursor > today) {
-            // 未來日不該發生，安全跳過
+            cursor.setDate(cursor.getDate() - 1);
         } else {
-            // 缺資料、缺打卡、異常 → 中斷
             break;
         }
-        cursor.setDate(cursor.getDate() - 1);
     }
 
     // 連續上工：大數字置中顯示
