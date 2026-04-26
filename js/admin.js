@@ -929,12 +929,17 @@ function initAdminEvents() {
             return; // 用戶取消操作
         }
 
+        // 修復：取出 radius slider 的值傳給後端（後端已支援，但前端原本沒帶）
+        const radiusSliderEl = document.getElementById('location-radius-slider');
+        const radiusVal = radiusSliderEl ? Number(radiusSliderEl.value) || 100 : 100;
+
         try {
             const res = await callApifetch({
                 action: 'addLocation',
                 name: name,
                 lat: encodeURIComponent(lat),
-                lng: encodeURIComponent(lng)
+                lng: encodeURIComponent(lng),
+                radius: radiusVal,
             });
             if (res.ok) {
                 showNotification(t("MSG_LOCATION_ADDED"), "success");
