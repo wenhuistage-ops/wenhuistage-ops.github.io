@@ -676,6 +676,9 @@ function initAdminEvents() {
 
         // 同步顯示／隱藏員工日曆卡（原本在獨立 handler 內）
         if (selectedUserId) {
+            // Phase L2：預熱公司休息時段 cache（fire-and-forget；後續 enrich 取 getCachedBreakTimes()）
+            loadBreakTimes().catch((err) => console.error('預熱 breakTimes cache 失敗：', err));
+
             adminEmployeeCalendarCard.style.display = 'block';
             renderAdminCalendar(selectedUserId, adminCurrentDate).catch((err) =>
                 console.error('renderAdminCalendar 失敗：', err)
@@ -1931,6 +1934,69 @@ async function renderEmployeeKpi(userId, date) {
     setVal('kpi-leave-days', String(leaveDays));
 }
 
+// ===================================
+// #region Phase L2：公司休息時段 cache（給 labor-hours / dashboard 共用）
+// ===================================
+
+/**
+ * 公司休息時段 cache（module-level，全部管理員 dashboard 共用）。
+ * 與 setupBreakTimesEditor 的編輯區同步：editor 儲存成功後 invalidate。
+ */
+let _breakTimesCache = null;          // null = 尚未載入；Array = 已載入結果
+let _breakTimesLoadingPromise = null; // 正在 fetch 的 Promise，併發去重用
+
+/**
+ * 載入公司休息時段（預設 cache，多次呼叫只 fetch 一次）。
+ * @param {boolean} force  傳 true 強制重抓（編輯後用）
+ * @returns {Promise<Array<{name,start,end}>>}
+ */
+async function loadBreakTimes(force = false) {
+    if (!force && Array.isArray(_breakTimesCache)) return _breakTimesCache;
+    if (_breakTimesLoadingPromise) return _breakTimesLoadingPromise;
+    _breakTimesLoadingPromise = (async () => {
+        try {
+            const res = await callApifetch({ action: 'getBreakTimes' });
+            if (res && res.ok && Array.isArray(res.breaks)) {
+                _breakTimesCache = res.breaks;
+            } else {
+                _breakTimesCache = [];
+                console.warn('loadBreakTimes：API 回傳異常，使用空陣列', res);
+            }
+        } catch (err) {
+            console.error('loadBreakTimes 失敗', err);
+            _breakTimesCache = [];
+        } finally {
+            _breakTimesLoadingPromise = null;
+        }
+        return _breakTimesCache;
+    })();
+    return _breakTimesLoadingPromise;
+}
+
+/**
+ * 同步取得 cache（未載入回空陣列）。給 render function 使用。
+ */
+function getCachedBreakTimes() {
+    return Array.isArray(_breakTimesCache) ? _breakTimesCache : [];
+}
+
+/**
+ * 編輯休息時段成功時呼叫，使下次取得自動重 fetch。
+ */
+function invalidateBreakTimesCache() {
+    _breakTimesCache = null;
+    _breakTimesLoadingPromise = null;
+}
+
+if (typeof window !== 'undefined') {
+    window.loadBreakTimes = loadBreakTimes;
+    window.getCachedBreakTimes = getCachedBreakTimes;
+    window.invalidateBreakTimesCache = invalidateBreakTimesCache;
+}
+
+// #endregion
+// ===================================
+
 function setupBreakTimesEditor() {
     const listEl = document.getElementById('break-times-list');
     const addBtn = document.getElementById('break-times-add-btn');
@@ -2010,6 +2076,9 @@ function setupBreakTimesEditor() {
             if (res && res.ok) {
                 showNotification(t('MSG_BREAK_TIMES_SAVED'), 'success');
                 if (Array.isArray(res.breaks)) render(res.breaks);
+                // Phase L2：儲存後 invalidate module-level cache，下次 dashboard 取會重抓
+                invalidateBreakTimesCache();
+                loadBreakTimes(true).catch(() => { /* 已記錄 */ });
             } else {
                 const code = (res && res.code) || 'UNKNOWN_ERROR';
                 const msg = t(code) || (res && res.msg) || '';
@@ -2023,18 +2092,17 @@ function setupBreakTimesEditor() {
         }
     });
 
-    // 首次載入：抓資料
+    // 首次載入：用 module-level cache（與 dashboard 共用，不會重複 fetch）
     (async () => {
         try {
-            const res = await callApifetch({ action: 'getBreakTimes' });
-            if (res && res.ok && Array.isArray(res.breaks)) {
-                render(res.breaks);
-            } else {
-                render([]);
-                showNotification(t('MSG_BREAK_TIMES_LOAD_FAILED'), 'error');
+            const breaks = await loadBreakTimes();
+            render(breaks);
+            if (!Array.isArray(breaks) || breaks.length === 0) {
+                // 空陣列可能代表 API 失敗 — 顯示警告但不阻塞 UI
+                console.warn('setupBreakTimesEditor：cache 為空');
             }
         } catch (err) {
-            console.error('getBreakTimes 失敗', err);
+            console.error('setupBreakTimesEditor 載入失敗', err);
             render([]);
             showNotification(t('MSG_BREAK_TIMES_LOAD_FAILED'), 'error');
         }
