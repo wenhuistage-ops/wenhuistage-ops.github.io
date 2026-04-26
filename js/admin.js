@@ -1248,9 +1248,9 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
     }
 
     // ===== 連續上工：從「昨天」往前掃 =====
-    // 規則（簡化）：當天必須同時有「上班」與「下班」打卡才 +1，
-    // 否則中斷（國定假日/週末/請假/補打卡都不例外）
-    // 起點為昨天：今天還沒過完，無從判斷上下班是否完成
+    // 規則：當天有「上班」或「下班」其一打卡即算 +1；
+    // 完全沒打卡（含請假/休假/國定假日）→ 中斷
+    // 起點為昨天：今天還沒過完，無從判斷
     const byDate = {};
     (dailyStatus || []).forEach((day) => { if (day.date) byDate[day.date] = day; });
     const fmtKey = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
@@ -1260,7 +1260,7 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
     for (let i = 0; i < 60; i++) {
         const key = fmtKey(cursor);
         const day = byDate[key];
-        if (day && day.punchInTime && day.punchOutTime) {
+        if (day && (day.punchInTime || day.punchOutTime)) {
             streak += 1;
             cursor.setDate(cursor.getDate() - 1);
         } else {
@@ -1298,7 +1298,37 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
     const leaveEntries = Object.entries(leaveStats).sort((a, b) => b[1] - a[1]);
     const vacationEntries = Object.entries(vacationStats).sort((a, b) => b[1] - a[1]);
 
-    if (leaveEntries.length === 0 && vacationEntries.length === 0) {
+    // ===== 異常統計：scan 月初 ~ 昨天 =====
+    // 完全沒記錄 → 算「未打卡」(STATUS_BOTH_MISSING)
+    // 有部分記錄但缺上/下班 → 各別算
+    const abnormalStats = { both: 0, in: 0, out: 0 };
+    const monthFirst = new Date(d.getFullYear(), d.getMonth(), 1);
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    // 只 scan 該月內 + 不超過昨天的日子
+    const monthEndExclusive = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const scanEnd = yesterday < monthEndExclusive ? yesterday : new Date(monthEndExclusive.getTime() - 86400000);
+    for (let scan = new Date(monthFirst); scan <= scanEnd; scan.setDate(scan.getDate() + 1)) {
+        const key = fmtKey(scan);
+        const day = byDate[key];
+        if (!day) {
+            abnormalStats.both += 1;
+        } else if (day.reason === 'STATUS_BOTH_MISSING') {
+            abnormalStats.both += 1;
+        } else if (day.reason === 'STATUS_PUNCH_IN_MISSING') {
+            abnormalStats.in += 1;
+        } else if (day.reason === 'STATUS_PUNCH_OUT_MISSING') {
+            abnormalStats.out += 1;
+        }
+    }
+    const abnormalEntries = [
+        ['ABNORMAL_BOTH_MISSING', abnormalStats.both],
+        ['ABNORMAL_IN_MISSING', abnormalStats.in],
+        ['ABNORMAL_OUT_MISSING', abnormalStats.out],
+    ].filter(([, n]) => n > 0);
+    // 異常總數，0 也要顯示讓管理員確認
+    const abnormalTotal = abnormalStats.both + abnormalStats.in + abnormalStats.out;
+
+    if (leaveEntries.length === 0 && vacationEntries.length === 0 && abnormalTotal === 0) {
         leaveCard.innerHTML = titleLeave +
             `<p class="dashboard-placeholder">${t('LEAVE_NO_RECORDS') || '本月無紀錄'}</p>`;
         renderTranslations(leaveCard);
@@ -1306,14 +1336,19 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
     }
 
     const unit = t('CONSECUTIVE_DAYS_UNIT') || '天';
-    const sectionHtml = (groupKey, color, entries) => {
+    const sectionHtml = (groupKey, color, entries, useI18nKeyAsLabel = false) => {
         if (entries.length === 0) return '';
         const total = entries.reduce((s, [, n]) => s + n, 0);
-        const itemsHtml = entries.map(([cat, days]) => `
+        const itemsHtml = entries.map(([cat, days]) => {
+            const label = useI18nKeyAsLabel
+                ? `<span data-i18n="${cat}" style="color:#4b5563;">${t(cat)}</span>`
+                : `<span style="color:#4b5563;">${cat}</span>`;
+            return `
             <li style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(156,163,175,0.18);font-size:0.875rem;">
-                <span style="color:#4b5563;">${cat}</span>
+                ${label}
                 <span style="font-weight:700;color:${color};">${days} ${unit}</span>
-            </li>`).join('');
+            </li>`;
+        }).join('');
         return `
             <div style="margin-top:0.75rem;">
                 <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
@@ -1324,9 +1359,26 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
             </div>`;
     };
 
+    // 異常組永遠顯示：即使 0 天也讓管理員看到本月「無異常」
+    const abnormalSectionHtml = (() => {
+        const color = '#a855f7';
+        if (abnormalEntries.length === 0) {
+            const unitTxt = t('CONSECUTIVE_DAYS_UNIT') || '天';
+            return `
+            <div style="margin-top:0.75rem;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+                    <span data-i18n="ABNORMAL_GROUP" style="font-size:0.8rem;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:0.05em;">${t('ABNORMAL_GROUP')}</span>
+                    <span style="font-size:0.75rem;color:#9ca3af;">0 ${unitTxt}</span>
+                </div>
+            </div>`;
+        }
+        return sectionHtml('ABNORMAL_GROUP', color, abnormalEntries, true);
+    })();
+
     leaveCard.innerHTML = titleLeave +
         sectionHtml('LEAVE_GROUP_LEAVE', '#dc2626', leaveEntries) +
-        sectionHtml('LEAVE_GROUP_VACATION', '#0891b2', vacationEntries);
+        sectionHtml('LEAVE_GROUP_VACATION', '#0891b2', vacationEntries) +
+        abnormalSectionHtml;
     renderTranslations(leaveCard);
 }
 
