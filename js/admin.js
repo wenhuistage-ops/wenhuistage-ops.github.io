@@ -1201,10 +1201,11 @@ function setupTestNotificationButton() {
 
 // 休息時間設定編輯器
 /**
- * Phase 6：本月打卡紀錄表格
+ * Phase 6：本月打卡紀錄表格（含篩選與排序）
  *
- * 桌機：HTML table（日期 / 上班 / 下班 / 工時 / 地點 / 狀態）
+ * 桌機：HTML table（日期 / 上班 / 下班 / 工時 / 地點 / 狀態），點表頭可切換排序
  * 手機：每筆 card（垂直堆疊欄位）
+ * Toolbar：狀態篩選 dropdown + 排序欄位 dropdown + 升降序切換
  *
  * 來源：dailyStatus（與其他卡共用 loadMonthDetailData cache）
  */
@@ -1243,8 +1244,27 @@ async function renderEmployeePunchTable(userId, date) {
         return;
     }
 
-    // 日期 desc 排序
-    const rows = [...dailyStatus].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    // ===== 篩選/排序 state（card scope，每次 dropdown change 直接重渲染 rows）=====
+    // 從 dailyStatus 萃取出現過的 reason 作為 filter options（避免顯示無資料的選項）
+    const seenReasons = [...new Set(dailyStatus.map((d) => d.reason).filter(Boolean))];
+    let filterReason = 'ALL';
+    let sortBy = 'date';   // 'date' | 'punchInTime' | 'punchOutTime' | 'hours'
+    let sortDir = 'desc';  // 'asc' | 'desc'
+
+    // 比較函式：時間/字串字典序、數字比大小
+    const cmp = (a, b) => {
+        let av = a[sortBy], bv = b[sortBy];
+        if (sortBy === 'hours') { av = Number(av || 0); bv = Number(bv || 0); }
+        else { av = String(av || ''); bv = String(bv || ''); }
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    };
+    const applyFilterSort = () => {
+        let rows = dailyStatus;
+        if (filterReason !== 'ALL') rows = rows.filter((r) => r.reason === filterReason);
+        return [...rows].sort(cmp);
+    };
 
     // 每筆萃取地點：去重 record.location，取非空
     const locationOf = (day) => {
@@ -1284,53 +1304,156 @@ async function renderEmployeePunchTable(userId, date) {
         return `<span data-i18n="${reason}" class="text-xs font-semibold px-2 py-0.5 rounded ${cls}">${t(reason) || reason}</span>`;
     };
 
-    // 桌機 table（手機自動 hidden by media query in inline css）+ 手機 card 列表
-    const tableRowsHtml = rows.map((day) => `
-        <tr class="border-b border-gray-200 dark:border-gray-700">
-            <td class="py-2 px-3 text-sm font-medium text-gray-700 dark:text-gray-200">${day.date || ''}</td>
-            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchInTime || '–'}</td>
-            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchOutTime || '–'}</td>
-            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${Number(day.hours || 0).toFixed(1)}</td>
-            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${locationOf(day)}</td>
-            <td class="py-2 px-3">${reasonBadge(day.reason)}</td>
-        </tr>`).join('');
+    // ===== Toolbar HTML =====
+    const filterOptions = `<option value="ALL" data-i18n="TABLE_FILTER_ALL">${t('TABLE_FILTER_ALL')}</option>` +
+        seenReasons.map((reason) => `<option value="${reason}" data-i18n="${reason}">${t(reason) || reason}</option>`).join('');
 
-    const cardRowsHtml = rows.map((day) => `
-        <li class="emp-punch-card-row p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">${day.date || ''}</span>
-                ${reasonBadge(day.reason)}
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:0.75rem;" class="text-gray-500 dark:text-gray-400">
-                <div><span data-i18n="TABLE_HEADER_PUNCH_IN">${t('TABLE_HEADER_PUNCH_IN')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchInTime || '–'}</span></div>
-                <div><span data-i18n="TABLE_HEADER_PUNCH_OUT">${t('TABLE_HEADER_PUNCH_OUT')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchOutTime || '–'}</span></div>
-                <div><span data-i18n="TABLE_HEADER_HOURS">${t('TABLE_HEADER_HOURS')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${Number(day.hours || 0).toFixed(1)}</span></div>
-            </div>
-            <div style="font-size:0.75rem;margin-top:6px;" class="text-gray-500 dark:text-gray-400">
-                <span data-i18n="TABLE_HEADER_LOCATION">${t('TABLE_HEADER_LOCATION')}</span>：<span class="text-gray-800 dark:text-gray-100">${locationOf(day)}</span>
-            </div>
-        </li>`).join('');
+    const sortFields = [
+        { val: 'date', i18n: 'TABLE_HEADER_DATE' },
+        { val: 'punchInTime', i18n: 'TABLE_HEADER_PUNCH_IN' },
+        { val: 'punchOutTime', i18n: 'TABLE_HEADER_PUNCH_OUT' },
+        { val: 'hours', i18n: 'TABLE_HEADER_HOURS' },
+    ];
+    const sortFieldOptions = sortFields.map((s) =>
+        `<option value="${s.val}" data-i18n="${s.i18n}">${t(s.i18n)}</option>`
+    ).join('');
 
-    card.innerHTML = titleHtml + `
+    const inputCls = 'p-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white';
+    const toolbarHtml = `
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:0.75rem;">
+            <div style="flex:1 1 160px;min-width:140px;">
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="TABLE_FILTER_LABEL">${t('TABLE_FILTER_LABEL')}</label>
+                <select id="emp-punch-filter" class="${inputCls}" style="width:100%;">${filterOptions}</select>
+            </div>
+            <div style="flex:1 1 140px;min-width:120px;">
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="TABLE_SORT_LABEL">${t('TABLE_SORT_LABEL')}</label>
+                <select id="emp-punch-sort-by" class="${inputCls}" style="width:100%;">${sortFieldOptions}</select>
+            </div>
+            <div style="flex:0 0 auto;">
+                <button id="emp-punch-sort-dir" type="button"
+                    class="${inputCls}"
+                    style="cursor:pointer;font-weight:600;min-width:60px;"
+                    title="${t('TABLE_SORT_DESC')}">↓</button>
+            </div>
+        </div>`;
+
+    // 表頭可點切換排序：點擊欄位設定 sortBy；同欄再點切換方向
+    const headerHtml = (i18n, field) => {
+        const arrow = (sortBy === field) ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+        const clickable = field !== '_';
+        return `<th data-sort="${field}" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300"
+            style="${clickable ? 'cursor:pointer;user-select:none;' : ''}">
+            <span data-i18n="${i18n}">${t(i18n)}</span>${arrow}
+        </th>`;
+    };
+
+    function rerenderTableBodies(rows) {
+        const tableRowsHtml = rows.map((day) => `
+            <tr class="border-b border-gray-200 dark:border-gray-700">
+                <td class="py-2 px-3 text-sm font-medium text-gray-700 dark:text-gray-200">${day.date || ''}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchInTime || '–'}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchOutTime || '–'}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${Number(day.hours || 0).toFixed(1)}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${locationOf(day)}</td>
+                <td class="py-2 px-3">${reasonBadge(day.reason)}</td>
+            </tr>`).join('');
+        const cardRowsHtml = rows.map((day) => `
+            <li class="emp-punch-card-row p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">${day.date || ''}</span>
+                    ${reasonBadge(day.reason)}
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:0.75rem;" class="text-gray-500 dark:text-gray-400">
+                    <div><span data-i18n="TABLE_HEADER_PUNCH_IN">${t('TABLE_HEADER_PUNCH_IN')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchInTime || '–'}</span></div>
+                    <div><span data-i18n="TABLE_HEADER_PUNCH_OUT">${t('TABLE_HEADER_PUNCH_OUT')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchOutTime || '–'}</span></div>
+                    <div><span data-i18n="TABLE_HEADER_HOURS">${t('TABLE_HEADER_HOURS')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${Number(day.hours || 0).toFixed(1)}</span></div>
+                </div>
+                <div style="font-size:0.75rem;margin-top:6px;" class="text-gray-500 dark:text-gray-400">
+                    <span data-i18n="TABLE_HEADER_LOCATION">${t('TABLE_HEADER_LOCATION')}</span>：<span class="text-gray-800 dark:text-gray-100">${locationOf(day)}</span>
+                </div>
+            </li>`).join('');
+        const tbody = card.querySelector('table tbody');
+        const cardList = card.querySelector('.emp-punch-card-list');
+        if (tbody) tbody.innerHTML = tableRowsHtml;
+        if (cardList) cardList.innerHTML = cardRowsHtml;
+        // table 內的 badge 仍含 data-i18n，確保切語言時有效
+        renderTranslations(tbody);
+        renderTranslations(cardList);
+    }
+
+    function rerenderHeaders() {
+        const thead = card.querySelector('table thead');
+        if (!thead) return;
+        thead.innerHTML = `<tr style="background:rgba(99,102,241,0.06);">
+            ${headerHtml('TABLE_HEADER_DATE', 'date')}
+            ${headerHtml('TABLE_HEADER_PUNCH_IN', 'punchInTime')}
+            ${headerHtml('TABLE_HEADER_PUNCH_OUT', 'punchOutTime')}
+            ${headerHtml('TABLE_HEADER_HOURS', 'hours')}
+            ${headerHtml('TABLE_HEADER_LOCATION', '_')}
+            ${headerHtml('TABLE_HEADER_STATUS', '_')}
+        </tr>`;
+        thead.querySelectorAll('th[data-sort]').forEach((th) => {
+            const field = th.dataset.sort;
+            if (field === '_') return;
+            th.addEventListener('click', () => {
+                if (sortBy === field) sortDir = (sortDir === 'asc' ? 'desc' : 'asc');
+                else { sortBy = field; sortDir = (field === 'date' ? 'desc' : 'asc'); }
+                syncToolbarFromState();
+                rerenderHeaders();
+                rerenderTableBodies(applyFilterSort());
+            });
+        });
+    }
+
+    function syncToolbarFromState() {
+        const sortBySel = card.querySelector('#emp-punch-sort-by');
+        const sortDirBtn = card.querySelector('#emp-punch-sort-dir');
+        if (sortBySel) sortBySel.value = sortBy;
+        if (sortDirBtn) {
+            sortDirBtn.textContent = sortDir === 'asc' ? '↑' : '↓';
+            sortDirBtn.title = sortDir === 'asc' ? (t('TABLE_SORT_ASC') || 'Asc') : (t('TABLE_SORT_DESC') || 'Desc');
+        }
+    }
+
+    card.innerHTML = titleHtml + toolbarHtml + `
         <!-- 桌機 table -->
         <div class="emp-punch-table-wrap" style="overflow-x:auto;">
             <table style="width:100%;border-collapse:collapse;">
-                <thead>
-                    <tr style="background:rgba(99,102,241,0.06);">
-                        <th data-i18n="TABLE_HEADER_DATE" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_DATE')}</th>
-                        <th data-i18n="TABLE_HEADER_PUNCH_IN" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_PUNCH_IN')}</th>
-                        <th data-i18n="TABLE_HEADER_PUNCH_OUT" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_PUNCH_OUT')}</th>
-                        <th data-i18n="TABLE_HEADER_HOURS" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_HOURS')}</th>
-                        <th data-i18n="TABLE_HEADER_LOCATION" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_LOCATION')}</th>
-                        <th data-i18n="TABLE_HEADER_STATUS" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_STATUS')}</th>
-                    </tr>
-                </thead>
-                <tbody>${tableRowsHtml}</tbody>
+                <thead></thead>
+                <tbody></tbody>
             </table>
         </div>
         <!-- 手機 card 列表 -->
-        <ul class="emp-punch-card-list" style="display:none;list-style:none;padding:0;margin:0;">${cardRowsHtml}</ul>`;
+        <ul class="emp-punch-card-list" style="display:none;list-style:none;padding:0;margin:0;"></ul>`;
+    rerenderHeaders();
+    rerenderTableBodies(applyFilterSort());
     renderTranslations(card);
+
+    // toolbar 事件綁定
+    const filterSel = card.querySelector('#emp-punch-filter');
+    const sortBySel = card.querySelector('#emp-punch-sort-by');
+    const sortDirBtn = card.querySelector('#emp-punch-sort-dir');
+    if (filterSel) {
+        filterSel.addEventListener('change', () => {
+            filterReason = filterSel.value;
+            rerenderTableBodies(applyFilterSort());
+        });
+    }
+    if (sortBySel) {
+        sortBySel.addEventListener('change', () => {
+            sortBy = sortBySel.value;
+            rerenderHeaders();
+            rerenderTableBodies(applyFilterSort());
+        });
+    }
+    if (sortDirBtn) {
+        sortDirBtn.addEventListener('click', () => {
+            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            syncToolbarFromState();
+            rerenderHeaders();
+            rerenderTableBodies(applyFilterSort());
+        });
+    }
 }
 
 /**
