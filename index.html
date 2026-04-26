@@ -230,6 +230,37 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             font-variant-numeric: tabular-nums;
         }
         html.dark .kpi-labor-equiv-value { color: #a5b4fc; }
+
+        /* Phase L5 add-on：問號按鈕 */
+        .kpi-labor-help-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.25rem;
+            height: 1.25rem;
+            margin-left: 0.4rem;
+            border-radius: 9999px;
+            background-color: #e0e7ff;
+            color: #4338ca;
+            font-size: 0.7rem;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.15s, color 0.15s;
+        }
+        .kpi-labor-help-btn:hover {
+            background-color: #6366f1;
+            color: #fff;
+        }
+        html.dark .kpi-labor-help-btn {
+            background-color: #3730a3;
+            color: #c7d2fe;
+        }
+        html.dark .kpi-labor-help-btn:hover {
+            background-color: #6366f1;
+            color: #fff;
+        }
     </style>
 
     <script>
@@ -603,6 +634,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <details id="kpi-labor-details" class="mt-4 kpi-labor-details">
                                     <summary class="cursor-pointer text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
                                         <i class="fas fa-balance-scale mr-1"></i><span data-i18n="LABOR_DETAIL_TITLE">工時詳細（勞基法分段）</span>
+                                        <button type="button" id="kpi-labor-help-btn"
+                                            class="kpi-labor-help-btn"
+                                            data-i18n-title="LABOR_HELP_TITLE"
+                                            title="計算說明" aria-label="計算說明">?</button>
                                     </summary>
                                     <div class="kpi-labor-grid mt-3">
                                         <!-- 平日 -->
@@ -974,6 +1009,32 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                 <button id="confirm-ok-btn"
                     class="px-4 py-2 sm:py-3 rounded-lg bg-red-500 text-white text-sm sm:text-base font-semibold hover:bg-red-600 flex-1 sm:flex-none">
                     <span data-i18n="BTN_CONFIRM">確認</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase L5：勞基法工時詳細「計算說明」modal -->
+    <div id="kpi-labor-help-modal"
+        style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 9999;">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-5 sm:p-6 w-11/12 sm:w-full mx-4"
+            style="max-width: 560px; max-height: 90vh; overflow-y: auto;">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base sm:text-lg font-bold text-gray-800 dark:text-white">
+                    <i class="fas fa-info-circle mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                    <span data-i18n="LABOR_HELP_TITLE">勞基法工時計算說明</span>
+                </h3>
+                <button type="button" id="kpi-labor-help-close-btn"
+                    class="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl font-bold leading-none px-2"
+                    aria-label="關閉">×</button>
+            </div>
+            <div id="kpi-labor-help-body" class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed space-y-3">
+                <!-- 由 JS 渲染 i18n 內容 -->
+            </div>
+            <div class="mt-5 text-center">
+                <button type="button" id="kpi-labor-help-ok-btn"
+                    class="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">
+                    <span data-i18n="BTN_CLOSE">關閉</span>
                 </button>
             </div>
         </div>

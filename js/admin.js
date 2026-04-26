@@ -956,6 +956,68 @@ function initAdminEvents() {
     setupBreakTimesEditor();
     // Phase L0：員工設定 sub-tab 切換
     setupEmployeeSettingTabs();
+    // Phase L5 add-on：勞基法工時詳細「計算說明」彈窗
+    setupKpiLaborHelpModal();
+}
+
+/**
+ * Phase L5 add-on：勞基法工時詳細的「計算說明」modal
+ *  - 點 summary 內 ❓ 按鈕 → 不觸發 details toggle，彈出 modal
+ *  - 點背景 / 關閉鈕 / ESC → 關閉
+ *  - 內容多段落，從 i18n 取（含計算公式）
+ */
+function setupKpiLaborHelpModal() {
+    const helpBtn = document.getElementById('kpi-labor-help-btn');
+    const modal = document.getElementById('kpi-labor-help-modal');
+    const closeBtn = document.getElementById('kpi-labor-help-close-btn');
+    const okBtn = document.getElementById('kpi-labor-help-ok-btn');
+    const body = document.getElementById('kpi-labor-help-body');
+    if (!helpBtn || !modal || !closeBtn || !okBtn || !body) return;
+
+    // 計算說明內容用一個 i18n key 帶 markdown-like 區段，
+    // 由 JS 渲染為段落。維持 i18n 友善（單 key 多行）。
+    const sections = [
+        { titleKey: 'LABOR_HELP_RULE_DAYKIND', bodyKey: 'LABOR_HELP_RULE_DAYKIND_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_NET',     bodyKey: 'LABOR_HELP_RULE_NET_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_PLAIN',   bodyKey: 'LABOR_HELP_RULE_PLAIN_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_REST',    bodyKey: 'LABOR_HELP_RULE_REST_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_PUBLIC',  bodyKey: 'LABOR_HELP_RULE_PUBLIC_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_REGULAR', bodyKey: 'LABOR_HELP_RULE_REGULAR_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_EQUIV',   bodyKey: 'LABOR_HELP_RULE_EQUIV_BODY' },
+    ];
+
+    const renderBody = () => {
+        body.innerHTML = sections.map((s) => `
+            <div>
+                <h4 class="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1"
+                    data-i18n="${s.titleKey}">${t(s.titleKey)}</h4>
+                <p class="text-xs sm:text-sm" style="white-space: pre-line;"
+                    data-i18n="${s.bodyKey}">${t(s.bodyKey)}</p>
+            </div>
+        `).join('');
+        renderTranslations(body);
+    };
+
+    const open = () => {
+        renderBody();
+        modal.style.display = 'flex';
+    };
+    const close = () => { modal.style.display = 'none'; };
+
+    helpBtn.addEventListener('click', (e) => {
+        // 阻止 details toggle（summary 內按鈕點擊會冒泡觸發 details 開關）
+        e.preventDefault();
+        e.stopPropagation();
+        open();
+    });
+    closeBtn.addEventListener('click', close);
+    okBtn.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) close();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') close();
+    });
 }
 
 /**
