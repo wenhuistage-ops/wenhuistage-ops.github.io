@@ -836,6 +836,9 @@ function initAdminEvents() {
             employeeDetailCard.style.display = 'none';
             mgmtPlaceholder.style.display = 'block';
         }
+
+        // Phase L0：跨 tab 共用員工選擇 → 同步顯示員工設定內容
+        syncEmployeeSettingsVisibility();
     });
 
     // 2. 處理月份切換事件
@@ -948,6 +951,8 @@ function initAdminEvents() {
     setupAdminExport();
     setupTestNotificationButton();
     setupBreakTimesEditor();
+    // Phase L0：員工設定 sub-tab 切換
+    setupEmployeeSettingTabs();
 }
 
 /**
@@ -1011,8 +1016,20 @@ document.getElementById('test-api-btn').addEventListener('click', async () => {
  */
 
 const switchAdminSubTab = (subTabId) => {
-    const subTabs = ['employee-mgmt-view', 'punch-mgmt-view', 'form-review-view', 'scheduling-view'];
-    const subBtns = ['tab-employee-mgmt-btn', 'tab-punch-mgmt-btn', 'tab-form-review-btn', 'tab-scheduling-btn'];
+    const subTabs = [
+        'employee-mgmt-view',
+        'employee-settings-view',
+        'punch-mgmt-view',
+        'form-review-view',
+        'scheduling-view'
+    ];
+    const subBtns = [
+        'tab-employee-mgmt-btn',
+        'tab-employee-settings-btn',
+        'tab-punch-mgmt-btn',
+        'tab-form-review-btn',
+        'tab-scheduling-btn'
+    ];
 
     // 1. 移除所有子頁籤內容的顯示
     subTabs.forEach(id => {
@@ -1043,18 +1060,70 @@ const switchAdminSubTab = (subTabId) => {
         newBtnElement.classList.replace('text-gray-600', 'text-white');
     }
 
-    // 5. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
+    // 5. 員工選擇器只與「員工報表 / 員工設定」相關，其他 tab 隱藏
+    const selectorCard = document.getElementById('admin-employee-selector-card');
+    if (selectorCard) {
+        const needSelector = (subTabId === 'employee-mgmt-view' || subTabId === 'employee-settings-view');
+        selectorCard.style.display = needSelector ? 'block' : 'none';
+    }
+
+    // 6. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
     console.log(`切換到管理員子頁籤: ${ subTabId } `);
     if (subTabId === 'review-requests') {
         fetchAndRenderReviewRequests(); // 載入表單
-    } else if (subTabId === 'manage-Punch') {
-        // renderLocationManagement(); // 待實現
-        console.log('載入打卡管理介面...');
-    } else if (subTabId === 'manage-users') {
-        // renderUserManagement(); // 待實現
-        console.log('載入員工帳號管理介面...');
+    } else if (subTabId === 'employee-settings-view') {
+        // 切到員工設定 tab：依當前選擇狀態同步顯示
+        syncEmployeeSettingsVisibility();
     }
 };
+
+/**
+ * Phase L0：依目前選擇的員工，同步顯示「員工設定」內容或空狀態
+ */
+function syncEmployeeSettingsVisibility() {
+    const content = document.getElementById('employee-settings-content');
+    const empty = document.getElementById('employee-settings-empty');
+    if (!content || !empty) return;
+    if (adminSelectedUserId) {
+        content.style.display = 'block';
+        empty.style.display = 'none';
+    } else {
+        content.style.display = 'none';
+        empty.style.display = 'block';
+    }
+}
+
+/**
+ * Phase L0：員工設定 sub-tab 切換（帳號權限 / 打卡政策 / 薪資與勞保）
+ */
+function setupEmployeeSettingTabs() {
+    const tabs = document.querySelectorAll('#employee-settings-content .emp-setting-tab');
+    if (!tabs.length) return;
+    const panels = document.querySelectorAll('#employee-settings-content .emp-setting-panel');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.panel;
+            // 切換 active 狀態
+            tabs.forEach(t => {
+                t.classList.remove('active');
+                t.classList.replace('bg-indigo-600', 'bg-gray-200');
+                t.classList.replace('text-white', 'text-gray-600');
+            });
+            tab.classList.add('active');
+            tab.classList.replace('bg-gray-200', 'bg-indigo-600');
+            tab.classList.replace('text-gray-600', 'text-white');
+            // 切換 panel 顯示
+            panels.forEach(p => {
+                if (p.dataset.panel === target) {
+                    p.removeAttribute('hidden');
+                } else {
+                    p.setAttribute('hidden', '');
+                }
+            });
+        });
+    });
+}
 // #endregion
 // ===================================
 

@@ -139,25 +139,20 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         html.dark .emp-req-tab:hover { background: #4b5563; }
         html.dark .emp-req-tab.active { background: #6366f1; color: white; }
 
-        /* 員工設定摺疊區 summary 樣式 */
-        #employee-settings-fold summary {
+        /* 員工設定 sub-tab pill 樣式（與 .emp-req-tab 同步）*/
+        .emp-setting-tab {
             cursor: pointer;
-            list-style: none;
-            font-size: 1rem;
-            font-weight: 600;
-            color: #374151;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            transition: background-color 0.15s ease, color 0.15s ease;
         }
-        html.dark #employee-settings-fold summary { color: #e5e7eb; }
-        #employee-settings-fold summary::-webkit-details-marker { display: none; }
-        #employee-settings-fold summary::after {
-            content: '▸';
-            transition: transform 0.2s;
+        .emp-setting-tab:not(.active):hover {
+            background: #d1d5db;
         }
-        #employee-settings-fold[open] summary::after { transform: rotate(90deg); }
-        #employee-settings-fold[open] > div { margin-top: 1rem; }
+        html.dark .emp-setting-tab:not(.active):hover {
+            background: #4b5563;
+        }
+        .emp-setting-panel {
+            margin-top: 0.5rem;
+        }
     </style>
 
     <script>
@@ -426,48 +421,55 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
             <section id="admin-view" class="space-y-6" style="display: none;">
 
+                <!-- 全域員工選擇器（員工報表 / 員工設定 共用，跨 tab 不重置）-->
+                <div class="card p-6" id="admin-employee-selector-card">
+                    <h2 data-i18n="EMPLOYEE_MGMT_TITLE"
+                        class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工管理</h2>
+                    <div>
+                        <label data-i18n="LABEL_SELECT_EMPLOYEE" for="admin-select-employee-mgmt"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            選擇員工：
+                        </label>
+                        <select id="admin-select-employee-mgmt"
+                            class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option data-i18n="OPT_SELECT_EMPLOYEE" value="">-- 請選擇一位員工 --</option>
+                        </select>
+                    </div>
+
+                    <div id="mgmt-placeholder" style="display: block;"
+                        class="mt-4 text-center py-8 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                        <i class="fas fa-info-circle text-2xl text-indigo-400 mb-2"></i>
+                        <p class="font-semibold" data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
+                        <p data-i18n="HINT_DATA_AUTO_LOAD" class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
+                    </div>
+                </div>
+
                 <!-- Tab Navigation -->
                 <div class="card p-3 ">
-                    <div class="flex justify-center space-x-2">
-                        <!-- 1. 員工管理  -->
-                        <button id="tab-employee-mgmt-btn" data-i18n="TAB_EMPLOYEE_MGMT"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-white bg-indigo-600">員工管理</button>
-                        <!-- 2. 打卡管理 -->
+                    <div class="flex justify-center flex-wrap gap-2">
+                        <!-- 1. 員工報表 -->
+                        <button id="tab-employee-mgmt-btn" data-i18n="TAB_EMPLOYEE_REPORT"
+                            class="py-2 px-3 rounded-full font-bold text-sm text-white bg-indigo-600"
+                            style="white-space: nowrap;">員工報表</button>
+                        <!-- 2. 員工設定 -->
+                        <button id="tab-employee-settings-btn" data-i18n="TAB_EMPLOYEE_SETTINGS"
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                            style="white-space: nowrap;">員工設定</button>
+                        <!-- 3. 打卡管理 -->
                         <button id="tab-punch-mgmt-btn" data-i18n="TAB_PUNCH_MGMT"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">打卡管理</button>
-                        <!-- 3. 表單審核 -->
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                            style="white-space: nowrap;">打卡管理</button>
+                        <!-- 4. 表單審核 -->
                         <button id="tab-form-review-btn" data-i18n="TAB_FORM_REVIEW"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">表單審核</button>
-                        <!-- 4. 排班 -->
-                        <button id="tab-scheduling-btn" data-i18n="TAB_SCHEDULING" style="display: none;"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">排班</button>
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                            style="white-space: nowrap;">表單審核</button>
+                        <!-- 5. 排班 -->
+                        <button id="tab-scheduling-btn" data-i18n="TAB_SCHEDULING" style="display: none; white-space: nowrap;"
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200">排班</button>
                     </div>
                 </div>
 
                 <section id="employee-mgmt-view" class="space-y-6" style="display: block;">
-
-                    <!-- A. 員工選擇器卡（最頂端，全寬，含 placeholder）-->
-                    <div class="card p-6">
-                        <h2 data-i18n="EMPLOYEE_MGMT_TITLE"
-                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工管理</h2>
-                        <div>
-                            <label data-i18n="LABEL_SELECT_EMPLOYEE" for="admin-select-employee-mgmt"
-                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                選擇員工：
-                            </label>
-                            <select id="admin-select-employee-mgmt"
-                                class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option data-i18n="OPT_SELECT_EMPLOYEE" value="">-- 請選擇一位員工 --</option>
-                            </select>
-                        </div>
-
-                        <div id="mgmt-placeholder" style="display: block;"
-                            class="mt-4 text-center py-8 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                            <i class="fas fa-info-circle text-2xl text-indigo-400 mb-2"></i>
-                            <p class="font-semibold" data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
-                            <p data-i18n="HINT_DATA_AUTO_LOAD" class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
-                        </div>
-                    </div>
 
                     <!-- B. employee-detail-card 改為 dashboard wrapper（選了員工才顯示）-->
                     <div id="employee-detail-card" style="display: none;">
@@ -595,70 +597,99 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_6">(待 Phase 6 實作)</p>
                             </div>
 
-                            <!-- B10. 員工設定（摺疊，全寬）-->
-                            <details id="employee-settings-fold" class="card p-6 dash-full">
-                                <summary>
-                                    <span data-i18n="EMPLOYEE_SETTINGS_TITLE">員工設定</span>
-                                </summary>
-                                <div class="space-y-6">
-                                    <!-- 權限與帳號控制 -->
-                                    <div>
-                                        <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
-                                            data-i18n="PERMISSION_ACCOUNT_SETTINGS">
-                                            <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                            權限設定與帳號控制
-                                        </h5>
-                                        <div id="employee-settings-container" class="space-y-3">
-                                            <!-- Toggle settings 由 JS 動態生成 -->
-                                        </div>
-                                    </div>
+                        </div>
+                    </div>
+                </section>
 
-                                    <!-- 打卡政策設定 -->
-                                    <div>
-                                        <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
-                                            data-i18n="PUNCH_POLICY_SETTINGS">
-                                            <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                            打卡政策設定
-                                        </h5>
-                                        <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
-                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
-                                                    <input type="checkbox" id="require-gps" name="requireGps"
-                                                        class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
-                                                    <label for="require-gps"
-                                                        class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
-                                                        data-i18n="REQUIRE_GPS">GPS 定位</label>
-                                                </div>
-                                                <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
-                                                    <input type="checkbox" id="allow-manual-adjust" name="allowManualAdjust"
-                                                        class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
-                                                    <label for="allow-manual-adjust"
-                                                        class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
-                                                        data-i18n="ALLOW_MANUAL_ADJUST">Wifi BSSID</label>
-                                                </div>
-                                            </div>
-                                            <button type="submit"
-                                                class="mt-6 py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md w-full transition duration-150"
-                                                data-i18n="BTN_SAVE">
-                                                儲存政策
-                                            </button>
-                                        </form>
-                                    </div>
+                <!-- 員工設定 view（Phase L0 新增）-->
+                <section id="employee-settings-view" class="space-y-6" style="display: none;">
+                    <div id="employee-settings-content" class="card p-6" style="display: none;">
+                        <h2 data-i18n="EMPLOYEE_SETTINGS_TITLE"
+                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工設定</h2>
 
-                                    <!-- 動作按鈕（匯出 Excel + 測試通知）-->
-                                    <div class="flex flex-col sm:flex-row gap-2">
-                                        <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL"
-                                            class="flex-1 py-2 px-3 rounded-lg bg-green-100 text-green-800 dark:bg-green-600 dark:text-white border border-green-200 dark:border-green-700 text-sm font-medium hover:bg-green-200 dark:hover:bg-green-700">
-                                            匯出月曆 Excel
-                                        </button>
-                                        <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION"
-                                            class="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-800 dark:bg-blue-600 dark:text-white border border-blue-200 dark:border-blue-700 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-700">
-                                            測試通知功能
-                                        </button>
+                        <!-- Sub-tab navigation -->
+                        <div class="flex flex-wrap gap-2 mb-6 emp-setting-tabs">
+                            <button class="emp-setting-tab active py-2 px-3 rounded-full font-bold text-sm text-white bg-indigo-600"
+                                data-panel="account" data-i18n="EMPLOYEE_TAB_ACCOUNT"
+                                style="white-space: nowrap;">帳號權限</button>
+                            <button class="emp-setting-tab py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                                data-panel="punch" data-i18n="EMPLOYEE_TAB_PUNCH_POLICY"
+                                style="white-space: nowrap;">打卡政策</button>
+                            <button class="emp-setting-tab py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                                data-panel="salary" data-i18n="EMPLOYEE_TAB_SALARY"
+                                style="white-space: nowrap;">薪資與勞保</button>
+                        </div>
+
+                        <!-- Panel: 帳號權限 -->
+                        <div data-panel="account" class="emp-setting-panel">
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                data-i18n="PERMISSION_ACCOUNT_SETTINGS">
+                                <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                權限設定與帳號控制
+                            </h5>
+                            <div id="employee-settings-container" class="space-y-3">
+                                <!-- Toggle settings 由 JS 動態生成 -->
+                            </div>
+
+                            <!-- 動作按鈕（匯出 Excel + 測試通知）-->
+                            <div class="flex flex-col sm:flex-row gap-2 mt-6">
+                                <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL"
+                                    class="flex-1 py-2 px-3 rounded-lg bg-green-100 text-green-800 dark:bg-green-600 dark:text-white border border-green-200 dark:border-green-700 text-sm font-medium hover:bg-green-200 dark:hover:bg-green-700">
+                                    匯出月曆 Excel
+                                </button>
+                                <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION"
+                                    class="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-800 dark:bg-blue-600 dark:text-white border border-blue-200 dark:border-blue-700 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-700">
+                                    測試通知功能
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Panel: 打卡政策 -->
+                        <div data-panel="punch" class="emp-setting-panel" hidden>
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                data-i18n="PUNCH_POLICY_SETTINGS">
+                                <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                打卡政策設定
+                            </h5>
+                            <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
+                                        <input type="checkbox" id="require-gps" name="requireGps"
+                                            class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                                        <label for="require-gps"
+                                            class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
+                                            data-i18n="REQUIRE_GPS">GPS 定位</label>
+                                    </div>
+                                    <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
+                                        <input type="checkbox" id="allow-manual-adjust" name="allowManualAdjust"
+                                            class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                                        <label for="allow-manual-adjust"
+                                            class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
+                                            data-i18n="ALLOW_MANUAL_ADJUST">Wifi BSSID</label>
                                     </div>
                                 </div>
-                            </details>
+                                <button type="submit"
+                                    class="mt-6 py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md w-full transition duration-150"
+                                    data-i18n="BTN_SAVE">
+                                    儲存政策
+                                </button>
+                            </form>
                         </div>
+
+                        <!-- Panel: 薪資與勞保（Phase L7 實作）-->
+                        <div data-panel="salary" class="emp-setting-panel" hidden>
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center">
+                                <i class="fas fa-coins mr-2 text-amber-600 dark:text-amber-400"></i>
+                                <span data-i18n="EMPLOYEE_TAB_SALARY">薪資與勞保</span>
+                            </h5>
+                            <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_L7">(待 Phase L7 實作)</p>
+                        </div>
+                    </div>
+
+                    <!-- 未選員工時的提示 -->
+                    <div id="employee-settings-empty" class="card p-6 text-center text-gray-500 dark:text-gray-400">
+                        <i class="fas fa-user-cog text-3xl text-indigo-400 mb-3"></i>
+                        <p data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
                     </div>
                 </section>
 
