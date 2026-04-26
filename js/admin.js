@@ -1304,7 +1304,8 @@ async function renderEmployeePunchTable(userId, date) {
 
     let dailyStatus = [];
     try {
-        dailyStatus = await loadMonthDetailData(month, userId);
+        // Phase L3：取 enriched 版本（含 laborStats），cache 與其他 render 共用
+        dailyStatus = await loadEnrichedMonthData(month, userId);
     } catch (err) {
         console.error('renderEmployeePunchTable fetch 失敗：', err);
     }
@@ -1577,7 +1578,8 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
 
     let dailyStatus = [];
     try {
-        dailyStatus = await loadMonthDetailData(month, userId);
+        // Phase L3：取 enriched 版本，cache 與其他 render 共用
+        dailyStatus = await loadEnrichedMonthData(month, userId);
     } catch (err) {
         console.error('renderEmployeeStreakAndLeaveStats fetch 失敗：', err);
     }
@@ -1911,10 +1913,11 @@ async function renderEmployeeKpi(userId, date) {
 
     let dailyStatus = [];
     try {
-        // loadMonthDetailData 來自 ui.js，有 cache（與月曆共用，避免重複 fetch）
-        dailyStatus = await loadMonthDetailData(month, userId);
+        // Phase L3：取 enriched 版本，cache 與其他 render 共用（KPI 仍用原 day.hours，
+        // 勞基法分段 KPI 在 Phase L5 才會用到 day.laborStats）
+        dailyStatus = await loadEnrichedMonthData(month, userId);
     } catch (err) {
-        console.error('renderEmployeeKpi loadMonthDetailData 失敗：', err);
+        console.error('renderEmployeeKpi loadEnrichedMonthData 失敗：', err);
     }
 
     let total = 0, normal = 0, overtime = 0, leaveDays = 0;
@@ -1992,6 +1995,84 @@ if (typeof window !== 'undefined') {
     window.loadBreakTimes = loadBreakTimes;
     window.getCachedBreakTimes = getCachedBreakTimes;
     window.invalidateBreakTimesCache = invalidateBreakTimesCache;
+}
+
+// #endregion
+// ===================================
+
+// ===================================
+// #region Phase L3：月度 enriched dailyStatus cache（補上勞基法分段工時）
+// ===================================
+
+/**
+ * 月度 enriched dailyStatus cache。
+ * key 格式：`${userId}-${monthKey}` (monthKey = 'YYYY-MM')
+ * value：Array<{ ...rawDay, laborStats }>
+ *
+ * 每月一個鍵；切月時 key 不同會自動重算。
+ * 編輯休息時段時應呼叫 invalidateEnrichedMonthCache() 清空。
+ */
+const _enrichedMonthCache = {};
+
+function _enrichedCacheKey(userId, monthKey) {
+    return `${userId}-${monthKey}`;
+}
+
+/**
+ * 取得指定月份 enriched dailyStatus（每筆已加 laborStats 分段工時）。
+ *
+ * - 自動 ensure breakTimes cache 已載入
+ * - 結果 cache 在 module-level；同月份重複呼叫不重新 enrich
+ * - 若 enrichDayWithLaborStats 未載入會 fallback 回 raw（不阻塞）
+ *
+ * @param {string} monthKey 'YYYY-MM'
+ * @param {string} userId
+ * @returns {Promise<Array>} enriched days；若取不到資料回空陣列
+ */
+async function loadEnrichedMonthData(monthKey, userId) {
+    if (!monthKey || !userId) return [];
+    const ck = _enrichedCacheKey(userId, monthKey);
+    if (Array.isArray(_enrichedMonthCache[ck])) return _enrichedMonthCache[ck];
+
+    const [rawDays, breakTimes] = await Promise.all([
+        loadMonthDetailData(monthKey, userId),
+        loadBreakTimes(),
+    ]);
+
+    if (typeof window.enrichDayWithLaborStats !== 'function') {
+        console.warn('enrichDayWithLaborStats 未載入，回傳 raw dailyStatus');
+        return rawDays || [];
+    }
+
+    const enriched = (rawDays || []).map((d) => window.enrichDayWithLaborStats(d, breakTimes));
+    _enrichedMonthCache[ck] = enriched;
+    return enriched;
+}
+
+/**
+ * Invalidate enriched cache。
+ *   - (userId, monthKey)：清單一月份
+ *   - (userId)：清該員工所有月份
+ *   - 無參數：清全部
+ */
+function invalidateEnrichedMonthCache(userId, monthKey) {
+    if (userId && monthKey) {
+        delete _enrichedMonthCache[_enrichedCacheKey(userId, monthKey)];
+        return;
+    }
+    if (userId) {
+        const prefix = `${userId}-`;
+        Object.keys(_enrichedMonthCache).forEach((k) => {
+            if (k.startsWith(prefix)) delete _enrichedMonthCache[k];
+        });
+        return;
+    }
+    Object.keys(_enrichedMonthCache).forEach((k) => delete _enrichedMonthCache[k]);
+}
+
+if (typeof window !== 'undefined') {
+    window.loadEnrichedMonthData = loadEnrichedMonthData;
+    window.invalidateEnrichedMonthCache = invalidateEnrichedMonthCache;
 }
 
 // #endregion
@@ -2078,6 +2159,8 @@ function setupBreakTimesEditor() {
                 if (Array.isArray(res.breaks)) render(res.breaks);
                 // Phase L2：儲存後 invalidate module-level cache，下次 dashboard 取會重抓
                 invalidateBreakTimesCache();
+                // Phase L3：休息時段改變 → enriched 結果失效，全部清空
+                invalidateEnrichedMonthCache();
                 loadBreakTimes(true).catch(() => { /* 已記錄 */ });
             } else {
                 const code = (res && res.code) || 'UNKNOWN_ERROR';
