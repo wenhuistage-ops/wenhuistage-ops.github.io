@@ -1321,14 +1321,32 @@ async function renderEmployeePunchTable(userId, date) {
     // 從 dailyStatus 萃取出現過的 reason 作為 filter options（避免顯示無資料的選項）
     const seenReasons = [...new Set(dailyStatus.map((d) => d.reason).filter(Boolean))];
     let filterReason = 'ALL';
-    let sortBy = 'date';   // 'date' | 'punchInTime' | 'punchOutTime' | 'hours'
+    // Phase L4：sortBy 增加勞基法分段欄位
+    let sortBy = 'date';   // 'date' | 'punchInTime' | 'punchOutTime' | 'hours' | 'plainOt' | 'restTotal'
     let sortDir = 'desc';  // 'asc' | 'desc'
 
-    // 比較函式：時間/字串字典序、數字比大小
+    // Phase L4：從 laborStats 取分段加總（給排序用）
+    const plainOtOf = (day) => {
+        const s = day && day.laborStats;
+        return s ? Number(s.ot1 || 0) + Number(s.ot2 || 0) : 0;
+    };
+    const restTotalOf = (day) => {
+        const s = day && day.laborStats;
+        return s ? Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0) : 0;
+    };
+
+    // 比較函式：時間/字串字典序、數字比大小、勞基法分段加總
     const cmp = (a, b) => {
-        let av = a[sortBy], bv = b[sortBy];
-        if (sortBy === 'hours') { av = Number(av || 0); bv = Number(bv || 0); }
-        else { av = String(av || ''); bv = String(bv || ''); }
+        let av, bv;
+        if (sortBy === 'hours') {
+            av = Number(a.hours || 0); bv = Number(b.hours || 0);
+        } else if (sortBy === 'plainOt') {
+            av = plainOtOf(a); bv = plainOtOf(b);
+        } else if (sortBy === 'restTotal') {
+            av = restTotalOf(a); bv = restTotalOf(b);
+        } else {
+            av = String(a[sortBy] || ''); bv = String(b[sortBy] || '');
+        }
         if (av < bv) return sortDir === 'asc' ? -1 : 1;
         if (av > bv) return sortDir === 'asc' ? 1 : -1;
         return 0;
@@ -1337,6 +1355,47 @@ async function renderEmployeePunchTable(userId, date) {
         let rows = dailyStatus;
         if (filterReason !== 'ALL') rows = rows.filter((r) => r.reason === filterReason);
         return [...rows].sort(cmp);
+    };
+
+    // Phase L4：依日期類型把 laborStats 簡化成可讀字串
+    //   workday: 「平日 8 +OT 0.5」
+    //   rest:    「休息日 4」
+    //   public:  「國定 6」
+    //   regular: 「例假 +16」
+    const laborBreakdownText = (day) => {
+        const s = day && day.laborStats;
+        if (!s) return '';
+        const fmt = (n) => {
+            const v = Number(n || 0);
+            return v % 1 === 0 ? String(v) : v.toFixed(1);
+        };
+        switch (s.kind) {
+            case 'workday': {
+                const ot = Number(s.ot1 || 0) + Number(s.ot2 || 0);
+                const normal = Number(s.normal || 0);
+                if (normal === 0 && ot === 0) return '';
+                return ot > 0
+                    ? `${t('LABOR_NORMAL_HOURS')} ${fmt(normal)} + OT ${fmt(ot)}`
+                    : `${t('LABOR_NORMAL_HOURS')} ${fmt(normal)}`;
+            }
+            case 'rest': {
+                const total = Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0);
+                if (total === 0) return '';
+                return `${t('DAY_KIND_REST_DAY')} ${fmt(total)}`;
+            }
+            case 'public': {
+                const total = Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0);
+                if (total === 0) return '';
+                return `${t('DAY_KIND_PUBLIC_HOLIDAY')} ${fmt(total)}`;
+            }
+            case 'regular': {
+                const total = Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0);
+                if (total === 0) return '';
+                return `${t('DAY_KIND_REGULAR_LEAVE')} +${fmt(total)}`;
+            }
+            default:
+                return '';
+        }
     };
 
     // 每筆萃取地點：去重 record.location，取非空
@@ -1386,6 +1445,9 @@ async function renderEmployeePunchTable(userId, date) {
         { val: 'punchInTime', i18n: 'TABLE_HEADER_PUNCH_IN' },
         { val: 'punchOutTime', i18n: 'TABLE_HEADER_PUNCH_OUT' },
         { val: 'hours', i18n: 'TABLE_HEADER_HOURS' },
+        // Phase L4：依勞基法分段加總排序
+        { val: 'plainOt', i18n: 'TABLE_SORT_PLAIN_OT' },
+        { val: 'restTotal', i18n: 'TABLE_SORT_REST_TOTAL' },
     ];
     const sortFieldOptions = sortFields.map((s) =>
         `<option value="${s.val}" data-i18n="${s.i18n}">${t(s.i18n)}</option>`
@@ -1421,16 +1483,32 @@ async function renderEmployeePunchTable(userId, date) {
     };
 
     function rerenderTableBodies(rows) {
-        const tableRowsHtml = rows.map((day) => `
+        const tableRowsHtml = rows.map((day) => {
+            const breakdown = laborBreakdownText(day);
+            const breakdownHtml = breakdown
+                ? `<div style="font-size:0.7rem;margin-top:2px;color:#6b7280;">${breakdown}</div>`
+                : '';
+            return `
             <tr class="border-b border-gray-200 dark:border-gray-700">
                 <td class="py-2 px-3 text-sm font-medium text-gray-700 dark:text-gray-200">${day.date || ''}</td>
                 <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchInTime || '–'}</td>
                 <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchOutTime || '–'}</td>
-                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${Number(day.hours || 0).toFixed(1)}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">
+                    <div>${Number(day.hours || 0).toFixed(1)}</div>
+                    ${breakdownHtml}
+                </td>
                 <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${locationOf(day)}</td>
                 <td class="py-2 px-3">${reasonBadge(day.reason)}</td>
-            </tr>`).join('');
-        const cardRowsHtml = rows.map((day) => `
+            </tr>`;
+        }).join('');
+        const cardRowsHtml = rows.map((day) => {
+            const breakdown = laborBreakdownText(day);
+            const breakdownLine = breakdown
+                ? `<div style="font-size:0.7rem;margin-top:6px;color:#6b7280;">
+                    <i class="fas fa-balance-scale mr-1"></i>${breakdown}
+                   </div>`
+                : '';
+            return `
             <li class="emp-punch-card-row p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">${day.date || ''}</span>
@@ -1441,10 +1519,12 @@ async function renderEmployeePunchTable(userId, date) {
                     <div><span data-i18n="TABLE_HEADER_PUNCH_OUT">${t('TABLE_HEADER_PUNCH_OUT')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchOutTime || '–'}</span></div>
                     <div><span data-i18n="TABLE_HEADER_HOURS">${t('TABLE_HEADER_HOURS')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${Number(day.hours || 0).toFixed(1)}</span></div>
                 </div>
+                ${breakdownLine}
                 <div style="font-size:0.75rem;margin-top:6px;" class="text-gray-500 dark:text-gray-400">
                     <span data-i18n="TABLE_HEADER_LOCATION">${t('TABLE_HEADER_LOCATION')}</span>：<span class="text-gray-800 dark:text-gray-100">${locationOf(day)}</span>
                 </div>
-            </li>`).join('');
+            </li>`;
+        }).join('');
         const tbody = card.querySelector('table tbody');
         const cardList = card.querySelector('.emp-punch-card-list');
         if (tbody) tbody.innerHTML = tableRowsHtml;
