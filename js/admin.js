@@ -1247,15 +1247,16 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
         console.error('renderEmployeeStreakAndLeaveStats fetch 失敗：', err);
     }
 
-    // ===== 連續上工：從今天往前掃 =====
+    // ===== 連續上工：從「昨天」往前掃 =====
     // 規則（簡化）：當天必須同時有「上班」與「下班」打卡才 +1，
     // 否則中斷（國定假日/週末/請假/補打卡都不例外）
+    // 起點為昨天：今天還沒過完，無從判斷上下班是否完成
     const byDate = {};
     (dailyStatus || []).forEach((day) => { if (day.date) byDate[day.date] = day; });
     const fmtKey = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     const today = new Date();
     let streak = 0;
-    const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
     for (let i = 0; i < 60; i++) {
         const key = fmtKey(cursor);
         const day = byDate[key];
