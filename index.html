@@ -818,6 +818,31 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_6">(待 Phase 6 實作)</p>
                             </div>
 
+                            <!-- B9. 匯出報表卡（全寬）-->
+                            <div class="card p-6 dash-full" id="employee-export-card">
+                                <h3 data-i18n="EXPORT_REPORT_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-4">
+                                    <i class="fas fa-file-export mr-2 text-green-500"></i>匯出報表
+                                </h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="flex flex-col gap-2">
+                                        <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL"
+                                            class="w-full py-3 px-4 rounded-lg font-bold bg-green-100 hover:bg-green-200 text-green-800 dark:bg-green-700 dark:hover:bg-green-600 dark:text-white border border-green-300 dark:border-green-700 transition">
+                                            <i class="fas fa-calendar-alt mr-2"></i>匯出月曆 Excel
+                                        </button>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="HINT_EXPORT_MONTH_EXCEL">含月曆打卡紀錄，適合快速查閱每日出勤狀況。</p>
+                                    </div>
+                                    <div class="flex flex-col gap-2">
+                                        <button type="button" id="export-detailed-payroll-btn"
+                                            class="w-full py-3 px-4 rounded-lg font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-700 dark:hover:bg-emerald-600 dark:text-white border border-emerald-300 dark:border-emerald-700 transition">
+                                            <i class="fas fa-file-excel mr-2"></i>
+                                            <span data-i18n="BTN_EXPORT_DETAILED_PAYROLL">匯出本月詳細薪資 Excel</span>
+                                        </button>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="HINT_EXPORT_DETAILED_PAYROLL">含每日打卡、各班次工時、扣休息分鐘、勞基法各段時數、應發工資、勞健保扣繳明細與計算規則說明（共 3 個 sheet）。</p>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </section>
@@ -852,12 +877,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <!-- Toggle settings 由 JS 動態生成 -->
                             </div>
 
-                            <!-- 動作按鈕（匯出 Excel + 測試通知）-->
+                            <!-- 動作按鈕（測試通知）-->
                             <div class="flex flex-col sm:flex-row gap-2 mt-6">
-                                <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL"
-                                    class="flex-1 py-2 px-3 rounded-lg bg-green-100 text-green-800 dark:bg-green-600 dark:text-white border border-green-200 dark:border-green-700 text-sm font-medium hover:bg-green-200 dark:hover:bg-green-700">
-                                    匯出月曆 Excel
-                                </button>
                                 <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION"
                                     class="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-800 dark:bg-blue-600 dark:text-white border border-blue-200 dark:border-blue-700 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-700">
                                     測試通知功能
@@ -1020,18 +1041,6 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     class="w-full py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md transition"
                                     data-i18n="BTN_SAVE_SALARY">儲存薪資設定</button>
                             </form>
-
-                            <!-- Phase M3：詳細薪資 Excel 匯出 -->
-                            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <button type="button" id="export-detailed-payroll-btn"
-                                    class="w-full py-3 px-4 rounded-lg font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-700 dark:hover:bg-emerald-600 dark:text-white border border-emerald-300 dark:border-emerald-700 transition">
-                                    <i class="fas fa-file-excel mr-2"></i>
-                                    <span data-i18n="BTN_EXPORT_DETAILED_PAYROLL">匯出本月詳細薪資 Excel</span>
-                                </button>
-                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-i18n="HINT_EXPORT_DETAILED_PAYROLL">
-                                    含每日打卡、各班次工時、扣休息分鐘、勞基法各段時數、應發工資、勞健保扣繳明細與計算規則說明（共 3 個 sheet）。
-                                </p>
-                            </div>
                         </div>
                     </div>
 
