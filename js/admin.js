@@ -966,6 +966,34 @@ function initAdminEvents() {
     setupSalaryProfileForm();
     // Phase M3：詳細薪資 Excel 匯出
     setupDetailedPayrollExport();
+    // 修復：weekly-chart.js 在 vite dev mode 偶發無法掛 window，主動補載
+    ensureWeeklyChartLoaded();
+}
+
+/**
+ * 修復 weekly-chart.js 在 vite dev mode 經 <script defer> 載入時
+ * window.renderWeeklyChart 沒被掛上的問題（vite legacy plugin 對 script 做了
+ * transformation 導致末端 init code 跳過）。
+ *
+ * 用 fetch + indirect eval (0, eval)(txt) 在 global scope 重跑一次，
+ * 這樣 function declarations 會掛到 global，檔尾 window.assign 也會生效。
+ */
+async function ensureWeeklyChartLoaded() {
+    if (typeof window.renderWeeklyChart === 'function') return;
+    try {
+        const r = await fetch('/js/weekly-chart.js?_ensure=' + Date.now());
+        const txt = await r.text();
+        // (0, eval) = indirect eval，在 global scope 跑，避免 local function decl
+        // eslint-disable-next-line no-eval
+        (0, eval)(txt);
+        if (typeof window.renderWeeklyChart === 'function') {
+            console.log('✓ weekly-chart 補載完成');
+        } else {
+            console.warn('weekly-chart 補載後 window.renderWeeklyChart 仍 undefined');
+        }
+    } catch (err) {
+        console.error('weekly-chart 補載失敗：', err);
+    }
 }
 
 // ===================================
