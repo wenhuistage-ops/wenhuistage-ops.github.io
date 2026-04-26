@@ -1020,6 +1020,18 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     class="w-full py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md transition"
                                     data-i18n="BTN_SAVE_SALARY">儲存薪資設定</button>
                             </form>
+
+                            <!-- Phase M3：詳細薪資 Excel 匯出 -->
+                            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <button type="button" id="export-detailed-payroll-btn"
+                                    class="w-full py-3 px-4 rounded-lg font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-700 dark:hover:bg-emerald-600 dark:text-white border border-emerald-300 dark:border-emerald-700 transition">
+                                    <i class="fas fa-file-excel mr-2"></i>
+                                    <span data-i18n="BTN_EXPORT_DETAILED_PAYROLL">匯出本月詳細薪資 Excel</span>
+                                </button>
+                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400" data-i18n="HINT_EXPORT_DETAILED_PAYROLL">
+                                    含每日打卡、各班次工時、扣休息分鐘、勞基法各段時數、應發工資、勞健保扣繳明細與計算規則說明（共 3 個 sheet）。
+                                </p>
+                            </div>
                         </div>
                     </div>
 

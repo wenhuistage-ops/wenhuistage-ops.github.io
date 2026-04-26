@@ -964,6 +964,8 @@ function initAdminEvents() {
     setupKpiLaborHelpModal();
     // Phase L7：員工薪資設定表單事件
     setupSalaryProfileForm();
+    // Phase M3：詳細薪資 Excel 匯出
+    setupDetailedPayrollExport();
 }
 
 // ===================================
@@ -1627,6 +1629,407 @@ function setupAdminExport() {
         }
     });
 }
+
+// ===================================
+// #region Phase M3：詳細薪資 Excel 匯出
+// ===================================
+
+/**
+ * 把當天 record array 配對為「上下班班次」。
+ * 規則：
+ *   - 依時間排序
+ *   - 上班 配 下一筆 下班；中間有缺則該班缺打卡
+ *   - 一天可有多班（早班 + 晚班、跨午休、加班補回等）
+ *
+ * @returns {Array<{ inTime, outTime, complete: boolean }>}
+ */
+function _pairShifts(record) {
+    const arr = (record || []).filter((r) => r && r.time)
+        .map((r) => ({ time: String(r.time), type: r.type }))
+        .sort((a, b) => a.time.localeCompare(b.time));
+    const shifts = [];
+    let pending = null;
+    for (const r of arr) {
+        if (r.type === '上班') {
+            if (pending) {
+                // 連兩個上班 → 把舊的當缺下班
+                shifts.push({ inTime: pending.time, outTime: '', complete: false });
+            }
+            pending = r;
+        } else if (r.type === '下班') {
+            if (pending) {
+                shifts.push({ inTime: pending.time, outTime: r.time, complete: true });
+                pending = null;
+            } else {
+                // 只有下班 → 缺上班
+                shifts.push({ inTime: '', outTime: r.time, complete: false });
+            }
+        }
+    }
+    if (pending) {
+        shifts.push({ inTime: pending.time, outTime: '', complete: false });
+    }
+    return shifts;
+}
+
+/**
+ * 計算「上下班區間 [in, out] 與休息時段」的重疊分鐘加總
+ */
+function _overlapBreakMinutes(inTime, outTime, breakTimes) {
+    const toMin = (s) => {
+        const m = String(s || '').match(/^(\d{1,2}):(\d{2})/);
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    };
+    const inM = toMin(inTime);
+    const outM = toMin(outTime);
+    if (inM == null || outM == null || outM <= inM) return 0;
+    let total = 0;
+    for (const b of (breakTimes || [])) {
+        const bs = toMin(b.start);
+        const be = toMin(b.end);
+        if (bs == null || be == null || be <= bs) continue;
+        total += Math.max(0, Math.min(outM, be) - Math.max(inM, bs));
+    }
+    return total;
+}
+
+/**
+ * Phase M3：產生詳細薪資 Excel（3 sheet：摘要+結算 / 每日打卡 / 公司休息時段）
+ *
+ * @param {string} userId
+ * @param {number} year
+ * @param {number} month  0-indexed
+ */
+async function handleDetailedPayrollExport(userId, year, month) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const monthKey = `${year}-${pad(month + 1)}`;
+
+    // 取資料
+    const [dailyStatusRaw, breakTimes] = await Promise.all([
+        loadEnrichedMonthData(monthKey, userId),
+        loadBreakTimes(),
+    ]);
+
+    const employee = (allEmployeeList || []).find((e) => e && e.userId === userId)
+        || currentManagingEmployee
+        || {};
+    const employeeName = employee.name || userId.slice(0, 8) || 'unknown';
+
+    // 薪資設定
+    const salaryType = employee.salaryType || 'monthly';
+    const monthlySalary = Number(employee.monthlySalary || 0);
+    const hourlyRate = salaryType === 'hourly'
+        ? Number(employee.hourlyRate || 0)
+        : (typeof window.monthlyToHourly === 'function'
+            ? window.monthlyToHourly(monthlySalary)
+            : Math.round(monthlySalary / 240));
+
+    // 月度合計
+    const sum = (typeof window.aggregateMonthLaborStats === 'function')
+        ? window.aggregateMonthLaborStats(dailyStatusRaw || [])
+        : { equivalentHours: 0 };
+
+    // 工資計算（依各段倍率 × 時薪）
+    const r = (n) => Math.round(Number(n || 0));
+    const pay = {
+        normal:        r(sum.normal        * 1     * hourlyRate),
+        ot1:           r(sum.ot1           * (4/3) * hourlyRate),
+        ot2:           r(sum.ot2           * (5/3) * hourlyRate),
+        rest_ot1:      r(sum.rest_ot1      * (4/3) * hourlyRate),
+        rest_ot2:      r(sum.rest_ot2      * (5/3) * hourlyRate),
+        rest_ot3:      r(sum.rest_ot3      * (8/3) * hourlyRate),
+        public_base:   r(sum.public_base   * 1     * hourlyRate),
+        public_ot1:    r(sum.public_ot1    * (4/3) * hourlyRate),
+        public_ot2:    r(sum.public_ot2    * (5/3) * hourlyRate),
+        regular_base:  r(sum.regular_base  * 1     * hourlyRate),
+        regular_comp:  r(sum.regular_comp  * 1     * hourlyRate),
+        regular_ot:    r(sum.regular_ot    * 1     * hourlyRate),  // 已 ×2 過
+    };
+    const grossTotal = Object.values(pay).reduce((a, b) => a + b, 0);
+
+    // 扣繳（依勞保等級）
+    const grade = (window.LABOR_INSURANCE_GRADES || []).find((g) => g.grade === Number(employee.laborInsuranceGrade));
+    const insuredSalary = grade ? grade.salary : 0;
+    const pensionRate = employee.hasLaborPension !== false ? Number(employee.laborPensionRate || 0) : 0;
+    const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
+        ? window.calcEmployeeDeductions(insuredSalary, pensionRate)
+        : { labor: 0, health: 0, pension: 0, total: 0 };
+    const netPay = grossTotal - ded.total;
+
+    // ===== Sheet 1: 摘要與薪資結算 =====
+    const dayKindLabel = (k) => ({
+        workday: '平日', rest: '休息日', regular: '例假日', public: '國定假日'
+    }[k] || k || '');
+
+    const summaryRows = [
+        [`${employeeName} ${monthKey} 薪資詳細`],
+        [],
+        ['【員工資訊】'],
+        ['員工姓名', employeeName],
+        ['員工 ID', userId],
+        ['結算月份', monthKey],
+        ['薪資制度', salaryType === 'hourly' ? '時薪制' : '月薪制'],
+        ['月薪 (NT$)', salaryType === 'monthly' ? monthlySalary.toLocaleString() : '—'],
+        ['時薪 (NT$/h)', hourlyRate.toLocaleString() + (salaryType === 'monthly' ? '（月薪 ÷ 240）' : '')],
+        ['勞保投保等級', employee.laborInsuranceGrade ? `第 ${employee.laborInsuranceGrade} 級` : '未設定'],
+        ['月投保薪資', insuredSalary ? insuredSalary.toLocaleString() : '—'],
+        ['提繳勞退', employee.hasLaborPension !== false ? `是 (自提 ${pensionRate}%)` : '否'],
+        [],
+        ['【勞基法工時與工資（本月合計）】'],
+        ['類型', '段別', '時數 (h)', '倍率', '工資 (NT$)'],
+        ['平日',     '正常工時',     sum.normal,       '1.00',   pay.normal],
+        ['平日',     '加班 OT1',     sum.ot1,          '4/3 ≈ 1.34', pay.ot1],
+        ['平日',     '加班 OT2',     sum.ot2,          '5/3 ≈ 1.67', pay.ot2],
+        ['休息日',   '前 2h',        sum.rest_ot1,     '4/3 ≈ 1.34', pay.rest_ot1],
+        ['休息日',   '2~8h',         sum.rest_ot2,     '5/3 ≈ 1.67', pay.rest_ot2],
+        ['休息日',   '8h+',          sum.rest_ot3,     '8/3 ≈ 2.67', pay.rest_ot3],
+        ['國定假日', '保證 8h',      sum.public_base,  '1.00',   pay.public_base],
+        ['國定假日', '加班 OT1',     sum.public_ot1,   '4/3 ≈ 1.34', pay.public_ot1],
+        ['國定假日', '加班 OT2',     sum.public_ot2,   '5/3 ≈ 1.67', pay.public_ot2],
+        ['例假日',   '基本工資 8h',  sum.regular_base, '1.00',   pay.regular_base],
+        ['例假日',   '補休折現 8h',  sum.regular_comp, '1.00',   pay.regular_comp],
+        ['例假日',   '加倍 (×2)',    sum.regular_ot,   '已含 ×2', pay.regular_ot],
+        ['', '等價時數合計', sum.equivalentHours, '', ''],
+        ['', '應發合計 (NT$)', '', '', grossTotal],
+        [],
+        ['【員工自付扣繳】'],
+        ['項目', '計算公式', '金額 (NT$)'],
+        ['勞保普通事故', `投保薪資 ${insuredSalary.toLocaleString()} × 12% × 員工 20% = 2.4%`, ded.labor],
+        ['健保',         `投保薪資 ${insuredSalary.toLocaleString()} × 5.17% × 員工 30% ≈ 1.55%`, ded.health],
+        ['自提勞退',     `投保薪資 ${insuredSalary.toLocaleString()} × 自提率 ${pensionRate}%`, ded.pension],
+        ['', '扣繳合計', ded.total],
+        [],
+        ['【實領薪資】'],
+        ['應發', grossTotal],
+        ['扣繳', -ded.total],
+        ['實領 (NT$)', netPay],
+        [],
+        ['【公司休息時段（自動扣除）】'],
+        ['名稱', '開始', '結束'],
+        ...(breakTimes || []).map((b) => [b.name || '', b.start || '', b.end || '']),
+    ];
+
+    // ===== Sheet 2: 每日打卡明細 =====
+    const dailyHeader = [
+        '日期', '星期', '日類型',
+        '第1班 上班', '第1班 下班', '第1班 工時(h)', '第1班 扣休息(分)', '第1班 淨工時(h)',
+        '第2班 上班', '第2班 下班', '第2班 工時(h)', '第2班 扣休息(分)', '第2班 淨工時(h)',
+        '當日總工時(h)', '當日淨工時(h)',
+        '正常', 'OT1', 'OT2',
+        '休息日 OT1', '休息日 OT2', '休息日 OT3',
+        '國定 base', '國定 OT1', '國定 OT2',
+        '例假 base', '例假 補休', '例假 OT(×2)',
+        '備註',
+    ];
+    const dailyRows = [dailyHeader];
+
+    const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+    (dailyStatusRaw || []).forEach((day) => {
+        const dateKey = day.date || '';
+        const m = dateKey.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        let weekday = '';
+        if (m) {
+            const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+            weekday = WEEKDAYS[dt.getDay()];
+        }
+        const shifts = _pairShifts(day.record || []);
+        const s = day.laborStats || {};
+        const kind = dayKindLabel(s.kind);
+
+        // 算每班工時/扣休息
+        const shiftCells = [0, 1].map((idx) => {
+            const sh = shifts[idx];
+            if (!sh) return ['', '', '', '', ''];
+            const inT = sh.inTime || '';
+            const outT = sh.outTime || '';
+            if (!inT || !outT) return [inT, outT, '', '', '缺打卡'];
+            const wh = (typeof window.calcWorkHours === 'function')
+                ? window.calcWorkHours(inT, outT, [])  // gross 不扣
+                : { gross: 0, net: 0 };
+            const breakMin = _overlapBreakMinutes(inT, outT, breakTimes);
+            const netH = Math.round((wh.gross - breakMin / 60) * 100) / 100;
+            return [inT, outT, wh.gross.toFixed(2), breakMin, netH.toFixed(2)];
+        });
+
+        // 備註：缺打卡 / 多班標記
+        const notes = [];
+        if (shifts.length === 0) notes.push('無打卡');
+        if (shifts.length >= 3) notes.push(`${shifts.length} 班`);
+        if (shifts.some((sh) => !sh.complete)) notes.push('有缺打卡');
+        if (day.reason && day.reason.includes('LEAVE')) notes.push('請假');
+        if (day.reason && day.reason.includes('VACATION')) notes.push('休假');
+
+        dailyRows.push([
+            dateKey, weekday, kind,
+            ...shiftCells[0],
+            ...shiftCells[1],
+            (s.gross != null ? s.gross : (Number(day.hours) || 0)).toString(),
+            (s.net != null ? s.net : 0).toString(),
+            s.normal || 0, s.ot1 || 0, s.ot2 || 0,
+            s.rest_ot1 || 0, s.rest_ot2 || 0, s.rest_ot3 || 0,
+            s.public_base || 0, s.public_ot1 || 0, s.public_ot2 || 0,
+            s.regular_base || 0, s.regular_comp || 0, s.regular_ot || 0,
+            notes.join('、'),
+        ]);
+    });
+
+    // 月底加合計列
+    if (dailyRows.length > 1) {
+        dailyRows.push([
+            '合計', '', '',
+            '', '', '', '', '',
+            '', '', '', '', '',
+            '', '',
+            sum.normal, sum.ot1, sum.ot2,
+            sum.rest_ot1, sum.rest_ot2, sum.rest_ot3,
+            sum.public_base, sum.public_ot1, sum.public_ot2,
+            sum.regular_base, sum.regular_comp, sum.regular_ot,
+            `等價 ${sum.equivalentHours}h`,
+        ]);
+    }
+
+    // ===== Sheet 3: 規則說明 =====
+    const rulesRows = [
+        ['【勞基法工時計算規則】'],
+        [],
+        ['日期類型分類'],
+        ['平日',     '週一～週五，且非國定假日 / 非補班日'],
+        ['休息日',   '週六（無國定假日覆蓋）'],
+        ['例假日',   '週日（強制休）'],
+        ['國定假日', '依台灣勞動部公告（春節、清明、端午、中秋、雙十、元旦等）'],
+        [],
+        ['平日工時段（淨工時）'],
+        ['0–8h',  '正常工資 ×1.0'],
+        ['8–10h', '加班 OT1 ×4/3 ≈ 1.34'],
+        ['10h+',  '加班 OT2 ×5/3 ≈ 1.67'],
+        [],
+        ['休息日工時段（全部視為加班）'],
+        ['0–2h',  '×4/3 ≈ 1.34'],
+        ['2–8h',  '×5/3 ≈ 1.67'],
+        ['8–12h', '×8/3 ≈ 2.67  上限 12h'],
+        [],
+        ['國定假日工時段（出勤即至少給 8h）'],
+        ['出勤',  '保證 8h 工資'],
+        ['9–10h', '加班 ×4/3'],
+        ['10h+',  '加班 ×5/3'],
+        [],
+        ['例假日工時段（強制休）'],
+        ['出勤',  '1 日工資 = 8h × 時薪'],
+        ['補休',  '折現 8h × 時薪'],
+        ['超 8h', '×2 倍工資'],
+        [],
+        ['淨工時計算'],
+        ['公式',  '總工時 = 下班 − 上班 (同日內，分鐘級)'],
+        ['',      '扣除 = 與「公司休息時段」設定重疊的分鐘'],
+        ['',      '淨工時 = 總工時 − 重疊休息分鐘'],
+        [],
+        ['月薪 → 時薪換算'],
+        ['公式', '勞基法施行細則第 31 條：時薪 = 月薪 ÷ 30 ÷ 8 = 月薪 ÷ 240'],
+        [],
+        ['員工自付費率（2026 年）'],
+        ['勞保普通事故', '投保薪資 × 12% × 員工 20% = 2.4%'],
+        ['健保',         '投保薪資 × 5.17% × 員工 30% ≈ 1.55%'],
+        ['自提勞退',     '投保薪資 × 員工自選提繳率 0~6%'],
+    ];
+
+    // 寫 Excel
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(summaryRows);
+    const ws2 = XLSX.utils.aoa_to_sheet(dailyRows);
+    const ws3 = XLSX.utils.aoa_to_sheet(rulesRows);
+
+    // 簡單欄寬（Sheet1: 第 1 欄較寬；Sheet2: 日期欄較寬）
+    ws1['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 14 }];
+    ws2['!cols'] = [
+        { wch: 12 }, { wch: 6 }, { wch: 10 },
+        { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+        { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+        { wch: 14 }, { wch: 14 },
+        { wch: 8 }, { wch: 6 }, { wch: 6 },
+        { wch: 11 }, { wch: 11 }, { wch: 11 },
+        { wch: 10 }, { wch: 10 }, { wch: 10 },
+        { wch: 10 }, { wch: 10 }, { wch: 12 },
+        { wch: 20 },
+    ];
+    ws3['!cols'] = [{ wch: 16 }, { wch: 60 }];
+
+    XLSX.utils.book_append_sheet(wb, ws1, '摘要與結算');
+    XLSX.utils.book_append_sheet(wb, ws2, '每日打卡明細');
+    XLSX.utils.book_append_sheet(wb, ws3, '規則說明');
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+    // 安全檔名
+    const safeName = String(employeeName).replace(/[\/\\:\*\?"<>\|]/g, '').replace(/\s+/g, '_');
+    const filename = `${safeName}-${monthKey}-薪資詳細.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * 註冊「詳細薪資 Excel」按鈕事件
+ */
+function setupDetailedPayrollExport() {
+    const btn = document.getElementById('export-detailed-payroll-btn');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+
+    btn.addEventListener('click', async () => {
+        const userId = adminSelectedUserId
+            || (currentManagingEmployee && currentManagingEmployee.userId)
+            || (document.getElementById('admin-select-employee-mgmt')?.value);
+        if (!userId) {
+            showNotification(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT') || '請先選擇員工', 'error');
+            return;
+        }
+
+        // 解析目前顯示的月份
+        const monthText = (adminCurrentMonthDisplay && adminCurrentMonthDisplay.textContent)
+            ? adminCurrentMonthDisplay.textContent.trim()
+            : '';
+        let year, month;
+        const m = monthText.match(/(\d{4}).*?(\d{1,2})/);
+        if (m) {
+            year = parseInt(m[1], 10);
+            month = parseInt(m[2], 10) - 1;
+        } else {
+            const d = adminCurrentDate || new Date();
+            year = d.getFullYear();
+            month = d.getMonth();
+        }
+
+        if (typeof XLSX === 'undefined') {
+            showNotification(t('MSG_EXPORT_FAILED') || '匯出失敗：XLSX 未載入', 'error');
+            return;
+        }
+
+        const loadingText = t('LOADING') || '處理中...';
+        generalButtonState(btn, 'processing', loadingText);
+        try {
+            await handleDetailedPayrollExport(userId, year, month);
+            showNotification(t('MSG_EXPORT_SUCCESS') || '匯出成功', 'success');
+        } catch (err) {
+            console.error('詳細薪資 Excel 匯出失敗', err);
+            showNotification(t('MSG_EXPORT_FAILED') || '匯出失敗', 'error');
+        } finally {
+            generalButtonState(btn, 'idle');
+        }
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.handleDetailedPayrollExport = handleDetailedPayrollExport;
+}
+
+// #endregion
+// ===================================
 
 function setupTestNotificationButton() {
     const btn = document.getElementById('test-notification-btn');
