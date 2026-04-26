@@ -692,11 +692,16 @@ function initAdminEvents() {
             renderEmployeeStreakAndLeaveStats(selectedUserId, adminCurrentDate).catch((err) =>
                 console.error('renderEmployeeStreakAndLeaveStats 失敗：', err)
             );
+            // Phase 6：本月打卡紀錄表格
+            renderEmployeePunchTable(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderEmployeePunchTable 失敗：', err)
+            );
         } else {
             adminEmployeeCalendarCard.style.display = 'none';
             renderEmployeeKpi(null);
             renderEmployeeRequestHistory(null);
             renderEmployeeStreakAndLeaveStats(null);
+            renderEmployeePunchTable(null);
         }
 
         if (employee) {
@@ -840,6 +845,7 @@ function initAdminEvents() {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
             renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
             renderEmployeeStreakAndLeaveStats(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeePunchTable(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -849,6 +855,7 @@ function initAdminEvents() {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
             renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
             renderEmployeeStreakAndLeaveStats(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeePunchTable(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -1193,6 +1200,139 @@ function setupTestNotificationButton() {
 }
 
 // 休息時間設定編輯器
+/**
+ * Phase 6：本月打卡紀錄表格
+ *
+ * 桌機：HTML table（日期 / 上班 / 下班 / 工時 / 地點 / 狀態）
+ * 手機：每筆 card（垂直堆疊欄位）
+ *
+ * 來源：dailyStatus（與其他卡共用 loadMonthDetailData cache）
+ */
+async function renderEmployeePunchTable(userId, date) {
+    const card = document.getElementById('employee-punch-table-card');
+    if (!card) return;
+    const titleHtml = `
+        <h3 data-i18n="PUNCH_TABLE_TITLE"
+            class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+            <i class="fas fa-table mr-2 text-emerald-500"></i>${t('PUNCH_TABLE_TITLE')}
+        </h3>`;
+
+    if (!userId) {
+        card.innerHTML = titleHtml +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        renderTranslations(card);
+        return;
+    }
+
+    card.innerHTML = titleHtml + `<p class="dashboard-placeholder">…</p>`;
+
+    const d = date || new Date();
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    let dailyStatus = [];
+    try {
+        dailyStatus = await loadMonthDetailData(month, userId);
+    } catch (err) {
+        console.error('renderEmployeePunchTable fetch 失敗：', err);
+    }
+
+    if (!dailyStatus || dailyStatus.length === 0) {
+        card.innerHTML = titleHtml +
+            `<p class="dashboard-placeholder">${t('TABLE_NO_DATA') || '本月無打卡紀錄'}</p>`;
+        renderTranslations(card);
+        return;
+    }
+
+    // 日期 desc 排序
+    const rows = [...dailyStatus].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    // 每筆萃取地點：去重 record.location，取非空
+    const locationOf = (day) => {
+        const set = new Set();
+        (day.record || []).forEach((r) => {
+            const loc = (r.location || '').trim();
+            if (loc) set.add(loc);
+        });
+        const arr = [...set];
+        if (arr.length === 0) return '–';
+        if (arr.length === 1) return arr[0];
+        return `${arr[0]} (+${arr.length - 1})`;
+    };
+
+    const reasonBadge = (reason) => {
+        if (!reason) return '–';
+        // 使用既有 STATUS_* i18n keys
+        const cls = (() => {
+            switch (reason) {
+                case 'STATUS_PUNCH_NORMAL':
+                case 'STATUS_LEAVE_APPROVED':
+                case 'STATUS_VACATION_APPROVED':
+                case 'STATUS_REPAIR_APPROVED':
+                    return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200';
+                case 'STATUS_LEAVE_PENDING':
+                case 'STATUS_VACATION_PENDING':
+                case 'STATUS_REPAIR_PENDING':
+                    return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200';
+                case 'STATUS_BOTH_MISSING':
+                case 'STATUS_PUNCH_IN_MISSING':
+                case 'STATUS_PUNCH_OUT_MISSING':
+                    return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200';
+                default:
+                    return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
+            }
+        })();
+        return `<span data-i18n="${reason}" class="text-xs font-semibold px-2 py-0.5 rounded ${cls}">${t(reason) || reason}</span>`;
+    };
+
+    // 桌機 table（手機自動 hidden by media query in inline css）+ 手機 card 列表
+    const tableRowsHtml = rows.map((day) => `
+        <tr class="border-b border-gray-200 dark:border-gray-700">
+            <td class="py-2 px-3 text-sm font-medium text-gray-700 dark:text-gray-200">${day.date || ''}</td>
+            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchInTime || '–'}</td>
+            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchOutTime || '–'}</td>
+            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${Number(day.hours || 0).toFixed(1)}</td>
+            <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${locationOf(day)}</td>
+            <td class="py-2 px-3">${reasonBadge(day.reason)}</td>
+        </tr>`).join('');
+
+    const cardRowsHtml = rows.map((day) => `
+        <li class="emp-punch-card-row p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">${day.date || ''}</span>
+                ${reasonBadge(day.reason)}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:0.75rem;" class="text-gray-500 dark:text-gray-400">
+                <div><span data-i18n="TABLE_HEADER_PUNCH_IN">${t('TABLE_HEADER_PUNCH_IN')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchInTime || '–'}</span></div>
+                <div><span data-i18n="TABLE_HEADER_PUNCH_OUT">${t('TABLE_HEADER_PUNCH_OUT')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchOutTime || '–'}</span></div>
+                <div><span data-i18n="TABLE_HEADER_HOURS">${t('TABLE_HEADER_HOURS')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${Number(day.hours || 0).toFixed(1)}</span></div>
+            </div>
+            <div style="font-size:0.75rem;margin-top:6px;" class="text-gray-500 dark:text-gray-400">
+                <span data-i18n="TABLE_HEADER_LOCATION">${t('TABLE_HEADER_LOCATION')}</span>：<span class="text-gray-800 dark:text-gray-100">${locationOf(day)}</span>
+            </div>
+        </li>`).join('');
+
+    card.innerHTML = titleHtml + `
+        <!-- 桌機 table -->
+        <div class="emp-punch-table-wrap" style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:rgba(99,102,241,0.06);">
+                        <th data-i18n="TABLE_HEADER_DATE" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_DATE')}</th>
+                        <th data-i18n="TABLE_HEADER_PUNCH_IN" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_PUNCH_IN')}</th>
+                        <th data-i18n="TABLE_HEADER_PUNCH_OUT" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_PUNCH_OUT')}</th>
+                        <th data-i18n="TABLE_HEADER_HOURS" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_HOURS')}</th>
+                        <th data-i18n="TABLE_HEADER_LOCATION" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_LOCATION')}</th>
+                        <th data-i18n="TABLE_HEADER_STATUS" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300">${t('TABLE_HEADER_STATUS')}</th>
+                    </tr>
+                </thead>
+                <tbody>${tableRowsHtml}</tbody>
+            </table>
+        </div>
+        <!-- 手機 card 列表 -->
+        <ul class="emp-punch-card-list" style="display:none;list-style:none;padding:0;margin:0;">${cardRowsHtml}</ul>`;
+    renderTranslations(card);
+}
+
 /**
  * Phase 5：連續上工天數 + 請假/休假統計（純前端從 dailyStatus 推導）
  *

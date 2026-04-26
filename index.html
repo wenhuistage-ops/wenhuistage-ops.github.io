@@ -114,6 +114,13 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             font-style: italic;
         }
 
+        /* Phase 6：打卡紀錄表格 / 手機 card 切換 */
+        @media (max-width: 639px) {
+            .emp-punch-table-wrap { display: none !important; }
+            .emp-punch-card-list { display: block !important; }
+        }
+        .emp-punch-card-list > .emp-punch-card-row + .emp-punch-card-row { margin-top: 0.5rem; }
+
         /* Phase 4：申請紀錄 tab 樣式（避開 Tailwind JIT 的 runtime injection 問題）*/
         .emp-req-tab {
             padding: 4px 12px;
