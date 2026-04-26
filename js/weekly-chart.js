@@ -58,19 +58,33 @@ function _weekOf(dateKey) {
 }
 
 function _restHours(rec) {
-    // 'HH:MM' → 分鐘
-    if (!rec || !rec.punchInTime || !rec.punchOutTime) return 0;
-    const toMin = (s) => {
-        const m = String(s).match(/^(\d{1,2}):(\d{2})/);
+    // 修復：原邏輯用 rec.hours（=後端 punchOut-punchIn，不扣休息）→ span - hours = 0 永遠
+    // 改用 enriched laborStats: rest = gross - net（扣掉的休息分鐘）
+    if (!rec) return 0;
+    const s = rec.laborStats;
+    if (s && typeof s.gross === 'number' && typeof s.net === 'number') {
+        return Math.max(0, Math.round((s.gross - s.net) * 100) / 100);
+    }
+    // Fallback：沒 enriched 時用「公司休息時段重疊」自算
+    if (!rec.punchInTime || !rec.punchOutTime) return 0;
+    const toMin = (str) => {
+        const m = String(str).match(/^(\d{1,2}):(\d{2})/);
         if (!m) return null;
         return Number(m[1]) * 60 + Number(m[2]);
     };
     const inM = toMin(rec.punchInTime);
     const outM = toMin(rec.punchOutTime);
-    if (inM == null || outM == null) return 0;
-    const span = (outM - inM) / 60;
-    const work = Number(rec.hours || 0);
-    return Math.max(0, span - work);
+    if (inM == null || outM == null || outM <= inM) return 0;
+    const breaks = (typeof window !== 'undefined' && typeof window.getCachedBreakTimes === 'function')
+        ? window.getCachedBreakTimes() : [];
+    let total = 0;
+    for (const b of (breaks || [])) {
+        const bs = toMin(b.start);
+        const be = toMin(b.end);
+        if (bs == null || be == null || be <= bs) continue;
+        total += Math.max(0, Math.min(outM, be) - Math.max(inM, bs));
+    }
+    return Math.round((total / 60) * 100) / 100;
 }
 
 function _hoursForMode(rec, mode) {

@@ -733,6 +733,10 @@ const switchTab = (tabId) => {
             // 降級方案：如果 ensureMapInitialized 未定義，直接初始化
             initLocationMap();
         }
+        // 切到 dashboard 時刷新今日打卡紀錄
+        if (tabId === 'dashboard-view' && typeof renderTodayPunches === 'function') {
+            renderTodayPunches().catch(console.warn);
+        }
     } else if (tabId === 'admin-view') {
         fetchAndRenderReviewRequests();
     }
@@ -779,4 +783,86 @@ function generalButtonState(button, state, loadingText = '處理中...') {
             delete button.dataset.originalText; // 清除儲存，讓它在下一次點擊時再次儲存
         }
     }
+}
+
+// ===================================
+// 今日打卡紀錄即時回饋（P2 防重複打卡 + UI 反饋）
+// ===================================
+
+/**
+ * 樂觀更新：立即在「今日打卡紀錄」區塊追加一筆
+ * @param {string} type   '上班' / '下班'
+ * @param {Date} when     打卡時間（預設 now）
+ */
+function appendTodayPunch(type, when = new Date()) {
+    const list = document.getElementById('today-punches-list');
+    const empty = document.getElementById('today-punches-empty');
+    if (!list) return;
+    const hh = String(when.getHours()).padStart(2, '0');
+    const mm = String(when.getMinutes()).padStart(2, '0');
+    const li = document.createElement('li');
+    li.className = 'flex items-center justify-between p-2 rounded bg-white dark:bg-gray-800';
+    const typeColor = type === '上班' ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400';
+    li.innerHTML = `
+        <span class="${typeColor} font-semibold">
+            <i class="fas fa-${type === '上班' ? 'sign-in-alt' : 'sign-out-alt'} mr-1"></i>
+            ${type}
+        </span>
+        <span class="text-gray-700 dark:text-gray-200 font-mono">${hh}:${mm}</span>
+    `;
+    list.appendChild(li);
+    if (empty) empty.style.display = 'none';
+}
+
+/**
+ * 從 API（或 cache）讀今日的打卡 record，重 render 整個列表
+ */
+async function renderTodayPunches() {
+    const list = document.getElementById('today-punches-list');
+    const empty = document.getElementById('today-punches-empty');
+    if (!list) return;
+
+    const today = new Date();
+    const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const dateKey = `${monthKey}-${String(today.getDate()).padStart(2, '0')}`;
+
+    list.replaceChildren();
+    if (empty) empty.style.display = 'block';
+
+    try {
+        const days = await loadMonthDetailData(monthKey);
+        const todayRec = (days || []).find(d => d.date === dateKey);
+        const records = (todayRec && todayRec.record) || [];
+        // 排序按時間
+        const sorted = records
+            .filter(r => r && r.time)
+            .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+        if (sorted.length === 0) return;
+        if (empty) empty.style.display = 'none';
+        sorted.forEach(r => {
+            const m = String(r.time).match(/^(\d{1,2}):(\d{2})/);
+            const hhmm = m ? `${m[1].padStart(2, '0')}:${m[2]}` : r.time;
+            const li = document.createElement('li');
+            li.className = 'flex items-center justify-between p-2 rounded bg-white dark:bg-gray-800';
+            const isIn = r.type === '上班';
+            const typeColor = isIn ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400';
+            const audit = r.audit === '?' ? ' <span class="text-xs text-yellow-600">(審核中)</span>'
+                : (r.audit === 'x' ? ' <span class="text-xs text-red-600">(已拒絕)</span>' : '');
+            li.innerHTML = `
+                <span class="${typeColor} font-semibold">
+                    <i class="fas fa-${isIn ? 'sign-in-alt' : 'sign-out-alt'} mr-1"></i>
+                    ${r.type || '?'}${audit}
+                </span>
+                <span class="text-gray-700 dark:text-gray-200 font-mono">${hhmm}</span>
+            `;
+            list.appendChild(li);
+        });
+    } catch (err) {
+        console.warn('renderTodayPunches 失敗：', err);
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.appendTodayPunch = appendTodayPunch;
+    window.renderTodayPunches = renderTodayPunches;
 }
