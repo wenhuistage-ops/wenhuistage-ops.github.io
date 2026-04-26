@@ -684,9 +684,14 @@ function initAdminEvents() {
             renderEmployeeKpi(selectedUserId, adminCurrentDate).catch((err) =>
                 console.error('renderEmployeeKpi 失敗：', err)
             );
+            // Phase 4：載入該員工申請紀錄（預設「待審核」tab）
+            renderEmployeeRequestHistory(selectedUserId, '?').catch((err) =>
+                console.error('renderEmployeeRequestHistory 失敗：', err)
+            );
         } else {
             adminEmployeeCalendarCard.style.display = 'none';
             renderEmployeeKpi(null);
+            renderEmployeeRequestHistory(null);
         }
 
         if (employee) {
@@ -1181,6 +1186,169 @@ function setupTestNotificationButton() {
 }
 
 // 休息時間設定編輯器
+/**
+ * Phase 4：員工申請紀錄整合（待審核 / 已批准 / 已拒絕 三 tab）
+ *
+ * 從擴充後的 getReviewRequest（接 userId + audit 參數）拉資料，
+ * 渲染到員工 dashboard 的「申請紀錄」卡，待審核項目可直接 approve/reject。
+ *
+ * @param {string|null} userId       選中的員工 ID；null 重設為 placeholder
+ * @param {string}      audit        '?' | 'v' | 'x'，預設 '?' (待審核)
+ */
+async function renderEmployeeRequestHistory(userId, audit = '?') {
+    const card = document.getElementById('employee-request-history-card');
+    if (!card) return;
+
+    const titleHtml = `
+        <h3 data-i18n="REQUEST_HISTORY_TITLE"
+            class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+            <i class="fas fa-clipboard-list mr-2 text-indigo-500"></i>${t('REQUEST_HISTORY_TITLE')}
+        </h3>`;
+
+    if (!userId) {
+        card.innerHTML = titleHtml +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        renderTranslations(card);
+        return;
+    }
+
+    const tabs = [
+        { audit: '?', i18n: 'REQUEST_TAB_PENDING' },
+        { audit: 'v', i18n: 'REQUEST_TAB_APPROVED' },
+        { audit: 'x', i18n: 'REQUEST_TAB_REJECTED' },
+    ];
+    const tabsHtml = tabs.map((tabItem) => {
+        const active = tabItem.audit === audit;
+        return `<button type="button" data-audit="${tabItem.audit}"
+            class="emp-req-tab${active ? ' active' : ''}">
+            <span data-i18n="${tabItem.i18n}">${t(tabItem.i18n)}</span>
+        </button>`;
+    }).join('');
+
+    card.innerHTML = titleHtml +
+        `<div class="flex flex-wrap gap-2 mb-3">${tabsHtml}</div>` +
+        `<div id="employee-request-body" class="dashboard-placeholder">…</div>`;
+
+    // tab 切換
+    card.querySelectorAll('.emp-req-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            renderEmployeeRequestHistory(userId, btn.dataset.audit);
+        });
+    });
+    renderTranslations(card);
+
+    // 取資料
+    let res;
+    try {
+        res = await callApifetch({ action: 'getReviewRequest', userId, audit });
+    } catch (err) {
+        console.error('renderEmployeeRequestHistory fetch 失敗：', err);
+    }
+
+    const body = card.querySelector('#employee-request-body');
+    if (!body) return;
+    if (!res || !res.ok) {
+        body.textContent = t('MSG_FETCH_REVIEW_NETWORK_ERROR') || '載入失敗';
+        return;
+    }
+    const items = res.reviewRequest || [];
+    if (items.length === 0) {
+        body.innerHTML = `<p class="dashboard-placeholder">${t('VALUE_NA') || '無資料'}</p>`;
+        return;
+    }
+
+    // 顯示 list（每筆：類型 badge + 狀態 badge + 時間 + 動作）
+    const STATUS_BADGE = {
+        '?': { i18n: 'REQUEST_TAB_PENDING', cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200' },
+        'v': { i18n: 'REQUEST_TAB_APPROVED', cls: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200' },
+        'x': { i18n: 'REQUEST_TAB_REJECTED', cls: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200' },
+    };
+
+    const itemsHtml = items.map((req) => {
+        const isLeave = req.remark && req.remark !== '補打卡';
+        const labelTimeKey = isLeave ? 'LABEL_LEAVE_VACATION_TIME' : 'LABEL_REPAIR_TIME';
+        const typeBadgeKey = isLeave ? 'BADGE_LEAVE_VACATION' : 'BADGE_REPAIR';
+        const typeBadgeCls = isLeave
+            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200'
+            : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200';
+        const statusBadge = STATUS_BADGE[req.audit] || STATUS_BADGE['?'];
+        const showActions = req.audit === '?';
+        const remarkLine = (isLeave && req.remark)
+            ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${req.remark}</p>`
+            : '';
+        return `
+        <li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div class="flex-grow min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span data-i18n="${typeBadgeKey}" class="text-xs font-semibold px-2 py-0.5 rounded ${typeBadgeCls}">${t(typeBadgeKey)}</span>
+                    <span class="text-xs font-medium text-gray-600 dark:text-gray-300">${req.type || ''}</span>
+                    <span data-i18n="${statusBadge.i18n}" class="text-xs font-semibold px-2 py-0.5 rounded ${statusBadge.cls}">${t(statusBadge.i18n)}</span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span data-i18n="${labelTimeKey}">${t(labelTimeKey)}</span>：${req.targetTime || ''}
+                    <span class="mx-1">·</span>
+                    <span data-i18n="LABEL_APPLICATION_TIME">${t('LABEL_APPLICATION_TIME')}</span>：${req.applicationTime || ''}
+                </p>
+                ${remarkLine}
+            </div>
+            ${showActions ? `
+            <div class="flex gap-2 shrink-0">
+                <button type="button" data-action="approve" data-id="${req.id}"
+                    class="emp-req-act px-3 py-1 rounded text-xs font-bold btn-primary"
+                    data-i18n="ADMIN_APPROVE_BUTTON">${t('ADMIN_APPROVE_BUTTON') || '核准'}</button>
+                <button type="button" data-action="reject" data-id="${req.id}"
+                    class="emp-req-act px-3 py-1 rounded text-xs font-bold btn-warning"
+                    data-i18n="ADMIN_REJECT_BUTTON">${t('ADMIN_REJECT_BUTTON') || '拒絕'}</button>
+            </div>` : ''}
+        </li>`;
+    }).join('');
+
+    body.outerHTML = `<ul id="employee-request-body" class="space-y-2">${itemsHtml}</ul>`;
+    const newBody = card.querySelector('#employee-request-body');
+    if (newBody) renderTranslations(newBody);
+
+    // 綁 approve/reject
+    card.querySelectorAll('.emp-req-act').forEach((btn) => {
+        btn.addEventListener('click', () => handleEmployeeRequestAction(btn, userId, audit));
+    });
+}
+
+async function handleEmployeeRequestAction(button, userId, currentAudit) {
+    const action = button.dataset.action;
+    const id = button.dataset.id;
+    if (!id || !action) return;
+
+    const isAdmin = await verifyAdminPermission();
+    if (!isAdmin) {
+        showNotification(t('ERR_NO_PERMISSION') || '您沒有管理員權限', 'error');
+        return;
+    }
+
+    const actionText = t(action === 'approve' ? 'ACTION_APPROVE' : 'ACTION_REJECT');
+    const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
+    const confirmed = await showConfirmDialog(confirmMsg);
+    if (!confirmed) return;
+
+    const loadingText = t('LOADING') || '處理中...';
+    generalButtonState(button, 'processing', loadingText);
+    try {
+        const endpoint = action === 'approve' ? 'approveReview' : 'rejectReview';
+        const res = await callApifetch({ action: endpoint, id });
+        if (res && res.ok) {
+            const key = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
+            showNotification(t(key) || (action === 'approve' ? '已批准' : '已拒絕'), 'success');
+            await renderEmployeeRequestHistory(userId, currentAudit);
+        } else {
+            showNotification(t('REVIEW_FAILED', { msg: (res && res.msg) || '' }) || '審核失敗', 'error');
+        }
+    } catch (err) {
+        showNotification(t('REVIEW_NETWORK_ERROR') || '網路錯誤', 'error');
+        console.error(err);
+    } finally {
+        generalButtonState(button, 'idle');
+    }
+}
+
 /**
  * Phase 3：員工本月 KPI（總工時 / 正常 / 加班 / 請假天數）
  *

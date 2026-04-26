@@ -114,6 +114,24 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             font-style: italic;
         }
 
+        /* Phase 4：申請紀錄 tab 樣式（避開 Tailwind JIT 的 runtime injection 問題）*/
+        .emp-req-tab {
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 9999px;
+            background: #f3f4f6;
+            color: #6b7280;
+            cursor: pointer;
+            border: none;
+            transition: background .15s;
+        }
+        .emp-req-tab:hover { background: #e5e7eb; }
+        .emp-req-tab.active { background: #6366f1; color: white; }
+        html.dark .emp-req-tab { background: #374151; color: #d1d5db; }
+        html.dark .emp-req-tab:hover { background: #4b5563; }
+        html.dark .emp-req-tab.active { background: #6366f1; color: white; }
+
         /* 員工設定摺疊區 summary 樣式 */
         #employee-settings-fold summary {
             cursor: pointer;
