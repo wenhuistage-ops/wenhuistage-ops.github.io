@@ -64,6 +64,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         }
         @media (min-width: 1024px) {
             .employee-dashboard-grid > .dash-2col { grid-column: span 2; }
+            /* 月曆專屬：跨 2 col 同時跨 2 row，讓右側兩張小卡（連續上工/請假統計）並排堆疊 */
+            .employee-dashboard-grid > .dash-2col-tall {
+                grid-column: span 2;
+                grid-row: span 2;
+            }
         }
 
         /* KPI 4 格：手機 2-col、平板以上 4-col */
@@ -491,8 +496,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 </div>
                             </div>
 
-                            <!-- B3. 月曆卡（全寬）-->
-                            <div class="card p-6 dash-full">
+                            <!-- B3. 月曆卡（桌機跨 2col + 2row，讓右側填連續上工/請假統計）-->
+                            <div class="card p-6 dash-2col-tall">
                                 <h3 data-i18n="EMPLOYEE_CALENDAR_TITLE"
                                     class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">員工日曆檢視</h3>
 
@@ -516,7 +521,25 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 </div>
                             </div>
 
-                            <!-- B3.5 點月曆 cell 後的當日打卡紀錄（緊接月曆下方，由 click 觸發）-->
+                            <!-- 連續上工卡（桌機填月曆右側上格，Phase 5）-->
+                            <div class="card p-5" id="employee-streak-card">
+                                <h3 data-i18n="CONSECUTIVE_WORKDAYS_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                                    <i class="fas fa-fire mr-2 text-orange-500"></i>連續上工
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
+                            </div>
+
+                            <!-- 請假/休假統計卡（桌機填月曆右側下格，Phase 5）-->
+                            <div class="card p-5" id="employee-leave-stats-card">
+                                <h3 data-i18n="LEAVE_STATS_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                                    <i class="fas fa-umbrella-beach mr-2 text-cyan-500"></i>請假統計
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
+                            </div>
+
+                            <!-- 點月曆 cell 後的當日打卡紀錄（緊接月曆下方，由 click 觸發）-->
                             <div id="admin-daily-records-card" class="card p-6 dash-full" style="display: none;">
                                 <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
                                 <ul id="admin-daily-records-list" class="space-y-3"></ul>
@@ -529,26 +552,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             <!-- B4. 週工時圖（全寬，已是 .card p-6）-->
                             <div id="admin-weekly-chart-card" class="card p-6 dash-full"></div>
 
-                            <!-- B5. 連續上工卡（小卡，Phase 5）-->
-                            <div class="card p-6" id="employee-streak-card">
-                                <h3 data-i18n="CONSECUTIVE_WORKDAYS_TITLE"
-                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                                    <i class="fas fa-fire mr-2 text-orange-500"></i>連續上工
-                                </h3>
-                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
-                            </div>
-
-                            <!-- B6. 請假/休假統計卡（Phase 5）-->
-                            <div class="card p-6" id="employee-leave-stats-card">
-                                <h3 data-i18n="LEAVE_STATS_TITLE"
-                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                                    <i class="fas fa-umbrella-beach mr-2 text-cyan-500"></i>請假統計
-                                </h3>
-                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
-                            </div>
-
-                            <!-- B7. 申請紀錄卡（跨 2 col 桌機，Phase 4）-->
-                            <div class="card p-6 dash-2col" id="employee-request-history-card">
+                            <!-- B7. 申請紀錄卡（全寬）-->
+                            <div class="card p-6 dash-full" id="employee-request-history-card">
                                 <h3 data-i18n="REQUEST_HISTORY_TITLE"
                                     class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
                                     <i class="fas fa-clipboard-list mr-2 text-indigo-500"></i>申請紀錄
