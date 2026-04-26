@@ -680,8 +680,13 @@ function initAdminEvents() {
             renderAdminCalendar(selectedUserId, adminCurrentDate).catch((err) =>
                 console.error('renderAdminCalendar 失敗：', err)
             );
+            // Phase 3：載入並計算當月 KPI
+            renderEmployeeKpi(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderEmployeeKpi 失敗：', err)
+            );
         } else {
             adminEmployeeCalendarCard.style.display = 'none';
+            renderEmployeeKpi(null);
         }
 
         if (employee) {
@@ -823,6 +828,7 @@ function initAdminEvents() {
         adminCurrentDate.setMonth(adminCurrentDate.getMonth() - 1);
         if (adminSelectedUserId) {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
+            renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -830,6 +836,7 @@ function initAdminEvents() {
         adminCurrentDate.setMonth(adminCurrentDate.getMonth() + 1);
         if (adminSelectedUserId) {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
+            renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -1174,6 +1181,60 @@ function setupTestNotificationButton() {
 }
 
 // 休息時間設定編輯器
+/**
+ * Phase 3：員工本月 KPI（總工時 / 正常 / 加班 / 請假天數）
+ *
+ * 從 loadMonthDetailData 拿 dailyStatus 算 4 個數字並寫入 #kpi-* span。
+ * 標準工時 8 小時/天（與 weekly-chart 一致）。
+ *
+ * @param {string|null} userId  選中的員工 ID；null 重設 KPI 為 --
+ * @param {Date}        date    決定月份（year/month）
+ */
+async function renderEmployeeKpi(userId, date) {
+    const STANDARD = 8;
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+
+    if (!userId) {
+        ['kpi-total-hours', 'kpi-normal-hours', 'kpi-overtime-hours', 'kpi-leave-days']
+            .forEach((id) => setVal(id, '--'));
+        return;
+    }
+
+    const d = date || new Date();
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    // 重設為 loading 狀態
+    ['kpi-total-hours', 'kpi-normal-hours', 'kpi-overtime-hours', 'kpi-leave-days']
+        .forEach((id) => setVal(id, '…'));
+
+    let dailyStatus = [];
+    try {
+        // loadMonthDetailData 來自 ui.js，有 cache（與月曆共用，避免重複 fetch）
+        dailyStatus = await loadMonthDetailData(month, userId);
+    } catch (err) {
+        console.error('renderEmployeeKpi loadMonthDetailData 失敗：', err);
+    }
+
+    let total = 0, normal = 0, overtime = 0, leaveDays = 0;
+    for (const day of (dailyStatus || [])) {
+        const h = Number(day.hours || 0);
+        total += h;
+        normal += Math.min(h, STANDARD);
+        overtime += Math.max(0, h - STANDARD);
+        if (day.reason === 'STATUS_LEAVE_APPROVED' || day.reason === 'STATUS_VACATION_APPROVED') {
+            leaveDays += 1;
+        }
+    }
+
+    setVal('kpi-total-hours', total.toFixed(1));
+    setVal('kpi-normal-hours', normal.toFixed(1));
+    setVal('kpi-overtime-hours', overtime.toFixed(1));
+    setVal('kpi-leave-days', String(leaveDays));
+}
+
 function setupBreakTimesEditor() {
     const listEl = document.getElementById('break-times-list');
     const addBtn = document.getElementById('break-times-add-btn');
