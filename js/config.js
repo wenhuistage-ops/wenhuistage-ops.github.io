@@ -30,7 +30,7 @@ const API_CONFIG = {
   // ==========================================================================
   // 預設 false（走 GAS）。本分支可改為 true 強制走 Firestore。
   // 主線合併本分支時請保持 false，避免意外切換。
-  useFirestore: false,
+  useFirestore: true,
 
   // Firebase 專案配置（僅 useFirestore=true 才使用）
   // 由使用者於 Firebase Console → 專案設定 複製填入
