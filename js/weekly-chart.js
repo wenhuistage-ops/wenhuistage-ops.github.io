@@ -13,12 +13,20 @@
  *                      [{ date: 'YYYY-MM-DD', hours, punchInTime, punchOutTime, ... }]
  *   selectedDateKey  — 'YYYY-MM-DD'，決定所屬週與高亮色
  *   mode             — 'normal' | 'overtime' | 'rest' | 'total'
+ *                      | 'plain_ot' | 'rest_total' | 'public_total' | 'regular_total'
  *
  * 模式換算（標準工時 8 小時）：
- *   total    = hours
- *   normal   = min(hours, 8)
- *   overtime = max(hours - 8, 0)
- *   rest     = punchOutTime - punchInTime - hours （以分鐘為單位估算，缺值回 0）
+ *   total          = hours
+ *   normal         = min(hours, 8)
+ *   overtime       = max(hours - 8, 0)
+ *   rest           = punchOutTime - punchInTime - hours （以分鐘為單位估算，缺值回 0）
+ *
+ * Phase L6：勞基法分段（依賴 enriched dailyStatus 的 laborStats，由 admin.js
+ * 呼叫 loadEnrichedMonthData 產生；個人 view 仍是 raw → 這 4 個 mode 顯示 0）
+ *   plain_ot       = laborStats.ot1 + ot2                 （平日加班）
+ *   rest_total     = rest_ot1 + rest_ot2 + rest_ot3        （休息日總工時）
+ *   public_total   = public_base + public_ot1 + public_ot2 （國定假日總工時）
+ *   regular_total  = regular_base + regular_comp + regular_ot （例假日工資 + 補休 + 加倍）
  */
 
 const STANDARD_HOURS = 8;
@@ -67,10 +75,21 @@ function _restHours(rec) {
 
 function _hoursForMode(rec, mode) {
     const h = Number((rec && rec.hours) || 0);
+    // Phase L6：勞基法分段（依賴 enriched dailyStatus 的 laborStats）
+    const s = rec && rec.laborStats;
     switch (mode) {
         case 'overtime': return Math.max(0, h - STANDARD_HOURS);
         case 'normal':   return Math.min(h, STANDARD_HOURS);
         case 'rest':     return _restHours(rec);
+        // L6 新 mode：勞基法分段加總
+        case 'plain_ot':
+            return s ? Number(s.ot1 || 0) + Number(s.ot2 || 0) : 0;
+        case 'rest_total':
+            return s ? Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0) : 0;
+        case 'public_total':
+            return s ? Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0) : 0;
+        case 'regular_total':
+            return s ? Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) : 0;
         case 'total':
         default:         return h;
     }
@@ -78,11 +97,15 @@ function _hoursForMode(rec, mode) {
 
 function _modeKey(mode) {
     switch (mode) {
-        case 'overtime': return 'CHART_MODE_OVERTIME';
-        case 'rest':     return 'CHART_MODE_REST';
-        case 'total':    return 'CHART_MODE_TOTAL';
+        case 'overtime':      return 'CHART_MODE_OVERTIME';
+        case 'rest':          return 'CHART_MODE_REST';
+        case 'total':         return 'CHART_MODE_TOTAL';
+        case 'plain_ot':      return 'CHART_MODE_PLAIN_OT';
+        case 'rest_total':    return 'CHART_MODE_REST_DAY';
+        case 'public_total':  return 'CHART_MODE_PUBLIC';
+        case 'regular_total': return 'CHART_MODE_REGULAR';
         case 'normal':
-        default:         return 'CHART_MODE_NORMAL';
+        default:              return 'CHART_MODE_NORMAL';
     }
 }
 
@@ -101,10 +124,24 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
         return;
     }
 
-    // 建立 dateKey → record 索引
+    // Phase L6：若 records 還沒 enriched，lazy 補 laborStats（用 cache 的 breakTimes）
+    // 不破壞原 records，建立 by-date map 時順帶 enrich
+    const breakTimes = (typeof window !== 'undefined' && typeof window.getCachedBreakTimes === 'function')
+        ? window.getCachedBreakTimes()
+        : [];
+    const enrichFn = (typeof window !== 'undefined' && typeof window.enrichDayWithLaborStats === 'function')
+        ? window.enrichDayWithLaborStats
+        : null;
+
+    // 建立 dateKey → record 索引（含 laborStats）
     const byDate = {};
     (records || []).forEach((r) => {
-        if (r && r.date) byDate[r.date] = r;
+        if (!r || !r.date) return;
+        if (!r.laborStats && enrichFn) {
+            byDate[r.date] = enrichFn(r, breakTimes);
+        } else {
+            byDate[r.date] = r;
+        }
     });
 
     const week = _weekOf(selectedDateKey);
@@ -116,16 +153,21 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
     }));
 
     const maxRaw = Math.max(0, ...values.map((v) => v.hours));
-    // 軸上限：總時數 / 正常 至少 10、加班至少 4、休息至少 4
-    const minTop = mode === 'overtime' || mode === 'rest' ? 4 : 10;
+    // 軸上限：總時數 / 正常 至少 10；加班 / 休息 / 勞基法分段至少 4
+    const SMALL_TOP_MODES = new Set(['overtime', 'rest', 'plain_ot', 'rest_total', 'public_total', 'regular_total']);
+    const minTop = SMALL_TOP_MODES.has(mode) ? 4 : 10;
     const top = Math.max(minTop, Math.ceil(maxRaw + 0.5));
 
-    // tabs
+    // tabs（Phase L6 新增 4 個勞基法分段 mode）
     const modes = [
-        { id: 'normal',   key: 'CHART_MODE_NORMAL' },
-        { id: 'overtime', key: 'CHART_MODE_OVERTIME' },
-        { id: 'rest',     key: 'CHART_MODE_REST' },
-        { id: 'total',    key: 'CHART_MODE_TOTAL' },
+        { id: 'normal',         key: 'CHART_MODE_NORMAL' },
+        { id: 'overtime',       key: 'CHART_MODE_OVERTIME' },
+        { id: 'rest',           key: 'CHART_MODE_REST' },
+        { id: 'total',          key: 'CHART_MODE_TOTAL' },
+        { id: 'plain_ot',       key: 'CHART_MODE_PLAIN_OT' },
+        { id: 'rest_total',     key: 'CHART_MODE_REST_DAY' },
+        { id: 'public_total',   key: 'CHART_MODE_PUBLIC' },
+        { id: 'regular_total',  key: 'CHART_MODE_REGULAR' },
     ];
     const tabsHtml = modes.map((m) => {
         const active = m.id === mode;
@@ -209,6 +251,11 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
 }
 
 console.log('✓ weekly-chart 模組已加載');
+
+// 顯式暴露到 window 全域（Vite dev mode 下 const 不會自動掛 global）
+if (typeof window !== 'undefined') {
+    window.renderWeeklyChart = renderWeeklyChart;
+}
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { renderWeeklyChart };
