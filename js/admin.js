@@ -688,10 +688,15 @@ function initAdminEvents() {
             renderEmployeeRequestHistory(selectedUserId, '?').catch((err) =>
                 console.error('renderEmployeeRequestHistory 失敗：', err)
             );
+            // Phase 5：連續上工 + 請假統計
+            renderEmployeeStreakAndLeaveStats(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderEmployeeStreakAndLeaveStats 失敗：', err)
+            );
         } else {
             adminEmployeeCalendarCard.style.display = 'none';
             renderEmployeeKpi(null);
             renderEmployeeRequestHistory(null);
+            renderEmployeeStreakAndLeaveStats(null);
         }
 
         if (employee) {
@@ -834,6 +839,7 @@ function initAdminEvents() {
         if (adminSelectedUserId) {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
             renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeeStreakAndLeaveStats(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -842,6 +848,7 @@ function initAdminEvents() {
         if (adminSelectedUserId) {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
             renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeeStreakAndLeaveStats(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -1186,6 +1193,122 @@ function setupTestNotificationButton() {
 }
 
 // 休息時間設定編輯器
+/**
+ * Phase 5：連續上工天數 + 請假/休假統計（純前端從 dailyStatus 推導）
+ *
+ * 連續上工：從今天反向掃描，連續 STATUS_PUNCH_NORMAL 的天數
+ *   中斷規則：
+ *   - PUNCH_NORMAL                    → +1
+ *   - LEAVE/VACATION_APPROVED         → skip 不算也不中斷
+ *   - 國定假日 / 例假日 (週日)         → skip
+ *   - 其他狀態（缺打卡/異常/未來日）    → 中斷
+ *
+ * 請假統計：scan dailyStatus，找出 reason='STATUS_LEAVE_APPROVED' /
+ *   'STATUS_VACATION_APPROVED' 的日子，從 record 裡 adjustmentType=
+ *   '系統請假記錄' 的 location 欄位取請假類別（年假/病假/事假/...），
+ *   按類別計天數。
+ *
+ * @param {string|null} userId
+ * @param {Date}        date
+ */
+async function renderEmployeeStreakAndLeaveStats(userId, date) {
+    const streakCard = document.getElementById('employee-streak-card');
+    const leaveCard = document.getElementById('employee-leave-stats-card');
+    if (!streakCard || !leaveCard) return;
+
+    const titleStreak = `<h3 data-i18n="CONSECUTIVE_WORKDAYS_TITLE"
+        class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+        <i class="fas fa-fire mr-2 text-orange-500"></i>${t('CONSECUTIVE_WORKDAYS_TITLE')}</h3>`;
+    const titleLeave = `<h3 data-i18n="LEAVE_STATS_TITLE"
+        class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+        <i class="fas fa-umbrella-beach mr-2 text-cyan-500"></i>${t('LEAVE_STATS_TITLE')}</h3>`;
+
+    if (!userId) {
+        streakCard.innerHTML = titleStreak +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        leaveCard.innerHTML = titleLeave +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        renderTranslations(streakCard);
+        renderTranslations(leaveCard);
+        return;
+    }
+
+    // 載入中
+    streakCard.innerHTML = titleStreak + `<p class="dashboard-placeholder">…</p>`;
+    leaveCard.innerHTML = titleLeave + `<p class="dashboard-placeholder">…</p>`;
+
+    const d = date || new Date();
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    let dailyStatus = [];
+    try {
+        dailyStatus = await loadMonthDetailData(month, userId);
+    } catch (err) {
+        console.error('renderEmployeeStreakAndLeaveStats fetch 失敗：', err);
+    }
+
+    // ===== 連續上工：從今天往前掃 =====
+    const byDate = {};
+    (dailyStatus || []).forEach((day) => { if (day.date) byDate[day.date] = day; });
+    const fmtKey = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const today = new Date();
+    let streak = 0;
+    const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    // 最多向前掃 60 天（cross-month 會超出本月 byDate，會視為「無資料」中斷；
+    // 如果跨月 streak 是真的需要，未來再加上個月 fetch）
+    for (let i = 0; i < 60; i++) {
+        const key = fmtKey(cursor);
+        const day = byDate[key];
+        const reason = day?.reason;
+        if (reason === 'STATUS_PUNCH_NORMAL') {
+            streak += 1;
+        } else if (reason === 'STATUS_LEAVE_APPROVED' || reason === 'STATUS_VACATION_APPROVED') {
+            // skip 不算也不中斷
+        } else if (typeof window.isHoliday === 'function' && window.isHoliday(key)) {
+            // 國定假日/週末 skip
+        } else if (cursor > today) {
+            // 未來日不該發生，安全跳過
+        } else {
+            // 缺資料、缺打卡、異常 → 中斷
+            break;
+        }
+        cursor.setDate(cursor.getDate() - 1);
+    }
+
+    streakCard.innerHTML = titleStreak + `
+        <div style="display:flex;align-items:baseline;gap:6px;">
+            <span style="font-size:2.5rem;font-weight:800;color:#ea580c;">${streak}</span>
+            <span data-i18n="CONSECUTIVE_DAYS_UNIT" style="font-size:0.875rem;color:#6b7280;">${t('CONSECUTIVE_DAYS_UNIT') || '天'}</span>
+        </div>`;
+    renderTranslations(streakCard);
+
+    // ===== 請假統計：分類計天數 =====
+    const stats = {}; // { '年假': 3, '病假': 1 }
+    (dailyStatus || []).forEach((day) => {
+        if (day.reason !== 'STATUS_LEAVE_APPROVED' && day.reason !== 'STATUS_VACATION_APPROVED') return;
+        const leaveRec = (day.record || []).find((r) => r.adjustmentType === '系統請假記錄');
+        const category = (leaveRec && leaveRec.location) || (t('VALUE_NA') || '其他');
+        stats[category] = (stats[category] || 0) + 1;
+    });
+
+    const entries = Object.entries(stats).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) {
+        leaveCard.innerHTML = titleLeave +
+            `<p class="dashboard-placeholder">${t('VALUE_NA') || '本月無資料'}</p>`;
+        renderTranslations(leaveCard);
+        return;
+    }
+
+    const unit = t('CONSECUTIVE_DAYS_UNIT') || '天';
+    const itemsHtml = entries.map(([cat, days]) => `
+        <li style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(156,163,175,0.2);">
+            <span style="font-size:0.875rem;color:#374151;">${cat}</span>
+            <span style="font-size:0.875rem;font-weight:700;color:#0891b2;">${days} ${unit}</span>
+        </li>`).join('');
+    leaveCard.innerHTML = titleLeave + `<ul style="margin:0;padding:0;list-style:none;">${itemsHtml}</ul>`;
+    renderTranslations(leaveCard);
+}
+
 /**
  * Phase 4：員工申請紀錄整合（待審核 / 已批准 / 已拒絕 三 tab）
  *
