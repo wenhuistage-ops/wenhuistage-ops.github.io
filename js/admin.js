@@ -2249,10 +2249,15 @@ async function renderEmployeePunchTable(userId, date) {
     };
 
     // 比較函式：時間/字串字典序、數字比大小、勞基法分段加總
+    // 注意：sortBy === 'hours' 用 net（laborStats.net 已扣休息），與表格顯示一致
+    const netOf = (day) => {
+        const s = day && day.laborStats;
+        return s && typeof s.net === 'number' ? s.net : Number(day.hours || 0);
+    };
     const cmp = (a, b) => {
         let av, bv;
         if (sortBy === 'hours') {
-            av = Number(a.hours || 0); bv = Number(b.hours || 0);
+            av = netOf(a); bv = netOf(b);
         } else if (sortBy === 'plainOt') {
             av = plainOtOf(a); bv = plainOtOf(b);
         } else if (sortBy === 'restTotal') {
@@ -2407,7 +2412,7 @@ async function renderEmployeePunchTable(userId, date) {
                 <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchInTime || '–'}</td>
                 <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchOutTime || '–'}</td>
                 <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">
-                    <div>${Number(day.hours || 0).toFixed(1)}</div>
+                    <div>${netOf(day).toFixed(1)}</div>
                     ${breakdownHtml}
                 </td>
                 <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${locationOf(day)}</td>
@@ -2430,7 +2435,7 @@ async function renderEmployeePunchTable(userId, date) {
                 <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:0.75rem;" class="text-gray-500 dark:text-gray-400">
                     <div><span data-i18n="TABLE_HEADER_PUNCH_IN">${t('TABLE_HEADER_PUNCH_IN')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchInTime || '–'}</span></div>
                     <div><span data-i18n="TABLE_HEADER_PUNCH_OUT">${t('TABLE_HEADER_PUNCH_OUT')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchOutTime || '–'}</span></div>
-                    <div><span data-i18n="TABLE_HEADER_HOURS">${t('TABLE_HEADER_HOURS')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${Number(day.hours || 0).toFixed(1)}</span></div>
+                    <div><span data-i18n="TABLE_HEADER_HOURS">${t('TABLE_HEADER_HOURS')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${netOf(day).toFixed(1)}</span></div>
                 </div>
                 ${breakdownLine}
                 <div style="font-size:0.75rem;margin-top:6px;" class="text-gray-500 dark:text-gray-400">
