@@ -29,6 +29,15 @@
  *   regular_total  = regular_base + regular_comp + regular_ot （例假日工資 + 補休 + 加倍）
  */
 
+// 顯式暴露到 window 全域（function declaration hoisting 保證此處 renderWeeklyChart 已可用）
+// 放在檔案最前面避免 vite dev / cache 異常導致末端 init code 跳過
+if (typeof window !== 'undefined') {
+    Object.defineProperty(window, 'renderWeeklyChart', {
+        get() { return renderWeeklyChart; },
+        configurable: true,
+    });
+}
+
 const STANDARD_HOURS = 8;
 
 function _toDate(key) {
