@@ -348,6 +348,8 @@
   "MSG_SALARY_SAVED": "Salary settings saved",
   "BTN_EXPORT_DETAILED_PAYROLL": "Export Detailed Payroll Excel",
   "HINT_EXPORT_DETAILED_PAYROLL": "Includes daily punches, per-shift hours, break deductions, labor law tier hours, gross pay, and labor/health insurance deductions with rule reference (3 sheets).",
+  "EXPORT_REPORT_TITLE": "Export Reports",
+  "HINT_EXPORT_MONTH_EXCEL": "Contains monthly attendance calendar records for quick daily overview.",
   "MSG_EXPORT_SUCCESS": "Export successful",
   "MSG_EMPLOYEE_STATUS_UPDATED": "Employee status updated",
   "ERR_CANNOT_MODIFY_SELF": "Cannot modify your own admin/active status",

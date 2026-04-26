@@ -348,6 +348,8 @@
   "MSG_SALARY_SAVED": "薪資設定已儲存",
   "BTN_EXPORT_DETAILED_PAYROLL": "匯出本月詳細薪資 Excel",
   "HINT_EXPORT_DETAILED_PAYROLL": "含每日打卡、各班次工時、扣休息分鐘、勞基法各段時數、應發工資、勞健保扣繳明細與計算規則說明（共 3 個 sheet）。",
+  "EXPORT_REPORT_TITLE": "匯出報表",
+  "HINT_EXPORT_MONTH_EXCEL": "含月曆打卡紀錄，適合快速查閱每日出勤狀況。",
   "MSG_EXPORT_SUCCESS": "匯出成功",
   "MSG_EMPLOYEE_STATUS_UPDATED": "員工狀態已更新",
   "ERR_CANNOT_MODIFY_SELF": "無法修改自己的權限或啟用狀態",

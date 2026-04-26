@@ -348,6 +348,8 @@
   "MSG_SALARY_SAVED": "給与設定を保存しました",
   "BTN_EXPORT_DETAILED_PAYROLL": "今月の給与詳細 Excel を出力",
   "HINT_EXPORT_DETAILED_PAYROLL": "日次打刻、各シフト労働時間、休憩控除、労基法各段時間、支給額、労健保控除明細と計算規則を含む（3 シート）。",
+  "EXPORT_REPORT_TITLE": "レポート出力",
+  "HINT_EXPORT_MONTH_EXCEL": "月次出勤カレンダー記録を含み、日次状況の確認に適しています。",
   "MSG_EXPORT_SUCCESS": "エクスポート成功",
   "MSG_EMPLOYEE_STATUS_UPDATED": "従業員状態を更新しました",
   "ERR_CANNOT_MODIFY_SELF": "自分自身の権限・有効状態は変更できません",

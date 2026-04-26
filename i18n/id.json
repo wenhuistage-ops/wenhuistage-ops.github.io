@@ -348,6 +348,8 @@
   "MSG_SALARY_SAVED": "Pengaturan gaji disimpan",
   "BTN_EXPORT_DETAILED_PAYROLL": "Ekspor Gaji Bulanan Rinci (Excel)",
   "HINT_EXPORT_DETAILED_PAYROLL": "Berisi absensi harian, jam per shift, potongan istirahat, jam per tingkat UU TK, gaji kotor, dan rincian potongan asuransi TK/kesehatan (3 sheet).",
+  "EXPORT_REPORT_TITLE": "Ekspor Laporan",
+  "HINT_EXPORT_MONTH_EXCEL": "Berisi kalender absensi bulanan untuk tinjauan cepat harian.",
   "MSG_EXPORT_SUCCESS": "Ekspor berhasil",
   "MSG_EMPLOYEE_STATUS_UPDATED": "Status karyawan diperbarui",
   "ERR_CANNOT_MODIFY_SELF": "Tidak dapat mengubah hak/status sendiri",

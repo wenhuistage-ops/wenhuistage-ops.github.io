@@ -347,6 +347,8 @@
   "MSG_SALARY_SAVED": "Đã lưu cài đặt lương",
   "BTN_EXPORT_DETAILED_PAYROLL": "Xuất Excel lương chi tiết tháng",
   "HINT_EXPORT_DETAILED_PAYROLL": "Bao gồm chấm công theo ngày, giờ mỗi ca, trừ giờ nghỉ, giờ theo từng bậc Luật Lao động, lương gộp và chi tiết khấu trừ BHLĐ/BHYT (3 sheet).",
+  "EXPORT_REPORT_TITLE": "Xuất Báo Cáo",
+  "HINT_EXPORT_MONTH_EXCEL": "Chứa lịch chấm công hàng tháng, phù hợp xem nhanh tình trạng hàng ngày.",
   "MSG_EXPORT_SUCCESS": "Xuất thành công",
   "MSG_EMPLOYEE_STATUS_UPDATED": "Đã cập nhật trạng thái nhân viên",
   "ERR_CANNOT_MODIFY_SELF": "Không thể sửa quyền/trạng thái của chính bạn",
