@@ -1819,13 +1819,14 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const rocYear = year - 1911;
     const monthLabel = `${rocYear}年`;
 
-    // 表頭 R1
+    // 表頭 R1（Q 欄：每日扣休息分鐘；R 欄：月薪標籤；S 欄：月薪數值）
     const personalRows = [
         ['', employeeName, monthLabel, '上班', '下班', '上班', '下班',
          '加班時數', '平日2H以內', '平日3~4H以上',
          '休息日2H以內', '休息日3~8H', '休息日9H以上',
          '例假日8H以上', '國定假日9~10H', '國定假日11~12H以上',
-         '月薪', monthlySalary],   // Q1, R1: 月薪標籤 + 數值
+         '扣休息(分)',  // Q1
+         '月薪', monthlySalary],   // R1, S1: 月薪標籤 + 數值
     ];
 
     // 加班時薪參考（範本放在 Q4~R12）— 我先放每日資料下方統一處理
@@ -1869,6 +1870,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
             (s.public_ot1 || 0) + (s.public_ot2 || 0);
         const hVal = Math.round((otThisDay) * 100) / 100;
 
+        // Q 欄：當日扣休息分鐘數（透明度：讓使用者看到午休/晚休扣了多少）
+        const breakMin = (day.punchInTime && day.punchOutTime)
+            ? _overlapBreakMinutes(day.punchInTime, day.punchOutTime, breakTimes)
+            : 0;
+
         personalRows.push([
             kindMark, weekday, dateLabel,
             dIn != null ? dIn : '',
@@ -1884,19 +1890,27 @@ async function handleDetailedPayrollExport(userId, year, month) {
             s.regular_ot || '',
             s.public_ot1 || '',
             s.public_ot2 || '',
+            breakMin || '',  // Q 欄
         ]);
         dayCount++;
     });
 
-    // 合計列（範本 R30）：G=普通工時(normal 合計)、I~P=月度各段時數、Q=加班時數合計
+    // 合計列（範本 R30）：G=普通工時(normal 合計)、I~P=月度各段時數、Q=扣休息分鐘合計、R='加班總時'、S=數值
+    const totalBreakMin = (dailyStatusRaw || []).reduce((acc, day) => {
+        if (day.punchInTime && day.punchOutTime) {
+            return acc + _overlapBreakMinutes(day.punchInTime, day.punchOutTime, breakTimes);
+        }
+        return acc;
+    }, 0);
     personalRows.push([
         '', '', '', '', '', '',
-        Math.round((sum.normal || 0) * 100) / 100,   // G: 月度 normal 工時合計（普通上班時數）
+        Math.round((sum.normal || 0) * 100) / 100,   // G: 月度 normal 工時合計（普通上班時數，已扣休息）
         '加班時數',
         sum.ot1 || 0, sum.ot2 || 0,
         sum.rest_ot1 || 0, sum.rest_ot2 || 0, sum.rest_ot3 || 0,
         sum.regular_ot || 0,
         sum.public_ot1 || 0, sum.public_ot2 || 0,
+        totalBreakMin,  // Q
         '加班總時',
         Math.round((sum.ot1 + sum.ot2 + sum.rest_ot1 + sum.rest_ot2 + sum.rest_ot3 +
                     sum.regular_ot + sum.public_ot1 + sum.public_ot2) * 100) / 100,
@@ -1912,7 +1926,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         otRates.public1, otRates.public2,
     ]);
 
-    // 加班費列（範本 R32）：H='加班費'、I~P 各段工資、Q='合計'、R=加班費合計
+    // 加班費列（範本 R32）：H='加班費'、I~P 各段工資、R='合計'、S=加班費合計
     personalRows.push([
         '', '', '', '', '', '', '',
         '加班費',
@@ -1920,6 +1934,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         pay.rest_ot1, pay.rest_ot2, pay.rest_ot3,
         pay.regular_ot,
         pay.public_ot1, pay.public_ot2,
+        '',
         '合計', Math.round(otTotal * 100) / 100,
     ]);
 
@@ -2035,7 +2050,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         });
     }
 
-    // 欄寬（A~R 共 18 欄）
+    // 欄寬（A~S 共 19 欄）
     ws1['!cols'] = [
         { wch: 8 },   // A 日類型標記
         { wch: 6 },   // B 星期 / 員工名
@@ -2053,8 +2068,9 @@ async function handleDetailedPayrollExport(userId, year, month) {
         { wch: 13 },  // N 例假日8H以上
         { wch: 16 },  // O 國定假日9~10H
         { wch: 18 },  // P 國定假日11~12H以上
-        { wch: 14 },  // Q 標籤
-        { wch: 12 },  // R 數值
+        { wch: 11 },  // Q 扣休息(分)
+        { wch: 14 },  // R 標籤
+        { wch: 12 },  // S 數值
     ];
     ws2['!cols'] = [{ wch: 16 }, { wch: 60 }];
 
@@ -2902,13 +2918,30 @@ async function renderEmployeeKpi(userId, date) {
         console.error('renderEmployeeKpi loadEnrichedMonthData 失敗：', err);
     }
 
-    // 上層 4 格 KPI（沿用 day.hours 原邏輯，與既有打卡資料一致）
+    // 上層 4 格 KPI：用 enriched 後的 laborStats 才會扣休息時段
+    // 後端 day.hours 是上下班時差（不扣休息）；laborStats.net 才是淨工時
     let total = 0, normal = 0, overtime = 0, leaveDays = 0;
     for (const day of (dailyStatus || [])) {
-        const h = Number(day.hours || 0);
-        total += h;
-        normal += Math.min(h, STANDARD);
-        overtime += Math.max(0, h - STANDARD);
+        const s = day.laborStats || null;
+        if (s) {
+            // 淨工時（已扣休息）
+            total += Number(s.net || 0);
+            // 正常 = 平日 normal + 國定保證 8h + 例假基本 8h
+            normal += Number(s.normal || 0)
+                    + Number(s.public_base || 0)
+                    + Number(s.regular_base || 0);
+            // 加班 = 各種 OT + 例假補休與加倍
+            overtime += Number(s.ot1 || 0) + Number(s.ot2 || 0)
+                      + Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0)
+                      + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0)
+                      + Number(s.regular_comp || 0) + Number(s.regular_ot || 0);
+        } else {
+            // fallback: 沒 enriched 時用 raw（可能 enrich lib 未載入）
+            const h = Number(day.hours || 0);
+            total += h;
+            normal += Math.min(h, STANDARD);
+            overtime += Math.max(0, h - STANDARD);
+        }
         if (day.reason === 'STATUS_LEAVE_APPROVED' || day.reason === 'STATUS_VACATION_APPROVED') {
             leaveDays += 1;
         }
