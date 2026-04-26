@@ -374,6 +374,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (loginResult.isLoggedIn) {
         checkAutoPunch(); // 來自 punch.js
         renderCalendar(currentMonthDate); // 來自 ui.js，員工自己的日曆
+        // 載入今日打卡紀錄到 dashboard 即時回饋區
+        if (typeof renderTodayPunches === 'function') {
+            renderTodayPunches().catch(console.warn);
+        }
 
         // 🚀 P2-1 優化修正：在登入成功後初始化地圖（延遲加載）
         // 確保地圖在應用初始化時就已準備好，但不會阻塞頁面加載

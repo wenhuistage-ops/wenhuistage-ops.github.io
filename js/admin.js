@@ -2920,21 +2920,21 @@ async function renderEmployeeKpi(userId, date) {
 
     // 上層 4 格 KPI：用 enriched 後的 laborStats 才會扣休息時段
     // 後端 day.hours 是上下班時差（不扣休息）；laborStats.net 才是淨工時
+    // 對齊 Excel G 欄定義：「正常」= 純平日 normal（不含假日保證）
+    //                     「加班」= 所有 OT + 假日 base/補休（非平日上班的補貼性質）
     let total = 0, normal = 0, overtime = 0, leaveDays = 0;
     for (const day of (dailyStatus || [])) {
         const s = day.laborStats || null;
         if (s) {
             // 淨工時（已扣休息）
             total += Number(s.net || 0);
-            // 正常 = 平日 normal + 國定保證 8h + 例假基本 8h
-            normal += Number(s.normal || 0)
-                    + Number(s.public_base || 0)
-                    + Number(s.regular_base || 0);
-            // 加班 = 各種 OT + 例假補休與加倍
+            // 正常：純平日 normal（與 Excel G30「上班時數合計」對齊）
+            normal += Number(s.normal || 0);
+            // 加班：所有 OT + 假日 base/補休/加倍（凡非平日 normal 的工時都算加班/補貼）
             overtime += Number(s.ot1 || 0) + Number(s.ot2 || 0)
                       + Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0)
-                      + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0)
-                      + Number(s.regular_comp || 0) + Number(s.regular_ot || 0);
+                      + Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0)
+                      + Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0);
         } else {
             // fallback: 沒 enriched 時用 raw（可能 enrich lib 未載入）
             const h = Number(day.hours || 0);

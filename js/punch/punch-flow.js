@@ -22,6 +22,11 @@
 // #region 主打卡流程
 // ===================================
 
+// === 防重複打卡：1 分鐘冷卻 + 進行中 flag ===
+const PUNCH_COOLDOWN_MS = 60 * 1000;        // 60 秒冷卻（兩次打卡間隔下限）
+const _lastPunchTimes = {};                  // { '上班': 1733000000, '下班': ... }
+const _punchInProgress = {};                 // { '上班': true/false, '下班': ... }
+
 async function doPunch(type) {
     const punchButtonId = type === '上班' ? 'punch-in-btn' : 'punch-out-btn';
 
@@ -31,6 +36,30 @@ async function doPunch(type) {
     const loadingText = t('LOADING') || '處理中...';
 
     if (!button) return;
+
+    // 防重入：上一次打卡還在 API call 中
+    if (_punchInProgress[type]) {
+        showNotification(t('MSG_PUNCH_IN_PROGRESS') || '正在打卡中，請稍候...', 'warning');
+        return;
+    }
+    // 冷卻檢查：同類型打卡 60 秒內拒絕（防止意外連點 / 雙擊重複寫入）
+    const lastTime = _lastPunchTimes[type] || 0;
+    const elapsed = Date.now() - lastTime;
+    if (elapsed < PUNCH_COOLDOWN_MS) {
+        const remainSec = Math.ceil((PUNCH_COOLDOWN_MS - elapsed) / 1000);
+        showNotification(
+            t('MSG_PUNCH_COOLDOWN', { sec: remainSec }) || `請等待 ${remainSec} 秒後再打卡（避免重複）`,
+            'warning'
+        );
+        return;
+    }
+    _punchInProgress[type] = true;
+    // 兜底：30 秒後強制解 flag，避免邏輯 bug 卡住按鈕
+    const _progressTimeout = setTimeout(() => {
+        _punchInProgress[type] = false;
+    }, 30 * 1000);
+    // 包成 Promise 確保結束時清 timeout
+    const _clearProgress = () => { _punchInProgress[type] = false; clearTimeout(_progressTimeout); };
 
     // 🚀 P5-1 性能計時：記錄打卡開始時間
     const punchStartTime = performance.now();
@@ -65,6 +94,18 @@ async function doPunch(type) {
             generalButtonState(button, 'idle');
 
             if (res.ok) {
+                // 記錄成功時間 → 啟動 60 秒冷卻
+                _lastPunchTimes[type] = Date.now();
+
+                // 立即在今日紀錄區追加一筆（樂觀更新；下次 fetch 會用後端真實資料覆蓋）
+                if (typeof appendTodayPunch === 'function') {
+                    appendTodayPunch(type, new Date());
+                }
+                // 順便清 monthDetail cache，讓月曆重抓時能拿到新資料
+                if (typeof cacheManager !== 'undefined' && typeof cacheManager.invalidate === 'function') {
+                    cacheManager.invalidate('monthDetail');
+                }
+
                 const totalTime = apiEnd - punchStartTime;
                 // 🚀 P5-1 性能統計輸出
                 console.log(`✅ 打卡成功！`);
@@ -86,6 +127,9 @@ async function doPunch(type) {
         } catch (err) {
             console.error(err);
             generalButtonState(button, 'idle');
+        } finally {
+            // 釋放進行中 flag（無論成功失敗）
+            _clearProgress();
         }
     };
 
