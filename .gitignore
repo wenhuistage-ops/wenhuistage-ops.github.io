@@ -8,14 +8,25 @@ yarn.lock
 
 # Build output
 build
+dist/
+.vite/
 
 # Test coverage
-coverage
+coverage/
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+
+# Firebase 服務帳號金鑰（勿提交）
+serviceAccountKey.json
+firebase-functions/node_modules/
+firebase-functions/functions/node_modules/
+firebase-functions/.firebaserc
+.firebaserc
+scripts/node_modules/
+scripts/serviceAccountKey.json
 
 # IDE/Editor
 .vscode
@@ -32,3 +43,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Claude Code 工作檔案（worktree 內的本地狀態）
+.claude/

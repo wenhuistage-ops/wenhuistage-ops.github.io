@@ -278,7 +278,7 @@ A    B    C     D       E       F    G    H    I    J    K    L    M    N    O  
 | `/GS/Utils.gs` | ✅ 需要 | 加班分類計算 |
 | `/js/admin.js` | ✅ 需要 | 導出邏輯重構 |
 | `/index.html` | ❓ 可能 | UI 新增表單 |
-| `/docs/月曆格子顏色定義.md` | - | 參考文檔 |
+| `/docs/rules/月曆格子顏色定義.md` | - | 參考文檔 |
 
 ---
 

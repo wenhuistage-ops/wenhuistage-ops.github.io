@@ -189,40 +189,59 @@ describe('打卡邏輯 - Punch Module', () => {
   });
 
   describe('補打卡驗證', () => {
-    function validateAdjustment(selectedDate, originalDate) {
-      // 補打卡日期不能超過今天（優先檢查）
-      const today = new Date().toDateString();
-      const selected = new Date(selectedDate).toDateString();
+    // 將日期字串轉為當日 00:00 的時間戳，避免 toDateString() 字串比較陷阱
+    function toDayStart(dateStr) {
+      const d = new Date(dateStr);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
 
-      if (selected > today) {
+    function validateAdjustment(selectedDate, originalDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayTs = today.getTime();
+      const selectedTs = toDayStart(selectedDate);
+
+      if (selectedTs > todayTs) {
         return { valid: false, reason: 'DATE_IN_FUTURE' };
       }
 
-      // 補打卡日期必須 >= 原始記錄日期
-      const original = new Date(originalDate).toDateString();
-      if (selected < original) {
+      const originalTs = toDayStart(originalDate);
+      if (selectedTs < originalTs) {
         return { valid: false, reason: 'DATE_BEFORE_ORIGINAL' };
       }
 
       return { valid: true };
     }
 
-    it('應允許在原始日期補打卡', () => {
-      const result = validateAdjustment('2025-04-22', '2025-04-22');
+    // 用相對今日的日期，避免硬編碼年份過期
+    function daysFromToday(offset) {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().slice(0, 10);
+    }
+
+    it('應允許在原始日期當天補打卡', () => {
+      const today = daysFromToday(0);
+      const result = validateAdjustment(today, today);
+      expect(result.valid).toBe(true);
+    });
+
+    it('應允許在原始日期之後補打卡', () => {
+      const result = validateAdjustment(daysFromToday(0), daysFromToday(-2));
       expect(result.valid).toBe(true);
     });
 
     it('應拒絕在原始日期之前補打卡', () => {
-      const result = validateAdjustment('2025-04-20', '2025-04-22');
+      const result = validateAdjustment(daysFromToday(-3), daysFromToday(-1));
       expect(result.valid).toBe(false);
       expect(result.reason).toBe('DATE_BEFORE_ORIGINAL');
     });
 
     it('應拒絕未來的補打卡', () => {
-      // 使用明確的未來日期字符串
-      const result = validateAdjustment('2025-04-25', '2025-04-22');
+      const result = validateAdjustment(daysFromToday(3), daysFromToday(0));
       expect(result.valid).toBe(false);
-      // 只檢查 valid，因為日期比較邏輯可能因系統時間而異
+      expect(result.reason).toBe('DATE_IN_FUTURE');
     });
   });
 });

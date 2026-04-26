@@ -77,11 +77,11 @@ async function fetchAndRenderLocationsOnMap() {
 
             console.log("地點標記和範圍已成功載入地圖。");
         } else {
-            showNotification("取得地點清單失敗：" + res.msg, "error");
+            showNotification(t("MSG_FETCH_LOCATIONS_FAILED", { msg: res.msg || "" }), "error");
             console.error("Failed to fetch locations:", res.msg);
         }
     } catch (error) {
-        showNotification("取得地點清單失敗，請檢查網路。", "error");
+        showNotification(t("MSG_FETCH_LOCATIONS_NETWORK_ERROR"), "error");
         console.error("Failed to fetch locations:", error);
     } finally {
         // 確保地圖加載文本被隱藏（即使 API 失敗）
@@ -238,7 +238,7 @@ function initLocationMap(forceReload = false) {
                         message = t('ERROR_GEOLOCATION_UNKNOWN');
                         break;
                 }
-                showNotification(`定位失敗：${message}`, "error");
+                showNotification(t("MSG_GEOLOCATION_FAILED", { message: message || "" }), "error");
             }
         );
         // 成功取得使用者位置後，載入所有打卡地點
@@ -364,11 +364,11 @@ function initAdminAddLocationMapIfNeeded() {
     if (getLocBtn) {
         getLocBtn.addEventListener('click', () => {
             if (!navigator.geolocation) {
-                alert('此裝置不支援定位');
+                alert(t('MSG_GEOLOCATION_UNSUPPORTED'));
                 return;
             }
             getLocBtn.disabled = true;
-            getLocBtn.textContent = '取得中…';
+            getLocBtn.textContent = t('LOADING') || '取得中…';
             navigator.geolocation.getCurrentPosition((pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
@@ -376,12 +376,12 @@ function initAdminAddLocationMapIfNeeded() {
                 // 若有圓形，確保半徑同步
                 if (adminCircle) adminCircle.setRadius(adminRadius);
                 getLocBtn.disabled = false;
-                getLocBtn.textContent = '取得當前位置';
+                getLocBtn.textContent = t('GET_LOCATION_BTN') || '取得當前位置';
             }, (err) => {
                 console.error(err);
-                alert('無法取得位置：' + (err.message || err.code));
+                alert(t('MSG_GEOLOCATION_ERROR', { message: err.message || err.code || '' }));
                 getLocBtn.disabled = false;
-                getLocBtn.textContent = '取得當前位置';
+                getLocBtn.textContent = t('GET_LOCATION_BTN') || '取得當前位置';
             }, { enableHighAccuracy: true, timeout: 10000 });
         });
     }

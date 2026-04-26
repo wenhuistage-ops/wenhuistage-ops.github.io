@@ -23,10 +23,280 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 <html lang="zh-Hant">
 
 <head>
+    <meta charset="UTF-8">
     <link rel="icon" href="0rigin.png" type="image/x-icon">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title data-i18n="APP_TITLE">APP_TITLE</title>
     <link rel="stylesheet" href="./dist/compiled.css">
+    <style>
+        /* 國定假日紅字優先級提升：避免 leave-approved 等 dateClass 蓋掉 holiday-text */
+        .day-cell.holiday-text { color: #ef4444 !important; font-weight: 700 !important; }
+        html.dark .day-cell.holiday-text { color: #fb7185 !important; font-weight: 700 !important; }
+
+        /* Phase 2：管理員 view 在桌機 break out #app-container 的 max-w-md，
+           讓員工 dashboard 真的能 2/3 col。手機/平板維持原 max-w-md 視覺。 */
+        @media (min-width: 1024px) {
+            #admin-view {
+                position: relative;
+                left: 50%;
+                transform: translateX(-50%);
+                width: min(calc(100vw - 2rem), 1280px);
+                max-width: none;
+            }
+        }
+
+        /* Phase 2：員工管理 dashboard 響應式 grid */
+        .employee-dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        @media (min-width: 640px) {
+            .employee-dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1024px) {
+            .employee-dashboard-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        .employee-dashboard-grid > .dash-full { grid-column: 1 / -1; }
+        /* dash-2col：平板撐滿全寬（2-col grid 內等同 dash-full）；桌機跨 2 of 3 col */
+        @media (min-width: 640px) {
+            .employee-dashboard-grid > .dash-2col { grid-column: 1 / -1; }
+        }
+        @media (min-width: 1024px) {
+            .employee-dashboard-grid > .dash-2col { grid-column: span 2; }
+            /* 月曆專屬：跨 2 col 同時跨 2 row，讓右側兩張小卡（連續上工/請假統計）並排堆疊 */
+            .employee-dashboard-grid > .dash-2col-tall {
+                grid-column: span 2;
+                grid-row: span 2;
+            }
+        }
+
+        /* KPI 4 格：手機 2-col、平板以上 4-col */
+        .employee-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        @media (min-width: 640px) {
+            .employee-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        .employee-kpi-cell {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background: rgba(99, 102, 241, 0.06);
+        }
+        html.dark .employee-kpi-cell { background: rgba(99, 102, 241, 0.12); }
+        .employee-kpi-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        html.dark .employee-kpi-label { color: #9ca3af; }
+        .employee-kpi-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-top: 0.25rem;
+            color: #1f2937;
+        }
+        html.dark .employee-kpi-value { color: #f3f4f6; }
+        .employee-kpi-unit {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #9ca3af;
+            margin-left: 0.25rem;
+        }
+
+        /* placeholder 卡片提示 */
+        .dashboard-placeholder {
+            color: #9ca3af;
+            font-size: 0.85rem;
+            padding: 1.5rem 0;
+            text-align: center;
+            font-style: italic;
+        }
+
+        /* Phase 6：打卡紀錄表格 / 手機 card 切換 */
+        @media (max-width: 639px) {
+            .emp-punch-table-wrap { display: none !important; }
+            .emp-punch-card-list { display: block !important; }
+        }
+        .emp-punch-card-list > .emp-punch-card-row + .emp-punch-card-row { margin-top: 0.5rem; }
+
+        /* Phase 4：申請紀錄 tab 樣式（避開 Tailwind JIT 的 runtime injection 問題）*/
+        .emp-req-tab {
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 9999px;
+            background: #f3f4f6;
+            color: #6b7280;
+            cursor: pointer;
+            border: none;
+            transition: background .15s;
+        }
+        .emp-req-tab:hover { background: #e5e7eb; }
+        .emp-req-tab.active { background: #6366f1; color: white; }
+        html.dark .emp-req-tab { background: #374151; color: #d1d5db; }
+        html.dark .emp-req-tab:hover { background: #4b5563; }
+        html.dark .emp-req-tab.active { background: #6366f1; color: white; }
+
+        /* 員工設定 sub-tab pill 樣式（與 .emp-req-tab 同步）*/
+        .emp-setting-tab {
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+        .emp-setting-tab:not(.active):hover {
+            background: #d1d5db;
+        }
+        html.dark .emp-setting-tab:not(.active):hover {
+            background: #4b5563;
+        }
+        .emp-setting-panel {
+            margin-top: 0.5rem;
+        }
+
+        /* Phase L5：KPI 工時詳細摺疊區 */
+        .kpi-labor-details > summary {
+            list-style: none;
+        }
+        .kpi-labor-details > summary::-webkit-details-marker { display: none; }
+        .kpi-labor-details > summary::after {
+            content: ' ▸';
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        .kpi-labor-details[open] > summary::after { transform: rotate(90deg); }
+        .kpi-labor-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        @media (min-width: 640px) {
+            .kpi-labor-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+        .kpi-labor-block {
+            padding: 0.75rem;
+            background-color: rgba(99, 102, 241, 0.06);
+            border-radius: 0.5rem;
+        }
+        html.dark .kpi-labor-block {
+            background-color: rgba(99, 102, 241, 0.12);
+        }
+        .kpi-labor-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #4338ca;
+            margin-bottom: 0.5rem;
+        }
+        html.dark .kpi-labor-title { color: #a5b4fc; }
+        .kpi-labor-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.7rem;
+            color: #6b7280;
+        }
+        html.dark .kpi-labor-list { color: #d1d5db; }
+        .kpi-labor-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 2px 0;
+        }
+        .kpi-labor-value {
+            font-weight: 600;
+            color: #111827;
+            font-variant-numeric: tabular-nums;
+        }
+        html.dark .kpi-labor-value { color: #f3f4f6; }
+        .kpi-labor-equiv {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding-top: 0.5rem;
+            border-top: 1px dashed #d1d5db;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #4b5563;
+        }
+        html.dark .kpi-labor-equiv {
+            border-top-color: #4b5563;
+            color: #d1d5db;
+        }
+        .kpi-labor-equiv-value {
+            font-size: 1.1rem;
+            color: #4338ca;
+            font-variant-numeric: tabular-nums;
+        }
+        html.dark .kpi-labor-equiv-value { color: #a5b4fc; }
+
+        /* Phase L7：薪資估算 3 格 */
+        .kpi-salary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px dashed #d1d5db;
+        }
+        html.dark .kpi-salary-grid { border-top-color: #4b5563; }
+        .kpi-salary-cell {
+            text-align: center;
+            padding: 0.5rem;
+            background: rgba(99, 102, 241, 0.04);
+            border-radius: 0.5rem;
+        }
+        html.dark .kpi-salary-cell { background: rgba(99, 102, 241, 0.10); }
+        .kpi-salary-label {
+            font-size: 0.7rem;
+            color: #6b7280;
+            margin-bottom: 0.25rem;
+        }
+        html.dark .kpi-salary-label { color: #d1d5db; }
+        .kpi-salary-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #111827;
+            font-variant-numeric: tabular-nums;
+        }
+        html.dark .kpi-salary-value { color: #f3f4f6; }
+        .kpi-salary-deduct { color: #dc2626; }
+        html.dark .kpi-salary-deduct { color: #fca5a5; }
+        .kpi-salary-net { color: #4f46e5; }
+        html.dark .kpi-salary-net { color: #a5b4fc; }
+
+        /* Phase L5 add-on：問號按鈕 */
+        .kpi-labor-help-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.25rem;
+            height: 1.25rem;
+            margin-left: 0.4rem;
+            border-radius: 9999px;
+            background-color: #e0e7ff;
+            color: #4338ca;
+            font-size: 0.7rem;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.15s, color 0.15s;
+        }
+        .kpi-labor-help-btn:hover {
+            background-color: #6366f1;
+            color: #fff;
+        }
+        html.dark .kpi-labor-help-btn {
+            background-color: #3730a3;
+            color: #c7d2fe;
+        }
+        html.dark .kpi-labor-help-btn:hover {
+            background-color: #6366f1;
+            color: #fff;
+        }
+    </style>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -77,69 +347,6 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
 </head>
-
-<!-- HTML Templates for P2-3 Optimization -->
-<div id="templates" style="display: none;">
-    <!-- Tab Button Template -->
-    <template id="tab-button-template">
-        <button data-id-suffix="tab" data-i18n="TAB_PLACEHOLDER"
-            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">
-            <span data-text>標籤</span>
-        </button>
-    </template>
-
-    <!-- Info Item Template (梯度卡片) -->
-    <template id="info-item-template">
-        <div
-            class="info-item bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 p-4 rounded-xl shadow-md border-l-4 border-yellow-500">
-            <p class="text-base font-semibold text-yellow-800 dark:text-yellow-300 flex items-center"
-                data-i18n="INFO_LABEL">
-                <i class="fas fa-crown mr-2 text-yellow-600 dark:text-yellow-400"></i>
-                <span data-text>標籤</span>
-            </p>
-            <p class="text-3xl font-extrabold text-yellow-700 dark:text-yellow-200 mt-2" data-text-value>N/A</p>
-        </div>
-    </template>
-
-    <!-- Toggle Setting Template -->
-    <template id="toggle-setting-template">
-        <div
-            class="flex justify-between items-center p-4 rounded-xl bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
-            <label class="setting-label text-base font-semibold text-yellow-800 dark:text-yellow-300"
-                data-i18n="SETTING_LABEL">
-                <span data-text>設定標籤</span>:
-            </label>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" data-id-suffix="toggle" class="sr-only peer" data-onchange="handleToggle">
-                <div
-                    class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 dark:peer-focus:ring-yellow-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-yellow-600">
-                </div>
-                <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300" data-status-text>關閉</span>
-            </label>
-        </div>
-    </template>
-
-    <!-- Card Wrapper Template -->
-    <template id="card-template">
-        <div class="card p-6">
-            <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4" data-i18n="CARD_TITLE" data-text>卡片標題</h2>
-            <p class="text-gray-500 mb-4" data-i18n="CARD_DESCRIPTION" data-text-desc>卡片描述</p>
-            <div class="card-content" data-content><!-- 內容將插入於此 --></div>
-        </div>
-    </template>
-
-    <!-- Form Input Group Template -->
-    <template id="form-input-template">
-        <div>
-            <label data-id-suffix="label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                data-i18n="LABEL">
-                <span data-text>標籤</span>
-            </label>
-            <input type="text" data-id-suffix="input"
-                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        </div>
-    </template>
-</div>
 
 <body class="flex items-center justify-center min-h-screen p-4
              bg-white dark:bg-gray-900
@@ -231,7 +438,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                         <div class="bg-gray-50 p-4 dark:bg-gray-700 rounded-lg">
                             <p class="text-sm text-gray-600 dark:text-white">
                                 <strong data-i18n="LOCATION_STATUS_LABEL">狀態：</strong>
-                                <span id="location-status" ata-i18n="LOCATION_STATUS_PENDING">未偵測</span>
+                                <span id="location-status" data-i18n="LOCATION_STATUS_PENDING">未偵測</span>
                             </p>
                             <p class="text-sm text-gray-600">
                                 <strong data-i18n="COORDINATES_LABEL">經緯度：</strong>
@@ -255,7 +462,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             display: none;
                         ">
                         <span class="mr-2 text-xl">💬</span>
-                        加入員工 LINE 頻道，掌握最新公告！
+                        <span data-i18n="JOIN_LINE_CHANNEL">加入員工 LINE 頻道，掌握最新公告！</span>
                     </a>
                 </div>
 
@@ -301,9 +508,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
                 </div>
 
+                <div id="weekly-chart-card" class="card p-6"></div>
+
                 <div id="daily-records-card" class="card p-6" style="display: none;">
                     <h4 id="daily-records-title" class="text-xl font-bold text-gray-800 mb-2 dark:text-white mb-1"></h4>
-                    <div id="daily-records-loading" class="text-center text-gray-500 py-4" style="display: none;">
+                    <div id="daily-records-loading" data-i18n="RECORDS_LOADING" class="text-center text-gray-500 py-4" style="display: none;">
                         正在載入紀錄...</div>
                     <ul id="daily-records-list" class="space-y-3"></ul>
                     <div id="daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" class="text-center text-gray-500 py-4"
@@ -329,7 +538,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     <div class="bg-gray-50 p-4 dark:bg-gray-700 rounded-lg">
                         <p class="text-sm text-gray-600 dark:text-white">
                             <strong data-i18n="LOCATION_STATUS_LABEL">狀態：</strong>
-                            <span id="location-status" ata-i18n="LOCATION_STATUS_PENDING">未偵測</span>
+                            <span id="location-status" data-i18n="LOCATION_STATUS_PENDING">未偵測</span>
                         </p>
                         <p class="text-sm text-gray-600">
                             <strong data-i18n="COORDINATES_LABEL">經緯度：</strong>
@@ -341,9 +550,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             <!-- Form View -->
             <section id="Form-view" class="space-y-6" style="display: none;">
                 <div class="card p-6">
-                    <h2 class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
+                    <h2 data-i18n="FEATURE_LOCKED" class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
                         未解鎖功能</h2>
-                    <p class="text-gray-500 mb-4">請聯絡開發人員</p>
+                    <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4">請聯絡開發人員</p>
                 </div>
             </section>
 
@@ -355,221 +564,490 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
             <section id="admin-view" class="space-y-6" style="display: none;">
 
+                <!-- 全域員工選擇器（員工報表 / 員工設定 共用，跨 tab 不重置）-->
+                <div class="card p-6" id="admin-employee-selector-card">
+                    <h2 data-i18n="EMPLOYEE_MGMT_TITLE"
+                        class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工管理</h2>
+                    <div>
+                        <label data-i18n="LABEL_SELECT_EMPLOYEE" for="admin-select-employee-mgmt"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            選擇員工：
+                        </label>
+                        <select id="admin-select-employee-mgmt"
+                            class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            <option data-i18n="OPT_SELECT_EMPLOYEE" value="">-- 請選擇一位員工 --</option>
+                        </select>
+                    </div>
+
+                    <div id="mgmt-placeholder" style="display: block;"
+                        class="mt-4 text-center py-8 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                        <i class="fas fa-info-circle text-2xl text-indigo-400 mb-2"></i>
+                        <p class="font-semibold" data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
+                        <p data-i18n="HINT_DATA_AUTO_LOAD" class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
+                    </div>
+                </div>
+
                 <!-- Tab Navigation -->
                 <div class="card p-3 ">
-                    <div class="flex justify-center space-x-2">
-                        <!-- 1. 員工管理  -->
-                        <button id="tab-employee-mgmt-btn" data-i18n="TAB_EMPLOYEE_MGMT"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-white bg-indigo-600">員工管理</button>
-                        <!-- 2. 打卡管理 -->
+                    <div class="flex justify-center flex-wrap gap-2">
+                        <!-- 1. 員工報表 -->
+                        <button id="tab-employee-mgmt-btn" data-i18n="TAB_EMPLOYEE_REPORT"
+                            class="py-2 px-3 rounded-full font-bold text-sm text-white bg-indigo-600"
+                            style="white-space: nowrap;">員工報表</button>
+                        <!-- 2. 員工設定 -->
+                        <button id="tab-employee-settings-btn" data-i18n="TAB_EMPLOYEE_SETTINGS"
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                            style="white-space: nowrap;">員工設定</button>
+                        <!-- 3. 打卡管理 -->
                         <button id="tab-punch-mgmt-btn" data-i18n="TAB_PUNCH_MGMT"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">打卡管理</button>
-                        <!-- 3. 表單審核 -->
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                            style="white-space: nowrap;">打卡管理</button>
+                        <!-- 4. 表單審核 -->
                         <button id="tab-form-review-btn" data-i18n="TAB_FORM_REVIEW"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">表單審核</button>
-                        <!-- 4. 排班 -->
-                        <button id="tab-scheduling-btn" data-i18n="TAB_SCHEDULING" style="display: none;"
-                            class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">排班</button>
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                            style="white-space: nowrap;">表單審核</button>
+                        <!-- 5. 排班 -->
+                        <button id="tab-scheduling-btn" data-i18n="TAB_SCHEDULING" style="display: none; white-space: nowrap;"
+                            class="py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200">排班</button>
                     </div>
                 </div>
 
                 <section id="employee-mgmt-view" class="space-y-6" style="display: block;">
 
-                    <div class="card p-6 mt-6">
+                    <!-- B. employee-detail-card 改為 dashboard wrapper（選了員工才顯示）-->
+                    <div id="employee-detail-card" style="display: none;">
+                        <div class="employee-dashboard-grid">
 
-                        <h2 data-i18n="EMPLOYEE_CALENDAR_TITLE"
-                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">
-                            員工資料設定
-                        </h2>
-                        <div class="mb-4">
-                            <label for="admin-select-employee-mgmt"
-                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                選擇員工:
-                            </label>
-                            <select id="admin-select-employee-mgmt"
-                                class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option value="">-- 請選擇一位員工 --</option>
-                            </select>
+                            <!-- B1. Hero 卡（全寬）：頭像 + 姓名 + info items -->
+                            <div class="card p-6 dash-full">
+                                <div class="flex items-center pb-4 mb-4 border-b border-gray-200 dark:border-gray-700">
+                                    <img id="mgmt-employee-avatar"
+                                        src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
+                                        onerror="this.onerror=null;this.src='https://placehold.co/80x80/E0F2FE/1E3A8A?text=User'"
+                                        alt="Employee Avatar"
+                                        style="width:64px;height:64px;flex-shrink:0;"
+                                        class="rounded-full object-cover mr-4 border-2 border-indigo-300 dark:border-indigo-500">
+                                    <div class="truncate flex-grow">
+                                        <h4 data-i18n="LABEL_EMPLOYEE_NAME"
+                                            class="text-xl font-bold text-gray-900 dark:text-white truncate"
+                                            id="mgmt-employee-name">
+                                            員工姓名：
+                                        </h4>
+                                        <p class="text-sm font-mono text-gray-500 dark:text-gray-400 mt-1"
+                                            style="display: none;" id="mgmt-employee-id">ID: N/A</p>
+                                    </div>
+                                </div>
+                                <div id="employee-info-container" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <!-- Info Items 由 JS 動態生成（年資/入職/職務）-->
+                                </div>
+                            </div>
+
+                            <!-- B2. KPI 4 格（全寬，Phase 3 實作數值）-->
+                            <div class="card p-6 dash-full" id="employee-kpi-card">
+                                <h3 data-i18n="KPI_MONTH_SUMMARY_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">本月統計</h3>
+                                <div class="employee-kpi-grid">
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_TOTAL_HOURS">本月工時</div>
+                                        <div><span class="employee-kpi-value" id="kpi-total-hours">--</span><span class="employee-kpi-unit" data-i18n="CHART_HOURS_UNIT">小時</span></div>
+                                    </div>
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_NORMAL_HOURS">正常</div>
+                                        <div><span class="employee-kpi-value" id="kpi-normal-hours">--</span><span class="employee-kpi-unit" data-i18n="CHART_HOURS_UNIT">小時</span></div>
+                                    </div>
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_OVERTIME_HOURS">加班</div>
+                                        <div><span class="employee-kpi-value" id="kpi-overtime-hours">--</span><span class="employee-kpi-unit" data-i18n="CHART_HOURS_UNIT">小時</span></div>
+                                    </div>
+                                    <div class="employee-kpi-cell">
+                                        <div class="employee-kpi-label" data-i18n="KPI_LEAVE_DAYS">請假天數</div>
+                                        <div><span class="employee-kpi-value" id="kpi-leave-days">--</span><span class="employee-kpi-unit" data-i18n="CONSECUTIVE_DAYS_UNIT">天</span></div>
+                                    </div>
+                                </div>
+
+                                <!-- Phase L5：勞基法工時詳細（摺疊）-->
+                                <details id="kpi-labor-details" class="mt-4 kpi-labor-details">
+                                    <summary class="cursor-pointer text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                                        <i class="fas fa-balance-scale mr-1"></i><span data-i18n="LABOR_DETAIL_TITLE">工時詳細（勞基法分段）</span>
+                                        <button type="button" id="kpi-labor-help-btn"
+                                            class="kpi-labor-help-btn"
+                                            data-i18n-title="LABOR_HELP_TITLE"
+                                            title="計算說明" aria-label="計算說明">?</button>
+                                    </summary>
+                                    <div class="kpi-labor-grid mt-3">
+                                        <!-- 平日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_WORKDAY">平日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_NORMAL_HOURS">正常</span><span id="kpi-l-normal" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PLAINDAY_OT1">加班 (1.34×)</span><span id="kpi-l-ot1" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PLAINDAY_OT2">加班 (1.67×)</span><span id="kpi-l-ot2" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                        <!-- 休息日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_REST_DAY">休息日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_REST_OT1">前 2h (1.34×)</span><span id="kpi-l-rest-ot1" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REST_OT2">2~8h (1.67×)</span><span id="kpi-l-rest-ot2" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REST_OT3">8h+ (2.67×)</span><span id="kpi-l-rest-ot3" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                        <!-- 國定假日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_PUBLIC_HOLIDAY">國定假日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_PUBLIC_BASE">保證 8h</span><span id="kpi-l-public-base" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PUBLIC_OT1">加班 (1.34×)</span><span id="kpi-l-public-ot1" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PUBLIC_OT2">加班 (1.67×)</span><span id="kpi-l-public-ot2" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                        <!-- 例假日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_REGULAR_LEAVE">例假日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_REGULAR_BASE">基本工資</span><span id="kpi-l-regular-base" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REGULAR_COMP">補休折現</span><span id="kpi-l-regular-comp" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REGULAR_OT">加倍 (×2)</span><span id="kpi-l-regular-ot" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="kpi-labor-equiv mt-3">
+                                        <span data-i18n="LABOR_EQUIVALENT_HOURS">等價時數合計</span>
+                                        <span id="kpi-l-equiv" class="kpi-labor-equiv-value">--</span>
+                                    </div>
+
+                                    <!-- Phase L7：薪資估算（員工有薪資設定才顯示）-->
+                                    <div id="kpi-salary-estimation" class="kpi-salary-grid" style="display:none;">
+                                        <div class="kpi-salary-cell">
+                                            <div class="kpi-salary-label">
+                                                <i class="fas fa-money-bill-wave mr-1 text-emerald-500"></i>
+                                                <span data-i18n="LABOR_GROSS_PAY">應發薪資</span>
+                                            </div>
+                                            <div class="kpi-salary-value" id="kpi-salary-gross">--</div>
+                                        </div>
+                                        <div class="kpi-salary-cell">
+                                            <div class="kpi-salary-label">
+                                                <i class="fas fa-minus-circle mr-1 text-rose-500"></i>
+                                                <span data-i18n="LABOR_DEDUCTION_TOTAL">自付扣繳</span>
+                                            </div>
+                                            <div class="kpi-salary-value kpi-salary-deduct" id="kpi-salary-deduct">--</div>
+                                        </div>
+                                        <div class="kpi-salary-cell">
+                                            <div class="kpi-salary-label">
+                                                <i class="fas fa-wallet mr-1 text-indigo-500"></i>
+                                                <span data-i18n="LABOR_NET_PAY">實領薪資</span>
+                                            </div>
+                                            <div class="kpi-salary-value kpi-salary-net" id="kpi-salary-net">--</div>
+                                        </div>
+                                    </div>
+                                </details>
+                            </div>
+
+                            <!-- B3. 月曆卡（桌機跨 2col + 2row，讓右側填連續上工/請假統計）-->
+                            <div class="card p-6 dash-2col-tall">
+                                <h3 data-i18n="EMPLOYEE_CALENDAR_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">員工日曆檢視</h3>
+
+                                <div id="admin-employee-calendar-card" style="display: none;">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <button id="admin-prev-month-btn" data-i18n="BTN_PREV_MONTH" class="p-2 text-blue-600 dark:text-blue-400">&lt; 上個月</button>
+                                        <h3 id="admin-current-month-display" class="text-lg font-semibold dark:text-white"></h3>
+                                        <button id="admin-next-month-btn" data-i18n="BTN_NEXT_MONTH" class="p-2 text-blue-600 dark:text-blue-400">下個月 &gt;</button>
+                                    </div>
+                                    <div id="admin-calendar-grid" class="grid grid-cols-7 gap-1 text-center text-sm">
+                                        <div data-i18n="WEEK_SUNDAY" class="font-bold text-red-600 dark:text-red-400">日</div>
+                                        <div data-i18n="WEEK_MONDAY" class="font-bold">一</div>
+                                        <div data-i18n="WEEK_TUESDAY" class="font-bold">二</div>
+                                        <div data-i18n="WEEK_WEDNESDAY" class="font-bold">三</div>
+                                        <div data-i18n="WEEK_THURSDAY" class="font-bold">四</div>
+                                        <div data-i18n="WEEK_FRIDAY" class="font-bold">五</div>
+                                        <div data-i18n="WEEK_SATURDAY" class="font-bold text-blue-600 dark:text-blue-400">六</div>
+                                    </div>
+
+                                    <p id="admin-calendar-info" class="text-sm text-gray-500 mt-4 dark:text-gray-400"></p>
+                                </div>
+                            </div>
+
+                            <!-- 連續上工卡（桌機填月曆右側上格，Phase 5）-->
+                            <div class="card p-6" id="employee-streak-card">
+                                <h3 data-i18n="CONSECUTIVE_WORKDAYS_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                                    <i class="fas fa-fire mr-2 text-orange-500"></i>連續上工
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
+                            </div>
+
+                            <!-- 請假/休假統計卡（桌機填月曆右側下格，Phase 5）-->
+                            <div class="card p-6" id="employee-leave-stats-card">
+                                <h3 data-i18n="LEAVE_STATS_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                                    <i class="fas fa-umbrella-beach mr-2 text-cyan-500"></i>請假統計
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_5">(待 Phase 5 實作)</p>
+                            </div>
+
+                            <!-- 點月曆 cell 後的當日打卡紀錄（緊接月曆下方，由 click 觸發）-->
+                            <div id="admin-daily-records-card" class="card p-6 dash-full" style="display: none;">
+                                <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
+                                <ul id="admin-daily-records-list" class="space-y-3"></ul>
+                                <div id="admin-records-loading" data-i18n="RECORDS_LOADING" style="display: none;"
+                                    class="text-center text-gray-500 py-4">正在載入紀錄...</div>
+                                <div id="admin-daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" style="display: none;"
+                                    class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
+                            </div>
+
+                            <!-- B4. 週工時圖（全寬，已是 .card p-6）-->
+                            <div id="admin-weekly-chart-card" class="card p-6 dash-full"></div>
+
+                            <!-- B7. 申請紀錄卡（全寬）-->
+                            <div class="card p-6 dash-full" id="employee-request-history-card">
+                                <h3 data-i18n="REQUEST_HISTORY_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                    <i class="fas fa-clipboard-list mr-2 text-indigo-500"></i>申請紀錄
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_4">(待 Phase 4 實作)</p>
+                            </div>
+
+                            <!-- B8. 打卡紀錄表格（全寬，Phase 6）-->
+                            <div class="card p-6 dash-full" id="employee-punch-table-card">
+                                <h3 data-i18n="PUNCH_TABLE_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                    <i class="fas fa-table mr-2 text-emerald-500"></i>打卡紀錄
+                                </h3>
+                                <p class="dashboard-placeholder" data-i18n="PLACEHOLDER_PHASE_6">(待 Phase 6 實作)</p>
+                            </div>
+
+                            <!-- B9. 匯出報表卡（全寬）-->
+                            <div class="card p-6 dash-full" id="employee-export-card">
+                                <h3 data-i18n="EXPORT_REPORT_TITLE"
+                                    class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-4">
+                                    <i class="fas fa-file-export mr-2 text-green-500"></i>匯出報表
+                                </h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="flex flex-col gap-2">
+                                        <button id="export-admin-month-excel-btn" data-i18n="BTN_EXPORT_MONTH_EXCEL"
+                                            class="w-full py-3 px-4 rounded-lg font-bold bg-green-100 hover:bg-green-200 text-green-800 dark:bg-green-700 dark:hover:bg-green-600 dark:text-white border border-green-300 dark:border-green-700 transition">
+                                            <i class="fas fa-calendar-alt mr-2"></i>匯出月曆 Excel
+                                        </button>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="HINT_EXPORT_MONTH_EXCEL">含月曆打卡紀錄，適合快速查閱每日出勤狀況。</p>
+                                    </div>
+                                    <div class="flex flex-col gap-2">
+                                        <button type="button" id="export-detailed-payroll-btn"
+                                            class="w-full py-3 px-4 rounded-lg font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-700 dark:hover:bg-emerald-600 dark:text-white border border-emerald-300 dark:border-emerald-700 transition">
+                                            <i class="fas fa-file-excel mr-2"></i>
+                                            <span data-i18n="BTN_EXPORT_DETAILED_PAYROLL">匯出本月詳細薪資 Excel</span>
+                                        </button>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400" data-i18n="HINT_EXPORT_DETAILED_PAYROLL">含每日打卡、各班次工時、扣休息分鐘、勞基法各段時數、應發工資、勞健保扣繳明細與計算規則說明（共 3 個 sheet）。</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 員工設定 view（Phase L0 新增）-->
+                <section id="employee-settings-view" class="space-y-6" style="display: none;">
+                    <div id="employee-settings-content" class="card p-6" style="display: none;">
+                        <h2 data-i18n="EMPLOYEE_SETTINGS_TITLE"
+                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工設定</h2>
+
+                        <!-- Sub-tab navigation -->
+                        <div class="flex flex-wrap gap-2 mb-6 emp-setting-tabs">
+                            <button class="emp-setting-tab active py-2 px-3 rounded-full font-bold text-sm text-white bg-indigo-600"
+                                data-panel="account" data-i18n="EMPLOYEE_TAB_ACCOUNT"
+                                style="white-space: nowrap;">帳號權限</button>
+                            <button class="emp-setting-tab py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                                data-panel="punch" data-i18n="EMPLOYEE_TAB_PUNCH_POLICY"
+                                style="white-space: nowrap;">打卡政策</button>
+                            <button class="emp-setting-tab py-2 px-3 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                                data-panel="salary" data-i18n="EMPLOYEE_TAB_SALARY"
+                                style="white-space: nowrap;">薪資與勞保</button>
                         </div>
 
-                        <div id="employee-detail-card" style="display: none;">
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div
-                                    class="setting-card lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
-                                    <div
-                                        class="flex items-center mb-6 border-b border-gray-200 dark:border-gray-700 pb-6">
-                                        <img id="mgmt-employee-avatar"
-                                            src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
-                                            onerror="this.onerror=null;this.src='https://placehold.co/80x80/E0F2FE/1E3A8A?text=User'"
-                                            alt="Employee Avatar"
-                                            class="w-20 h-20 rounded-full object-cover mr-6 border-4 border-indigo-400 dark:border-indigo-500 shadow-lg flex-shrink-0 ring-2 ring-indigo-200 dark:ring-indigo-700">
-                                        <div class="truncate flex-grow">
-                                            <h4 class="text-2xl font-bold text-gray-900 dark:text-white truncate"
-                                                id="mgmt-employee-name">
-                                                員工姓名: N/A
-                                            </h4>
-                                            <p class="text-base font-mono text-gray-500 dark:text-gray-400 mt-2"
-                                                style="display: none;" id="mgmt-employee-id">ID: N/A</p>
-                                        </div>
-                                    </div>
-                                    <div id="employee-info-container" class="flex flex-col gap-4">
-                                        <!-- Info Items will be generated dynamically here -->
-                                    </div>
-                                </div>
+                        <!-- Panel: 帳號權限 -->
+                        <div data-panel="account" class="emp-setting-panel">
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                data-i18n="PERMISSION_ACCOUNT_SETTINGS">
+                                <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                權限設定與帳號控制
+                            </h5>
+                            <div id="employee-settings-container" class="space-y-3">
+                                <!-- Toggle settings 由 JS 動態生成 -->
+                            </div>
 
-
-                                <div
-                                    class="setting-card lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
-                                    <h5 class="setting-title text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center"
-                                        data-i18n="PERMISSION_ACCOUNT_SETTINGS">
-                                        <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                        權限設定與帳號控制
-                                    </h5>
-
-                                    <div id="employee-settings-container" class="space-y-4">
-                                        <!-- Toggle settings will be generated dynamically here -->
-                                    </div>
-                                </div>
-
-                                <div
-                                    class="setting-card lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
-                                    <h5 class="setting-title text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center"
-                                        data-i18n="LEAVE_SALARY_SETTINGS">
-                                        <i class="fas fa-money-bill-wave mr-2 text-blue-600 dark:text-blue-400"></i>
-                                        薪資設定
-                                    </h5>
-                                    <form id="form-leave-salary" onsubmit="handleLeaveSalaryUpdate(event)">
-                                        <div class="space-y-4">
-                                            <div>
-                                                <label for="basic-salary"
-                                                    class="setting-label block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                                                    data-i18n="BASIC_SALARY">基本薪資 (NTD/月):</label>
-                                                <input type="range" id="basic-salary" class="accent-blue-600 w-full h-2"
-                                                    name="basicSalary" min="0" max="100000" step="100"
-                                                    oninput="document.getElementById('salary-value').innerText = this.value">
-                                                <div class="text-right text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                                    目前值: <span id="salary-value">0</span> NTD
-                                                </div>
-                                            </div>
-                                            <button type="submit"
-                                                class="w-full py-3 px-4 rounded-lg font-bold bg-blue-500 hover:bg-blue-600 text-white shadow-md transition duration-150"
-                                                data-i18n="BTN_SAVE">
-                                                儲存設定
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-
-                                <div
-                                    class="setting-card lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
-                                    <h5 class="setting-title text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center"
-                                        data-i18n="PUNCH_POLICY_SETTINGS">
-                                        <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                        打卡政策設定
-                                    </h5>
-                                    <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div
-                                                class="flex items-center p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
-                                                <input type="checkbox" id="require-gps" name="requireGps"
-                                                    class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
-                                                <label for="require-gps"
-                                                    class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
-                                                    data-i18n="REQUIRE_GPS"> GPS 定位</label>
-                                            </div>
-                                            <div
-                                                class="flex items-center p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-800 dark:to-gray-700 shadow-md">
-                                                <input type="checkbox" id="allow-manual-adjust" name="allowManualAdjust"
-                                                    class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
-                                                <label for="allow-manual-adjust"
-                                                    class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
-                                                    data-i18n="ALLOW_MANUAL_ADJUST">Wifi BSSID</label>
-                                            </div>
-                                        </div>
-                                        <button type="submit"
-                                            class="mt-6 py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md w-full transition duration-150"
-                                            data-i18n="BTN_SAVE">
-                                            儲存政策
-                                        </button>
-                                    </form>
-                                </div>
-
+                            <!-- 動作按鈕（測試通知）-->
+                            <div class="flex flex-col sm:flex-row gap-2 mt-6">
+                                <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION"
+                                    class="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-800 dark:bg-blue-600 dark:text-white border border-blue-200 dark:border-blue-700 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-700">
+                                    測試通知功能
+                                </button>
                             </div>
                         </div>
 
-                        <div id="mgmt-placeholder" style="display: block;"
-                            class="mb-4 text-center py-10 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl shadow-inner">
-                            <i class="fas fa-info-circle text-3xl text-indigo-400 mb-2"></i>
-                            <p class="font-semibold" data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
-                            <p class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
+                        <!-- Panel: 打卡政策 -->
+                        <div data-panel="punch" class="emp-setting-panel" hidden>
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
+                                data-i18n="PUNCH_POLICY_SETTINGS">
+                                <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                                打卡政策設定
+                            </h5>
+                            <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
+                                        <input type="checkbox" id="require-gps" name="requireGps"
+                                            class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                                        <label for="require-gps"
+                                            class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
+                                            data-i18n="REQUIRE_GPS">GPS 定位</label>
+                                    </div>
+                                    <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
+                                        <input type="checkbox" id="allow-manual-adjust" name="allowManualAdjust"
+                                            class="checkbox-field w-5 h-5 text-indigo-600 dark:text-indigo-400 rounded focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                                        <label for="allow-manual-adjust"
+                                            class="ml-3 text-base font-medium text-indigo-800 dark:text-indigo-300"
+                                            data-i18n="ALLOW_MANUAL_ADJUST">Wifi BSSID</label>
+                                    </div>
+                                </div>
+                                <button type="submit"
+                                    class="mt-6 py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md w-full transition duration-150"
+                                    data-i18n="BTN_SAVE">
+                                    儲存政策
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Panel: 薪資與勞保（Phase L7）-->
+                        <div data-panel="salary" class="emp-setting-panel" hidden>
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center">
+                                <i class="fas fa-coins mr-2 text-amber-600 dark:text-amber-400"></i>
+                                <span data-i18n="EMPLOYEE_TAB_SALARY">薪資與勞保</span>
+                            </h5>
+
+                            <form id="form-salary-profile" onsubmit="return handleSalaryProfileSubmit(event)" class="space-y-4">
+                                <!-- 薪資制度 radio -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        data-i18n="LABOR_SALARY_TYPE">薪資制度</label>
+                                    <div class="flex gap-4">
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="radio" name="salaryType" value="monthly" id="salary-type-monthly"
+                                                class="mr-2 text-indigo-600">
+                                            <span data-i18n="LABOR_SALARY_TYPE_MONTHLY">月薪制</span>
+                                        </label>
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="radio" name="salaryType" value="hourly" id="salary-type-hourly"
+                                                class="mr-2 text-indigo-600">
+                                            <span data-i18n="LABOR_SALARY_TYPE_HOURLY">時薪制</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- 月薪 (monthly mode) -->
+                                <div id="salary-monthly-block">
+                                    <label for="salary-monthly-input"
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        <span data-i18n="LABOR_MONTHLY_SALARY">月薪</span> (NT$)
+                                    </label>
+                                    <input type="number" id="salary-monthly-input" name="monthlySalary"
+                                        min="0" step="100" placeholder="28590"
+                                        class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        <span data-i18n="LABOR_HOURLY_PREVIEW">換算時薪</span>：
+                                        <span id="salary-hourly-preview" class="font-semibold text-indigo-600 dark:text-indigo-400">--</span>
+                                    </p>
+                                    <p id="salary-min-wage-warn" style="display:none;"
+                                        class="mt-1 text-xs text-red-600 dark:text-red-400 font-semibold">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                                        <span data-i18n="LABOR_BELOW_MIN_WAGE">月薪低於 2026 基本工資 28,590 元</span>
+                                    </p>
+                                </div>
+
+                                <!-- 時薪 (hourly mode) -->
+                                <div id="salary-hourly-block" style="display:none;">
+                                    <label for="salary-hourly-input"
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        <span data-i18n="LABOR_HOURLY_RATE">時薪</span> (NT$)
+                                    </label>
+                                    <input type="number" id="salary-hourly-input" name="hourlyRate"
+                                        min="0" step="1" placeholder="190"
+                                        class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                                        data-i18n="LABOR_HOURLY_MIN_HINT">2026 基本時薪：190 元</p>
+                                </div>
+
+                                <!-- 勞保等級 -->
+                                <div>
+                                    <label for="salary-grade-select"
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                                        data-i18n="LABOR_INSURANCE_GRADE">勞保投保等級</label>
+                                    <select id="salary-grade-select" name="laborInsuranceGrade"
+                                        class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                                        <option value="">--</option>
+                                        <!-- 由 JS 從 LABOR_INSURANCE_GRADES 動態填入 -->
+                                    </select>
+                                    <label class="mt-2 inline-flex items-center cursor-pointer text-xs">
+                                        <input type="checkbox" id="salary-grade-auto" class="mr-2 text-indigo-600">
+                                        <span data-i18n="LABOR_INSURANCE_AUTO">自動依月薪推算等級</span>
+                                    </label>
+                                </div>
+
+                                <!-- 勞退提繳 -->
+                                <div>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="salary-pension-on" name="hasLaborPension"
+                                            class="mr-2 text-indigo-600">
+                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                                            data-i18n="LABOR_PENSION_PROVIDE">提繳勞退</span>
+                                    </label>
+                                    <div id="salary-pension-rate-block" class="mt-2">
+                                        <label for="salary-pension-rate" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                            <span data-i18n="LABOR_PENSION_RATE">自提率</span> (0-6%)
+                                        </label>
+                                        <input type="number" id="salary-pension-rate" name="laborPensionRate"
+                                            min="0" max="6" step="0.5" value="0"
+                                            class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                                    </div>
+                                </div>
+
+                                <!-- 預覽月扣繳 -->
+                                <div class="p-3 bg-amber-50 dark:bg-amber-900/30 rounded">
+                                    <h6 class="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                                        <i class="fas fa-calculator mr-1"></i>
+                                        <span data-i18n="LABOR_DEDUCTION_PREVIEW">月扣繳預覽</span>
+                                    </h6>
+                                    <ul class="text-xs space-y-1 text-amber-900 dark:text-amber-100">
+                                        <li class="flex justify-between">
+                                            <span data-i18n="LABOR_DEDUCTION_INSURANCE">勞保費</span>
+                                            <span id="salary-preview-labor" class="font-semibold">--</span>
+                                        </li>
+                                        <li class="flex justify-between">
+                                            <span data-i18n="LABOR_DEDUCTION_HEALTH">健保費</span>
+                                            <span id="salary-preview-health" class="font-semibold">--</span>
+                                        </li>
+                                        <li class="flex justify-between">
+                                            <span data-i18n="LABOR_DEDUCTION_PENSION">自提勞退</span>
+                                            <span id="salary-preview-pension" class="font-semibold">--</span>
+                                        </li>
+                                        <li class="flex justify-between border-t border-amber-300 dark:border-amber-700 pt-1 mt-1 font-bold">
+                                            <span data-i18n="LABOR_DEDUCTION_TOTAL">合計</span>
+                                            <span id="salary-preview-total">--</span>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <button type="submit" id="salary-submit-btn"
+                                    class="w-full py-3 px-4 rounded-lg font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-md transition"
+                                    data-i18n="BTN_SAVE_SALARY">儲存薪資設定</button>
+                            </form>
                         </div>
                     </div>
 
-                    <div class="card p-6 mt-6">
-                        <h2 data-i18n="EMPLOYEE_CALENDAR_TITLE"
-                            class="text-xl font-bold text-gray-800 dark:text-white mb-4">員工日曆檢視</h2>
-                        <div class="mb-4">
-                            <label for="admin-select-employee"
-                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">選擇員工:</label>
-                            <select id="admin-select-employee"
-                                class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                <option value="">-- 請選擇一位員工 --</option>
-                            </select>
-                        </div>
-
-                        <div id="admin-employee-calendar-card" style="display: none;">
-                            <div class="flex justify-between items-center mb-4">
-                                <button id="admin-prev-month-btn" class="p-2 text-blue-600 dark:text-blue-400">&lt;
-                                    上個月</button>
-                                <h3 id="admin-current-month-display" class="text-lg font-semibold dark:text-white"></h3>
-                                <button id="admin-next-month-btn" class="p-2 text-blue-600 dark:text-blue-400">下個月
-                                    &gt;</button>
-                            </div>
-                            <div id="admin-calendar-grid" class="grid grid-cols-7 gap-1 text-center text-sm">
-                                <div class="font-bold text-red-600 dark:text-red-400">日</div>
-                                <div class="font-bold">一</div>
-                                <div class="font-bold">二</div>
-                                <div class="font-bold">三</div>
-                                <div class="font-bold">四</div>
-                                <div class="font-bold">五</div>
-                                <div class="font-bold text-blue-600 dark:text-blue-400">六</div>
-                            </div>
-
-                            <p id="admin-calendar-info" class="text-sm text-gray-500 mt-4 dark:text-gray-400"></p>
-                            <!-- 在管理員日曆 HTML 中，放在日曆格子之後 -->
-                            <button id="export-admin-month-excel-btn" class="mt-2 w-full py-2 px-3 rounded-lg
-                                       bg-green-100 text-green-800
-                                       dark:bg-green-600 dark:text-white
-                                       border border-green-200 dark:border-green-700
-                                       text-sm font-medium shadow-sm
-                                       hover:bg-green-200 dark:hover:bg-green-700
-                                       focus:outline-none focus:ring-2 focus:ring-green-400">
-                                匯出月曆 Excel
-                            </button>
-                            <button id="test-notification-btn" class="mt-2 w-full py-2 px-3 rounded-lg
-                                       bg-blue-100 text-blue-800
-                                       dark:bg-blue-600 dark:text-white
-                                       border border-blue-200 dark:border-blue-700
-                                       text-sm font-medium shadow-sm
-                                       hover:bg-blue-200 dark:hover:bg-blue-700
-                                       focus:outline-none focus:ring-2 focus:ring-blue-400">
-                                測試通知功能
-                            </button>
-
-                        </div>
-
-                        <div id="admin-daily-records-card" class="card p-6 mt-6" style="display: none;">
-                            <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
-
-                            <ul id="admin-daily-records-list" class="space-y-3">
-                            </ul>
-
-                            <div id="admin-records-loading" style="display: none;"
-                                class="text-center text-gray-500 py-4">
-                                正在載入紀錄...</div>
-                            <div id="admin-daily-records-empty" style="display: none;"
-                                class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
-                        </div>
+                    <!-- 未選員工時的提示 -->
+                    <div id="employee-settings-empty" class="card p-6 text-center text-gray-500 dark:text-gray-400">
+                        <i class="fas fa-user-cog text-3xl text-indigo-400 mb-3"></i>
+                        <p data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
                     </div>
                 </section>
 
@@ -581,7 +1059,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                         <!-- 地標搜尋（Admin 新增地點） -->
                         <div id="admin-map-search" class="mb-3">
-                            <label for="admin-map-search-input" class="sr-only">搜尋地標</label>
+                            <label data-i18n="LABEL_SEARCH_LANDMARK" for="admin-map-search-input" class="sr-only">搜尋地標</label>
                             <div class="relative">
                                 <input id="admin-map-search-input" type="text" placeholder="搜尋地標或地址..."
                                     autocomplete="off"
@@ -598,7 +1076,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                         <div id="admin-add-location-map"
                             class="w-full h-64 rounded-lg mb-4 bg-gray-200 dark:bg-gray-800 relative">
                             <!-- 覆蓋層：地圖載入中（會在 JS 中隱藏） -->
-                            <div id="admin-map-loading" class="admin-map-loading text-sm">地圖載入中...</div>
+                            <div id="admin-map-loading" data-i18n="MAP_LOADING" class="admin-map-loading text-sm">地圖載入中...</div>
                         </div>
 
                         <div class="space-y-4">
@@ -621,7 +1099,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                             <!-- 新增：設定打卡地點範圍（公尺） -->
                             <div>
-                                <label for="location-radius-slider"
+                                <label data-i18n="LABEL_PUNCH_RADIUS" for="location-radius-slider"
                                     class="block text-sm font-medium text-gray-700">打卡範圍</label>
                                 <div class="mt-2 flex items-center space-x-3">
                                     <input id="location-radius-slider" type="range" min="10" max="500" step="10"
@@ -629,7 +1107,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <span id="location-radius-display"
                                         class="w-20 text-sm text-gray-700 dark:text-gray-200 text-right">50 m</span>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-1">拖移滑桿以調整允許打卡的半徑（公尺）。</p>
+                                <p data-i18n="HINT_PUNCH_RADIUS" class="text-xs text-gray-500 mt-1">拖移滑桿以調整允許打卡的半徑（公尺）。</p>
                             </div>
 
                             <button data-i18n="GET_LOCATION_BTN" id="get-location-btn"
@@ -638,6 +1116,22 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <button data-i18n="ADD_LOCATION_BTN" id="add-location-btn"
                                     class="w-full py-2 px-4 rounded-lg font-bold btn-primary" disabled>新增地點</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="card p-6 mt-6">
+                        <h2 data-i18n="BREAK_TIMES_TITLE"
+                            class="text-xl font-bold text-gray-800 dark:text-white mb-2">休息時間設定</h2>
+                        <p data-i18n="BREAK_TIMES_DESC" class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            下列時段為公司休息時間，工時統計時將自動扣除。</p>
+                        <div id="break-times-list" class="space-y-3"></div>
+                        <div class="flex gap-2 mt-4">
+                            <button id="break-times-add-btn"
+                                class="py-2 px-3 rounded-md text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">
+                                <span data-i18n="BTN_ADD_BREAK">新增休息時段</span>
+                            </button>
+                            <button id="break-times-save-btn" data-i18n="BTN_SAVE"
+                                class="ml-auto py-2 px-4 rounded-md text-sm font-bold btn-primary">儲存</button>
                         </div>
                     </div>
                 </section>
@@ -671,9 +1165,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                 <section id="scheduling-view" class="space-y-6" style="display: none;">
                     <div class="card p-6">
-                        <h2 class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
+                        <h2 data-i18n="FEATURE_LOCKED" class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
                             未解鎖功能</h2>
-                        <p class="text-gray-500 mb-4">請聯絡開發人員</p>
+                        <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4">請聯絡開發人員</p>
                     </div>
                     <div class="card p-6 mt-6" style="display: none;">
                         <h2 data-i18n="API_TEST_TITLE"
@@ -717,11 +1211,37 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         </div>
     </div>
 
+    <!-- Phase L5：勞基法工時詳細「計算說明」modal -->
+    <div id="kpi-labor-help-modal"
+        style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 9999;">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-5 sm:p-6 w-11/12 sm:w-full mx-4"
+            style="max-width: 560px; max-height: 90vh; overflow-y: auto;">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base sm:text-lg font-bold text-gray-800 dark:text-white">
+                    <i class="fas fa-info-circle mr-2 text-indigo-600 dark:text-indigo-400"></i>
+                    <span data-i18n="LABOR_HELP_TITLE">勞基法工時計算說明</span>
+                </h3>
+                <button type="button" id="kpi-labor-help-close-btn"
+                    class="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl font-bold leading-none px-2"
+                    aria-label="關閉">×</button>
+            </div>
+            <div id="kpi-labor-help-body" class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed space-y-3">
+                <!-- 由 JS 渲染 i18n 內容 -->
+            </div>
+            <div class="mt-5 text-center">
+                <button type="button" id="kpi-labor-help-ok-btn"
+                    class="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">
+                    <span data-i18n="BTN_CLOSE">關閉</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- DOMPurify for XSS protection (從 CDN 加載) - 必須同步加載，不能 defer -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.1/dist/purify.min.js"></script>
 
     <!-- 基礎設施層 -->
-    <script defer src="js/template-loader.js"></script>
+    <!-- template-loader.js 已移除（模板機制未被使用），模板片段保留於 templates/ui-components.html -->
     <script defer src="js/ui-component-generator.js"></script>
     <script defer src="js/cache.js"></script>
     <script defer src="js/config.js"></script>
@@ -733,14 +1253,24 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <!-- P1-1 改進：業務邏輯模塊 -->
     <script defer src="js/modules/i18n.js"></script>
     <script defer src="js/modules/calendar.js"></script>
-    <script defer src="js/modules/payroll.js"></script>
+    <!-- payroll.js 已移除（簡化版死碼），薪資計算將於重新設計後再加入 -->
     <script defer src="js/modules/request-approval.js"></script>
 
     <!-- 核心系統 -->
     <script defer src="js/state.js"></script>
+    <!-- Firestore 客戶端（骨架，須在 core.js 之前載入以便 callApifetch 分流） -->
+    <script defer src="js/firestore-client.js"></script>
     <script defer src="js/core.js"></script>
     <script defer src="js/app.js"></script>
-    <script defer src="js/punch.js"></script>
+    <!-- punch 模組（geolocation 必須早於 punch-flow） -->
+    <script defer src="js/punch/abnormal-records.js"></script>
+    <script defer src="js/punch/auto-punch.js"></script>
+    <script defer src="js/punch/geolocation.js"></script>
+    <script defer src="js/punch/punch-flow.js"></script>
+    <script defer src="js/punch/make-up.js"></script>
+    <script defer src="js/holidays-client.js"></script>
+    <script defer src="js/labor-hours.js"></script>
+    <script defer src="js/weekly-chart.js"></script>
     <script defer src="js/ui.js"></script>
     <script defer src="js/location.js"></script>
 

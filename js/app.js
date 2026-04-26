@@ -120,6 +120,7 @@ function getDOMElements() {
 
     // 管理員頁面中 子選單Tab 按鈕
     tabEmployeeMgmtBtn = document.getElementById('tab-employee-mgmt-btn');
+    tabEmployeeSettingsBtn = document.getElementById('tab-employee-settings-btn');
     tabPunchMgmtBtn = document.getElementById('tab-punch-mgmt-btn');
     tabFormReviewBtn = document.getElementById('tab-form-review-btn');
     tabSchedulingBtn = document.getElementById('tab-scheduling-btn');
@@ -143,13 +144,14 @@ function getDOMElements() {
 
     locationName = document.getElementById('location-name');
     // 管理員專用：員工日曆
-    adminSelectEmployee = document.getElementById('admin-select-employee');
+    // Phase 1：合併員工選擇器，#admin-select-employee 已移除，
+    // adminSelectEmployee 全域變數指向唯一的 #admin-select-employee-mgmt
+    adminSelectEmployee = document.getElementById('admin-select-employee-mgmt');
     adminEmployeeCalendarCard = document.getElementById('admin-employee-calendar-card');
     adminPrevMonthBtn = document.getElementById('admin-prev-month-btn');
     adminNextMonthBtn = document.getElementById('admin-next-month-btn');
     adminCalendarGrid = document.getElementById('admin-calendar-grid');
-    //薪水
-    adminMonthlySalaryDisplay = document.getElementById('admin-monthly-salary-display');
+    // 薪資 DOM 綁定已移除，待重新設計
 
     // 管理員專用：日紀錄與審批
     adminDailyRecordsCard = document.getElementById('admin-daily-records-card');
@@ -215,6 +217,9 @@ function bindEvents() {
 
     // === 導航 管理員子Tab 切換事件 () ===
     tabEmployeeMgmtBtn.addEventListener('click', () => switchAdminSubTab('employee-mgmt-view'));
+    if (tabEmployeeSettingsBtn) {
+        tabEmployeeSettingsBtn.addEventListener('click', () => switchAdminSubTab('employee-settings-view'));
+    }
     tabPunchMgmtBtn.addEventListener('click', () => switchAdminSubTab('punch-mgmt-view'));
     tabFormReviewBtn.addEventListener('click', () => switchAdminSubTab('form-review-view'));
     tabSchedulingBtn.addEventListener('click', () => switchAdminSubTab('scheduling-view'));

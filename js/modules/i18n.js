@@ -24,7 +24,7 @@ async function preloadTranslations(langs = ['en-US', 'ja']) {
 
     try {
       console.log(`⏳ 正在預加載語言 ${lang}...`);
-      const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
+      const res = await fetch(`./i18n/${lang}.json`);
       if (!res.ok) {
         throw new Error(`HTTP 錯誤: ${res.status}`);
       }
@@ -54,7 +54,7 @@ async function loadTranslations(lang) {
     } else {
       // 從網路 fetch
       console.log(`🌐 從網路加載語言 ${lang}...`);
-      const res = await fetch(`https://wenhuistage-ops.github.io/i18n/${lang}.json`);
+      const res = await fetch(`./i18n/${lang}.json`);
       if (!res.ok) {
         throw new Error(`HTTP 錯誤: ${res.status}`);
       }
@@ -122,6 +122,21 @@ function checkTranslationCompleteness(lang) {
  * @returns {string} - 翻譯後的文本
  */
 function t(code, params = {}) {
+  // 向後相容：舊版 GAS（DbOperations.gs）會把參數塞進 code 字串：
+  // ERR_OUT_OF_RANGE_DISTANCE:150m_LOCATION:辦公室_RADIUS:100m
+  // 此處解析後改用乾淨的 ERR_OUT_OF_RANGE_WITH_DISTANCE + params。
+  // GAS 重新部署後可移除此 fallback。
+  if (typeof code === 'string' && code.startsWith('ERR_OUT_OF_RANGE_DISTANCE:')) {
+    const m = code.match(/^ERR_OUT_OF_RANGE_DISTANCE:(\d+)m_LOCATION:(.+?)_RADIUS:(\d+)m$/);
+    if (m) {
+      return t('ERR_OUT_OF_RANGE_WITH_DISTANCE', {
+        distance: m[1],
+        location: m[2],
+        radius: m[3],
+      });
+    }
+  }
+
   let text = translations[code] || code;
 
   // 檢查並替換參數中的變數
@@ -136,6 +151,11 @@ function t(code, params = {}) {
   }
 
   return text;
+}
+
+// CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { t, loadTranslations, switchLanguage, preloadTranslations };
 }
 
 /**

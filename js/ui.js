@@ -246,6 +246,21 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         month: month + 1
     });
 
+    // 預載當年（與相鄰年）國定假日，第一次有等待，後續從 cache 取
+    if (typeof ensureHolidaysLoaded === 'function') {
+        ensureHolidaysLoaded(year).then(() => {
+            // 載入完後若日曆還在頁面上，補標紅字
+            calendarGrid.querySelectorAll('.day-cell[data-date]').forEach((cell) => {
+                const dk = cell.dataset.date;
+                if (typeof isHoliday === 'function' && isHoliday(dk)) {
+                    cell.classList.add('holiday-text');
+                    const name = (typeof getHolidayName === 'function') ? getHolidayName(dk) : '';
+                    if (name) cell.title = name;
+                }
+            });
+        });
+    }
+
     // 移除舊的累計時數行
     const existingTotalRows = calendarGrid.parentNode.querySelectorAll('.total-hours-row');
     existingTotalRows.forEach(row => row.remove());
@@ -289,16 +304,19 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         let dateClass = 'normal-day';
 
         const todayRecords = recordsByDate[dateKey] || [];
-        // 初始化假日判斷，預設為 false
-        let isHoliday = false;
+        // 假日判斷：優先從 holidays-client 取（台灣國定假日 + 補假），
+        // 退路用 dailyStatus.isHoliday（GS 後端標記）。
+        let isHolidayDay = false;
+        if (typeof window !== 'undefined' && typeof window.isHoliday === 'function') {
+            isHolidayDay = window.isHoliday(dateKey);
+        }
 
         if (todayRecords.length > 0) {
             const record = todayRecords[0];
             const reason = record.reason;
 
-            // 🌟 新增：取得假日狀態 🌟
-            // 假設 isHoliday 來自 checkAttendance1 處理後的 dailyStatus 結構
-            isHoliday = record.isHoliday || false;
+            // dailyStatus.isHoliday 作為退路（若 holidays-client 還沒 ready）
+            if (!isHolidayDay) isHolidayDay = record.isHoliday || false;
 
             // 設定背景顏色 (根據打卡狀態)
             switch (reason) {
@@ -336,9 +354,14 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
                     break;
             }
         }
-        if (isHoliday) {
+        if (isHolidayDay) {
             // 由於是假日，將日期文字設為紅色 (需在 CSS 中定義 .holiday-text)
             dayCell.classList.add('holiday-text');
+            // 顯示假日名稱（hover tooltip）
+            if (typeof window !== 'undefined' && typeof window.getHolidayName === 'function') {
+                const name = window.getHolidayName(dateKey);
+                if (name) dayCell.title = name;
+            }
         }
 
         const isToday = (year === today.getFullYear() && month === today.getMonth() && i === today.getDate());
@@ -396,6 +419,14 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         } else if (!isForAdmin) {
             renderDailyRecords(dateStr);
         }
+
+        // 同步渲染週工時長條圖
+        if (typeof renderWeeklyChart === 'function') {
+            const chartCard = isForAdmin
+                ? document.getElementById('admin-weekly-chart-card')
+                : document.getElementById('weekly-chart-card');
+            if (chartCard) renderWeeklyChart(chartCard, records, dateStr, 'total');
+        }
     };
 
     // 保存監聽器引用以便後續移除
@@ -420,6 +451,85 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
 
     calendarGrid.parentNode.appendChild(totalRow);
     renderTranslations(totalRow); // 如果有翻譯需求，渲染翻譯
+
+    // 預設渲染週工時長條圖：若所在月為當月則 default 為今天，否則該月最後有資料的一天
+    if (typeof renderWeeklyChart === 'function') {
+        const chartCard = isForAdmin
+            ? document.getElementById('admin-weekly-chart-card')
+            : document.getElementById('weekly-chart-card');
+        if (chartCard) {
+            const isCurrentMonth = (year === today.getFullYear() && month === today.getMonth());
+            let defaultDateKey = null;
+            if (isCurrentMonth) {
+                defaultDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            } else {
+                // 找該月最後一筆有資料的日期
+                const inMonth = (records || []).filter((r) => r.date && r.date.startsWith(currentMonthKey));
+                if (inMonth.length) {
+                    defaultDateKey = inMonth[inMonth.length - 1].date;
+                }
+            }
+            renderWeeklyChart(chartCard, records, defaultDateKey, 'total');
+
+            // 監聽 chart 內 column 點擊，同步切換打卡紀錄（避免重複綁定：先解綁舊的）
+            if (chartCard._weeklyChartSelectListener) {
+                chartCard.removeEventListener('weeklyChart:select', chartCard._weeklyChartSelectListener);
+            }
+            const listener = (e) => {
+                const dk = e.detail?.date;
+                if (!dk) return;
+                if (isForAdmin && adminSelectedUserId) {
+                    renderAdminDailyRecords(dk, adminSelectedUserId);
+                } else if (!isForAdmin) {
+                    renderDailyRecords(dk);
+                }
+            };
+            chartCard.addEventListener('weeklyChart:select', listener);
+            chartCard._weeklyChartSelectListener = listener;
+        }
+    }
+}
+
+// 共用 helper：在指定 title 元素之後插入「假日類型」badge
+// （國定假日 / 例假日 / 休息日 / 工作日 + 假日名稱 hover 顯示）
+function renderDayKindBadge(titleEl, dateKey) {
+    if (!titleEl || !dateKey) return;
+    // 移除舊 badge（如果有）
+    const next = titleEl.nextElementSibling;
+    if (next && next.classList && next.classList.contains('day-kind-badge-row')) {
+        next.remove();
+    }
+    if (typeof window.getDayKind !== 'function') return;
+    const info = window.getDayKind(dateKey);
+    const KIND_KEY = {
+        public: 'DAY_KIND_PUBLIC_HOLIDAY',
+        regular: 'DAY_KIND_REGULAR_LEAVE',
+        rest: 'DAY_KIND_REST_DAY',
+        workday: 'DAY_KIND_WORKDAY',
+    };
+    const COLORS = {
+        public: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200',
+        regular: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200',
+        rest: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200',
+        workday: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+    };
+    const i18nKey = KIND_KEY[info.kind] || 'DAY_KIND_WORKDAY';
+    const colorClass = COLORS[info.kind] || COLORS.workday;
+    const labelText = t(i18nKey) || info.kind;
+    const row = document.createElement('div');
+    row.className = 'day-kind-badge-row flex items-center gap-2 mb-3 -mt-1';
+    const badge = document.createElement('span');
+    badge.setAttribute('data-i18n', i18nKey);
+    badge.className = `text-xs font-semibold px-2 py-1 rounded-md ${colorClass}`;
+    badge.textContent = labelText;
+    row.appendChild(badge);
+    if (info.name) {
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'text-sm font-medium text-red-600 dark:text-red-300';
+        nameSpan.textContent = info.name;
+        row.appendChild(nameSpan);
+    }
+    titleEl.parentNode.insertBefore(row, titleEl.nextSibling);
 }
 
 // 新增：渲染每日紀錄的函式 (修正非同步問題)
@@ -433,6 +543,7 @@ async function renderDailyRecords(dateKey) {
     dailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", {
         dateKey: dateKey
     });
+    renderDayKindBadge(dailyRecordsTitle, dateKey);
 
     dailyRecordsCard.style.display = 'block';
     dailyRecordsList.replaceChildren();

@@ -22,39 +22,6 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // 依賴: state.js (adminMonthDataCache, DOM 元素), core.js, ui.js
 // ===================================
 
-// ===================================
-// 薪資計算配置 (Phase 1 - 數據模型)
-// ===================================
-/**
- * 加班倍率表（根據日期類型和時數區間）
- * 用於 classifyOvertimeHours() 和 calculateOvertimeFees()
- */
-const OVERTIME_RATES = {
-    "平日2H以內": 1.34,
-    "平日3~4H以上": 1.67,
-    "休息日2H以內": 1.34,
-    "休息日3~8H": 1.67,
-    "休息日9H以上": 2.67,
-    "例假日8H以內": 1.0,
-    "例假日8H以上": 2.0,
-    "國定假日9~10H": 1.34,
-    "國定假日11~12H以上": 1.67
-};
-
-/**
- * 保險費率表（用於計算應扣項目）
- * 員工等級：第1級、第2級等
- */
-const INSURANCE_RATES = {
-    "勞保": {
-        "第1級": 0.0225,
-        "第2級": 0.0225
-    },
-    "健保": {
-        "第1級": 0.0130,
-        "第2級": 0.0130
-    }
-};
 
 // ===================================
 // #region 1. 管理員日曆與紀錄渲染
@@ -277,482 +244,6 @@ async function preloadAdjacentAdminMonths(currentDate, userId) {
 }
 
 
-/**
- * 根據上班與下班時間，計算扣除休息時間後的有效工時 (小時)，並回傳被扣除的總分鐘數。
- *
- * @param {string} punchInTime - 上班打卡時間，格式 'HH:MM' (例如 '08:30')
- * @param {string} punchOutTime - 下班打卡時間，格式 'HH:MM' (例如 '17:30')
- * @returns {Object} { effectiveHours: number, totalBreakMinutes: number }
- */
-function calculateEffectiveHours(punchInTime, punchOutTime) {
-    // 休息時間定義 (格式: [開始時間, 結束時間]，皆為 'HH:MM')
-    const breakTimes = [
-        ['06:00', '06:30'], // 早餐
-        ['12:00', '13:00'], // 午餐
-        ['19:00', '19:30']  // 晚餐
-    ];
-
-    // 輔助函數：將 'HH:MM' 轉換為當天的分鐘數
-    const timeToMinutes = (time) => {
-        const [hours, minutes] = time.split(':').map(Number);
-        return hours * 60 + minutes;
-    };
-
-    // 輔助函數：計算兩個時間段的重疊分鐘數
-    const getOverlapMinutes = (start1, end1, start2, end2) => {
-        const latestStart = Math.max(start1, start2);
-        const earliestEnd = Math.min(end1, end2);
-        return Math.max(0, earliestEnd - latestStart);
-    };
-
-    const inMinutes = timeToMinutes(punchInTime);
-    const outMinutes = timeToMinutes(punchOutTime);
-
-    // 無效打卡 (下班早於上班)，返回 0
-    if (outMinutes <= inMinutes) {
-        return { effectiveHours: 0, totalBreakMinutes: 0 };
-    }
-
-    let totalDurationMinutes = outMinutes - inMinutes; // 總分鐘數
-    let totalBreakMinutes = 0; // 應扣除的休息分鐘數
-
-    // 計算重疊的休息時間
-    breakTimes.forEach(breakPeriod => {
-        const [breakStart, breakEnd] = breakPeriod;
-        const breakStartMinutes = timeToMinutes(breakStart);
-        const breakEndMinutes = timeToMinutes(breakEnd);
-
-        const overlap = getOverlapMinutes(
-            inMinutes,
-            outMinutes,
-            breakStartMinutes,
-            breakEndMinutes
-        );
-
-        totalBreakMinutes += overlap;
-    });
-
-    // 實際應計薪的總分鐘數
-    const effectiveMinutes = totalDurationMinutes - totalBreakMinutes;
-
-    // 轉換為小時並保留兩位小數
-    const effectiveHours = parseFloat(Math.max(0, effectiveMinutes / 60).toFixed(2));
-
-    return { effectiveHours, totalBreakMinutes }; // 回傳物件
-}
-
-/**
- * 計算單日薪資 (符合勞動部一例一休規則)
- * @param {number} hours - 當日淨工時 (已扣除休息時間)
- * @param {number} hourlyRate - 等效時薪
- * @param {string} dayType - 日子類型 (來自 DAY_TYPE 常數)
- * @returns {Object} - { dailySalary: number, calculation: string }
- */
-function calculateDailySalary(hours, hourlyRate, dayType) {
-    let dailySalary = 0;
-    let calculation = '';
-    const NORMAL_WORK_HOURS = 8;
-    // --- 🆕 初始化時數細節 ---
-    const dailyHours = {
-        normalHours: 0,   // 屬於法定正常工時 (平日前 8 小時)
-        overtimeHours: 0, // 加班工時 (平日 >8h, 休息日所有時數)
-        restHours: 0,     // 休息時數 (來自 calculateEffectiveHours 傳入)
-        netHours: hours   // 淨工時 (總計薪時數)
-    };
-
-    // -------------------------
-    // 如果 hours <= 0，直接返回 0
-    if (hours <= 0) {
-        return { dailySalary: 0, calculation: '淨工時 0h，無薪資' };
-    }
-
-    if (dayType === DAY_TYPE.REGULAR_OFF) {
-        // =========================================================
-        // 例假日 (週日) 計算
-        // 前 8 小時至少給一日工資，另補休一日；此處依目前匯出口徑直接折現。
-        // 超過 8 小時部分按 2 倍計。
-        // =========================================================
-        dailyHours.overtimeHours = hours; // 例假日出勤，所有工時皆為加班性質（特休/例假性質）
-        const extraPay = hourlyRate * 8;
-        dailySalary += extraPay;
-        calculation += `${ hourlyRate } × 8(例假日前 8 小時，至少給 8 小時薪資) = ${ extraPay.toFixed(2) }; `;
-
-        let hWorked = hours;
-        let hOver8 = Math.max(0, hWorked - 8);
-
-        // 例假日超時部分（超 8 小時）：按 2 倍計
-        if (hOver8 > 0) {
-            const payOver = hourlyRate * hOver8 * 2;
-            dailySalary += payOver;
-            calculation += `${ hourlyRate } × ${ hOver8 } × 2(例假日 > 8h 加班) = ${ payOver.toFixed(2) }; `;
-        }
-
-        // 例假日補休一天，依目前匯出口徑直接折現。
-        dailySalary += extraPay;
-        calculation += `${ hourlyRate } × 8(例假日補休折現) = ${ extraPay.toFixed(2) }; `;
-    } else if (dayType === DAY_TYPE.HOLIDAY) {
-        // =========================================================
-        // 國定假日 (特別休假) 計算
-        // =========================================================
-        dailyHours.overtimeHours = hours; // 例假日出勤，所有工時皆為加班性質（特休/例假性質）
-        if (hours <= 8) {
-            dailySalary = hourlyRate * 8;
-            calculation = `${ hourlyRate } × ${ 8 } (國定假日 - 不論工時長短，至少給予一日工資，即 8 小時薪資) = ${ dailySalary.toFixed(2) } `;
-        } else {
-            const normalPay = hourlyRate * 8;
-            dailySalary += normalPay;
-            calculation += `${ hourlyRate } × 8(國定假日) = ${ normalPay.toFixed(2) }; `;
-
-            let overtimeHours = hours - 8;
-
-            // 加班前 2 小時: 1.33 倍 (4/3)
-            if (overtimeHours > 0) {
-                const overtime1 = Math.min(overtimeHours, 2);
-                const overtimePay1 = hourlyRate * overtime1 * 4 / 3;
-                dailySalary += overtimePay1;
-                calculation += `${ hourlyRate } × ${ overtime1 } × 4 / 3(國定假日加班 1 - 2h) = ${ overtimePay1.toFixed(2) }; `;
-                overtimeHours -= overtime1;
-            }
-            // 加班後續小時: 1.66 倍 (5/3)
-            if (overtimeHours > 0) {
-                const overtimePay2 = hourlyRate * overtimeHours * 5 / 3;
-                dailySalary += overtimePay2;
-                calculation += `${ hourlyRate } × ${ overtimeHours } × 5 / 3(國定假日加班 > 2h) = ${ overtimePay2.toFixed(2) }; `;
-            }
-        }
-    } else if (dayType === DAY_TYPE.REST_DAY) {
-        // =========================================================
-        // 休息日 (週六) 加班計算 (勞基法 §24 II)
-        // 薪資基數：前 2h: 4/3；接著 6h: 5/3；超過 8h: 8/3。
-        // =========================================================
-        dailyHours.overtimeHours = hours; // 例假日出勤，所有工時皆為加班性質（特休/例假性質）
-        let remainingHours = hours;
-
-        // 1. 前 2 小時: 1.33 倍 (4/3)
-        if (remainingHours > 0) {
-            const h = Math.min(remainingHours, 2);
-            const pay = hourlyRate * h * 4 / 3;
-            dailySalary += pay;
-            calculation += `${ hourlyRate } × ${ h } × 4 / 3(休息日 1 - 2h) = ${ pay.toFixed(2) }; `;
-            remainingHours -= h;
-        }
-
-        // 2. 接著 6 小時 (總時數 3-8h): 1.66 倍 (5/3)
-        if (remainingHours > 0) {
-            const h = Math.min(remainingHours, 6);
-            const pay = hourlyRate * h * 5 / 3;
-            dailySalary += pay;
-            calculation += `${ hourlyRate } × ${ h } × 5 / 3(休息日 3 - 8h) = ${ pay.toFixed(2) }; `;
-            remainingHours -= h;
-        }
-
-        // 3. 超過 8 小時: 2.66 倍 (8/3)
-        if (remainingHours > 0) {
-            const h = remainingHours;
-            const pay = hourlyRate * h * 8 / 3;
-            dailySalary += pay;
-            calculation += `${ hourlyRate } × ${ h } × 8 / 3(休息日 > 8h) = ${ pay.toFixed(2) }; `;
-        }
-    } else {
-        // =========================================================
-        // 平日/工作日 加班計算 (原邏輯，勞基法 §24 I)
-        // =========================================================
-        let normalHours = Math.min(hours, NORMAL_WORK_HOURS);
-        let overtimeHours = Math.max(0, hours - NORMAL_WORK_HOURS);
-
-        dailyHours.normalHours = normalHours;
-        dailyHours.overtimeHours = overtimeHours;
-
-        overtimeHours = hours - normalHours;
-
-        // 加班前 2 小時: 1.33 倍 (4/3)
-        if (overtimeHours > 0) {
-            const overtime1 = Math.min(overtimeHours, 2);
-            const overtimePay1 = hourlyRate * overtime1 * 4 / 3;
-            dailySalary += overtimePay1;
-            calculation += `${ hourlyRate } × ${ overtime1 } × 4 / 3(平日加班 1 - 2h) = ${ overtimePay1.toFixed(2) }; `;
-            overtimeHours -= overtime1;
-        }
-        // 加班後續小時: 1.66 倍 (5/3)
-        if (overtimeHours > 0) {
-            const overtimePay2 = hourlyRate * overtimeHours * 5 / 3;
-            dailySalary += overtimePay2;
-            calculation += `${ hourlyRate } × ${ overtimeHours } × 5 / 3(平日加班 > 2h) = ${ overtimePay2.toFixed(2) }; `;
-        }
-
-    }
-
-    // 將總計加入 calculation 字串
-    if (calculation && !calculation.includes('總計')) {
-        calculation += `總計 = ${ dailySalary.toFixed(2) } `;
-    }
-
-    return {
-        dailySalary: parseFloat(dailySalary.toFixed(2)), calculation,
-        laborHoursDetails: dailyHours
-    };
-}
-/**
- * 🆕 專門用於處理「原始打卡時間」並計算單日薪資的函式。
- * 此函式確保計算前會扣除休息時間。
- *
- * @param {string} punchInTime - 上班打卡時間，格式 'HH:MM'
- * @param {string} punchOutTime - 下班打卡時間，格式 'HH:MM'
- * @param {number} hourlyRate - 等效時薪 (數字)
- * @returns {Object} 包含所有細節的物件：{ dailySalary, calculation, effectiveHours, totalBreakMinutes }
- */
-function calculateDailySalaryFromPunches(punchInTime, punchOutTime, hourlyRate, dayType) {
-    // 1. 計算淨工時與休息扣除時間
-    const { effectiveHours, totalBreakMinutes } = calculateEffectiveHours(punchInTime, punchOutTime);
-
-    // 🌟 預先計算休息小時數 🌟
-    const restHours = parseFloat((totalBreakMinutes / 60).toFixed(2));
-
-    let result = {
-        dailySalary: 0,
-        calculation: '',
-        effectiveHours: effectiveHours,
-        totalBreakMinutes: totalBreakMinutes,
-        // 預設的工時細節 (如果沒有 effectiveHours，只顯示休息時數)
-        laborHoursDetails: {
-            normalHours: 0,
-            overtimeHours: 0,
-            restHours: restHours, // 📌 初始化時填入正確的休息時數
-            netHours: effectiveHours
-        }
-    };
-
-    if (effectiveHours > 0) {
-        // 2. 呼叫核心函式計算薪資
-        const salaryResult = calculateDailySalary(effectiveHours, hourlyRate, dayType);
-
-        result.dailySalary = salaryResult.dailySalary;
-        result.calculation = salaryResult.calculation;
-
-        // 🌟 修正點 1: 使用展開運算子 (Spread Operator) 整合時數分類 🌟
-        // 這確保了 restHours 即使在 salaryResult 中沒有被明確處理，也能被保留。
-        if (salaryResult.laborHoursDetails) {
-            result.laborHoursDetails = {
-                ...salaryResult.laborHoursDetails,
-                restHours: restHours // 📌 確保 restHours 覆蓋/更新為本地計算的值
-            };
-        }
-
-        // 修正點 2: 處理計算後，淨工時可能與有效工時不符的問題 (理論上不應發生，但為穩健而保留)
-        result.laborHoursDetails.netHours = effectiveHours;
-    }
-
-    return result;
-}
-
-// ===================================
-// Phase 2: 加班時數分類演算法
-// ===================================
-
-/**
- * 將總加班時數分配到9個加班類別
- * @param {number} totalHours - 總工時
- * @param {string} dayType - 日期類型 ("平日"|"例假日"|"休息日"|"國定假日")
- * @param {boolean} isHoliday - 是否為假日
- * @param {number} baseHours - 基準工時（預設8）
- * @returns {object} overtimeDetails - 各類型加班時數分配
- */
-function classifyOvertimeHours(totalHours, dayType, isHoliday, baseHours = 8) {
-    const overtimeDetails = {
-        "平日2H以內": 0,
-        "平日3~4H以上": 0,
-        "休息日2H以內": 0,
-        "休息日3~8H": 0,
-        "休息日9H以上": 0,
-        "例假日8H以內": 0,
-        "例假日8H以上": 0,
-        "國定假日9~10H": 0,
-        "國定假日11~12H以上": 0
-    };
-
-    const workedHours = Math.max(0, Number(totalHours) || 0);
-    const normalizedDayType = (() => {
-        if (dayType === DAY_TYPE.NORMAL || dayType === 'NORMAL' || dayType === '平日') return '平日';
-        if (dayType === DAY_TYPE.REST_DAY || dayType === 'REST_DAY' || dayType === '休息日') return '休息日';
-        if (dayType === DAY_TYPE.REGULAR_OFF || dayType === 'REGULAR_OFF' || dayType === '例假日') return '例假日';
-        if (dayType === DAY_TYPE.HOLIDAY || dayType === 'HOLIDAY' || dayType === '國定假日') return '國定假日';
-        return String(dayType || '');
-    })();
-
-    switch (normalizedDayType) {
-        case '平日': {
-            // 依勞基法第24條：平日延長工時前2小時與再2小時倍率不同
-            const overtimeHours = Math.max(0, workedHours - baseHours);
-            overtimeDetails['平日2H以內'] = Math.min(overtimeHours, 2);
-            overtimeDetails['平日3~4H以上'] = Math.min(Math.max(overtimeHours - 2, 0), 2);
-            break;
-        }
-
-        case '休息日': {
-            // 休息日按總出勤時數分段
-            overtimeDetails['休息日2H以內'] = Math.min(workedHours, 2);
-            overtimeDetails['休息日3~8H'] = Math.min(Math.max(workedHours - 2, 0), 6);
-            overtimeDetails['休息日9H以上'] = Math.max(workedHours - 8, 0);
-            break;
-        }
-
-        case '例假日': {
-            // 例假日前 8 小時比照國定假日給薪，超過 8 小時部分另按 2 倍計。
-            overtimeDetails['例假日8H以內'] = workedHours > 0 ? baseHours : 0;
-            overtimeDetails['例假日8H以上'] = Math.max(workedHours - baseHours, 0);
-            break;
-        }
-
-        case '國定假日': {
-            // 國定假日以超過 8 小時部分分為 9~10H 與 11~12H 以上
-            const overtimeHours = Math.max(0, workedHours - baseHours);
-            overtimeDetails['國定假日9~10H'] = Math.min(overtimeHours, 2);
-            overtimeDetails['國定假日11~12H以上'] = Math.max(overtimeHours - 2, 0);
-            break;
-        }
-
-        default:
-            console.warn(`未知的日期類型: ${ dayType } `);
-    }
-
-    return overtimeDetails;
-}
-
-/**
- * 計算各類加班費
- * @param {object} overtimeDetails - 各類型加班時數
- * @param {number} baseHourlyRate - 基礎時薪
- * @returns {object} 各類型加班費及合計
- */
-function calculateOvertimeFees(overtimeDetails, baseHourlyRate) {
-    const fees = {};
-    let totalFees = 0;
-
-    for (const [category, hours] of Object.entries(overtimeDetails)) {
-        if (hours > 0 && OVERTIME_RATES[category]) {
-            const rate = OVERTIME_RATES[category];
-            const fee = hours * baseHourlyRate * rate;
-            fees[category] = {
-                hours: parseFloat(hours.toFixed(2)),
-                rate: rate,
-                fee: parseFloat(fee.toFixed(0))
-            };
-            totalFees += fee;
-        }
-    }
-
-    fees.total = parseFloat(totalFees.toFixed(0));
-    return fees;
-}
-
-// ===================================
-// Phase 3: 薪資計算邏輯
-// ===================================
-
-/**
- * 計算月度應發項目（基本薪資、津貼、加班費）
- * @param {Array} monthRecords - 月份的所有日期記錄
- * @param {number} baseHourlyRate - 基礎時薪
- * @param {object} employeeInfo - 員工信息（包含salary、leaveInsurance等）
- * @returns {object} 應發項目詳細信息
- */
-function calculatePayrollIncome(monthRecords, baseHourlyRate, employeeInfo) {
-    const baseSalary = employeeInfo.salary || 0;
-
-    // 計算例假日和國定假日天數
-    let leaveHolidayCount = 0;  // 例假日（周日）
-    let nationalHolidayCount = 0; // 國定假日
-    let totalOvertimeFees = 0;
-
-    // 遍歷月度記錄，計算加班費和假日天數
-    monthRecords.forEach(record => {
-        if (!record || !record.date) return;
-
-        const dateObj = new Date(record.date);
-        const dayOfWeek = dateObj.getDay(); // 0=周日, 6=周六
-
-        // 判斷假日類型
-        if (dayOfWeek === 0 && !record.isHoliday) {
-            // 周日（例假日）
-            leaveHolidayCount++;
-        } else if (record.isHoliday && dayOfWeek !== 6) {
-            // 國定假日（排除周六）
-            nationalHolidayCount++;
-        }
-    });
-
-    // 計算津貼
-    const leaveBonus = (baseSalary / 240) * leaveHolidayCount * 8; // 例假日津貼
-    const holidayBonus = (baseSalary / 240) * nationalHolidayCount * 8; // 國定假日津貼
-
-    // 計算總應發
-    const totalIncome = baseSalary + leaveBonus + holidayBonus + totalOvertimeFees;
-
-    return {
-        baseSalary: parseFloat(baseSalary.toFixed(0)),
-        leaveBonus: parseFloat(leaveBonus.toFixed(0)),
-        holidayBonus: parseFloat(holidayBonus.toFixed(0)),
-        overtimeFees: parseFloat(totalOvertimeFees.toFixed(0)),
-        totalIncome: parseFloat(totalIncome.toFixed(0)),
-        leaveHolidayCount: leaveHolidayCount,
-        nationalHolidayCount: nationalHolidayCount
-    };
-}
-
-/**
- * 計算月度應扣項目（保險費、稅金等）
- * @param {number} totalIncome - 總應發
- * @param {object} employeeInfo - 員工信息
- * @returns {object} 應扣項目詳細信息
- */
-function calculatePayrollDeductions(totalIncome, employeeInfo) {
-    const leaveInsurance = String(employeeInfo.leaveInsurance || "第2級").trim();
-    const healthInsurance = String(employeeInfo.healthInsurance || "第2級").trim();
-    const housingExpense = Number(employeeInfo.housingExpense || 1000);
-
-    // 計算保險費
-    const leaveInsuranceFee = totalIncome * (INSURANCE_RATES["勳保"][leaveInsurance] || 0.0225);
-    const healthInsuranceFee = totalIncome * (INSURANCE_RATES["健保"][healthInsurance] || 0.0130);
-
-    // 計算所得稅（簡化版本：應發 × 6%）
-    const incomeTax = totalIncome * 0.06;
-
-    // 總應扣
-    const totalDeductions = leaveInsuranceFee + healthInsuranceFee + housingExpense + incomeTax;
-
-    return {
-        leaveInsurance: parseFloat(leaveInsuranceFee.toFixed(0)),
-        healthInsurance: parseFloat(healthInsuranceFee.toFixed(0)),
-        housingExpense: parseFloat(housingExpense.toFixed(0)),
-        incomeTax: parseFloat(incomeTax.toFixed(0)),
-        totalDeductions: parseFloat(totalDeductions.toFixed(0))
-    };
-}
-
-/**
- * 生成完整的薪資摘要
- * @param {Array} monthRecords - 月份的所有日期記錄
- * @param {number} baseHourlyRate - 基礎時薪
- * @param {object} employeeInfo - 員工信息
- * @returns {object} 完整的薪資計算結果
- */
-function generatePayrollSummary(monthRecords, baseHourlyRate, employeeInfo) {
-    // 計算應發
-    const income = calculatePayrollIncome(monthRecords, baseHourlyRate, employeeInfo);
-
-    // 計算應扣
-    const deductions = calculatePayrollDeductions(income.totalIncome, employeeInfo);
-
-    // 計算淨額
-    const netAmount = income.totalIncome - deductions.totalDeductions;
-
-    return {
-        income: income,
-        deductions: deductions,
-        netAmount: parseFloat(netAmount.toFixed(0)),
-        payableAmount: parseFloat(netAmount.toFixed(0)) // 實支額
-    };
-}
 
 /**
  * 渲染管理員視圖中，某一天點擊後的打卡紀錄
@@ -762,6 +253,9 @@ function generatePayrollSummary(monthRecords, baseHourlyRate, employeeInfo) {
 async function renderAdminDailyRecords(dateKey, userId) {
     // 確保使用全域變數，而非 document.getElementById
     adminDailyRecordsTitle.textContent = t("DAILY_RECORDS_TITLE", { dateKey: dateKey });
+    if (typeof renderDayKindBadge === 'function') {
+        renderDayKindBadge(adminDailyRecordsTitle, dateKey);
+    }
 
     adminDailyRecordsList.replaceChildren();
     adminDailyRecordsEmpty.style.display = 'none';
@@ -853,8 +347,8 @@ async function renderAdminDailyRecords(dateKey, userId) {
                 const externalInfo = document.createElement('div');
                 externalInfo.className = 'daily-summary mt-4 p-3 bg-gray-100 dark:bg-gray-600 rounded-lg';
 
+                // 薪資顯示已移除（待重新設計），此處只顯示工時
                 let hoursHtml = '';
-                let salaryHtml = '';
                 if (dailyRecord.hours > 0) {
                     hoursHtml = `
                         <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -862,78 +356,6 @@ async function renderAdminDailyRecords(dateKey, userId) {
                             ${dailyRecord.hours} 小時
                         </p>
                     `;
-                    // 計算當日薪資 (使用 currentManagingEmployee.salary，假設已從員工選擇事件中設定)
-                    const monthlySalary = currentManagingEmployee.salary || 30000; // 預設為2025最低月薪，如果無資料
-                    const hourlyRate = (monthlySalary / 240); // 確保是數字進行計算，用於傳遞給底層函式
-
-                    const dateObject = new Date(dailyRecord.date);
-
-                    // 檢查轉換是否成功，避免轉換失敗時繼續執行
-                    if (isNaN(dateObject)) {
-                        console.error(`日期格式錯誤，無法轉換: ${ dailyRecord.date } `);
-                        return; // 跳過此筆紀錄
-                    }
-
-                    const dayOfWeek = dateObject.getDay(); // 0=週日, 6=週六
-
-                    const isNationalHoliday = dailyRecord.isHoliday || false;
-                    const hasHolidayField = Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'isHoliday')
-                        || Object.prototype.hasOwnProperty.call(dailyRecord || {}, 'holiday');
-                    const holidayRawValue = hasHolidayField
-                        ? (dailyRecord?.isHoliday ?? dailyRecord?.holiday)
-                        : undefined;
-                    const isWeekendWorkday = (dayOfWeek === 0 || dayOfWeek === 6)
-                        && hasHolidayField
-                        && isExplicitNonHolidayValue(holidayRawValue);
-
-                    const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
-                    console.log(`計算日期: ${ dailyRecord.date }, dayOfWeek:${ dayOfWeek }, 類型: ${ dayType } `);
-                    const hourlyRateDisplay = hourlyRate.toFixed(2); // 用於顯示
-
-                    // 🚨 關鍵變動：使用新的包裝函式來計算所有細節
-                    const {
-                        dailySalary,
-                        calculation,
-                        effectiveHours,
-                        totalBreakMinutes
-                    } = calculateDailySalaryFromPunches(
-                        dailyRecord.punchInTime,
-                        dailyRecord.punchOutTime,
-                        hourlyRate,
-                        dayType
-                    );
-
-                    const breakHoursDisplay = (totalBreakMinutes / 60).toFixed(2);
-                    const effectiveHoursFixed = effectiveHours.toFixed(2);
-                    const dailySalaryFixed = dailySalary.toFixed(2); // 確保薪資顯示兩位小數
-
-                    if (effectiveHours > 0) {
-                        salaryHtml = `
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                            <span data-i18n="RECORD_SALARY_PREFIX">當日薪資：</span>
-                            <span class="font-bold text-indigo-600 dark:text-indigo-400">${dailySalaryFixed} NTD</span>
-                        </p>
-                        <details class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            <summary>薪資計算細節</summary>
-                            <ul class="list-disc ml-4 mt-1 space-y-0.5">
-                                <li><span data-i18n="HOURLY_RATE_CALCULATED">等效時薪：</span> ${hourlyRateDisplay} NTD/小時</li>
-                                <li><span data-i18n="BREAK_DEDUCTION">休息扣除：</span> ${breakHoursDisplay}h (淨工時 ${effectiveHoursFixed}h)</li>
-                                <li><span data-i18n="SALARY_CALCULATION">日薪計算式：</span> ${calculation}</li>
-                            </ul>
-                        </details>
-                        `;
-                    } else {
-                        // 處理淨工時為 0 但有打卡的情況
-                        salaryHtml = `
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                            <span data-i18n="RECORD_SALARY_PREFIX">當日加班薪資：</span>
-                            0.00 NTD
-                        </p>
-                        <p class="text-xs text-red-400 mt-1 italic">
-                            <span data-i18n="NO_EFFECTIVE_HOURS">淨工時為 0。</span> 休息扣除 ${breakHoursDisplay}h。
-                        </p>
-                        `;
-                    }
                 }
 
                 // ✅ XSS防護：使用 DOMPurify 淨化 HTML
@@ -943,7 +365,6 @@ async function renderAdminDailyRecords(dateKey, userId) {
                             ${t(dailyRecord.reason)}
                         </p>
                         ${hoursHtml}
-                        ${salaryHtml}
                 `;
                 externalInfo.innerHTML = DOMPurify.sanitize(externalInfoHtml);
                 // append 到 adminDailyRecordsList 後面
@@ -996,43 +417,6 @@ function _addWeekdayLabelsToAdminCalendar(year, month) {
         header.appendChild(cell);
     }
 }
-// 日子類型常數 (新增區分 例假日 與 國定假日)
-const DAY_TYPE = {
-    NORMAL: 'NORMAL',         // 平日 (週一至週五)
-    REST_DAY: 'REST_DAY',     // 休息日 (週六)
-    REGULAR_OFF: 'REGULAR_OFF', // 例假日 (週日)
-    HOLIDAY: 'HOLIDAY'         // 國定假日 (特別休假日)
-};
-
-/**
- * 根據星期幾和是否為國定假日，判斷該日子的類型。
- * @param {number} dayOfWeek - 星期幾 (0=日, 6=六)
- * @param {boolean} isNationalHoliday - 是否為國定假日 (來自 holiday map)
- * @param {boolean} isWeekendWorkday - 是否為週末補班日（是否假日=否）
- * @returns {string} - 回傳 DAY_TYPE 中的常數
- */
-function isExplicitNonHolidayValue(value) {
-    if (value === false || value === 0) return true;
-    const normalized = String(value ?? '').trim().toLowerCase();
-    return normalized === 'false' || normalized === '0' || normalized === '否' || normalized === 'no' || normalized === 'n';
-}
-
-function determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday = false) {
-    if (isWeekendWorkday && (dayOfWeek === 0 || dayOfWeek === 6)) {
-        return DAY_TYPE.NORMAL; // 週末補班視為平日
-    }
-    if (dayOfWeek === 0) {
-        return DAY_TYPE.REGULAR_OFF; // 週日 (例假日)
-    }
-    if (dayOfWeek === 6) {
-        return DAY_TYPE.REST_DAY; // 週六 (休息日)
-    }
-    // 只有平日且標記為假日時，才判定為國定假日
-    if (isNationalHoliday) {
-        return DAY_TYPE.HOLIDAY; // 國定假日（平日遇國定假日）
-    }
-    return DAY_TYPE.NORMAL; // 週一到週五 (平日)
-}
 // #endregion
 
 // ===================================
@@ -1071,11 +455,11 @@ async function fetchAndRenderReviewRequests() {
                 renderReviewRequests(pendingRequests);
             }
         } else {
-            showNotification("取得待審核請求失敗：" + res.msg, "error"); // 來自 core.js
+            showNotification(t("MSG_FETCH_REVIEW_FAILED", { msg: res.msg || "" }), "error"); // 來自 core.js
             emptyEl.style.display = 'block';
         }
     } catch (error) {
-        showNotification("取得待審核請求失敗，請檢查網路。", "error");
+        showNotification(t("MSG_FETCH_REVIEW_NETWORK_ERROR"), "error");
         emptyEl.style.display = 'block';
         console.error("Failed to fetch review requests:", error);
     } finally {
@@ -1106,16 +490,21 @@ function renderReviewRequests(requests) {
             detailText = `${ req.name || "（未知）" } - ${ req.remark || "（無原因）" } `;
         }
 
+        const unknownText = t('UNKNOWN') || '（未知）';
+        const labelTimeKey = isLeaveRequest ? 'LABEL_LEAVE_VACATION_TIME' : 'LABEL_REPAIR_TIME';
+        const badgeKey = isLeaveRequest ? 'BADGE_LEAVE_VACATION' : 'BADGE_REPAIR';
+
+        // 將 prefix label 與 badge 用 data-i18n 包起，讓切換語言後 renderTranslations 自動更新
         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
         const requestItemHtml = `
         <div class="flex flex-col space-y-1">
             <div class="flex items-center justify-between w-full">
                 <div>
                     <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">申請時間: ${req.applicationTime || "（未知）"}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}: ${req.targetTime || "（未知）"}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="LABEL_APPLICATION_TIME">申請時間</span>：${req.applicationTime || unknownText}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="${labelTimeKey}">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}</span>：${req.targetTime || unknownText}</p>
                 </div>
-                <span class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
+                <span data-i18n="${badgeKey}" class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
             </div>
         </div>
 
@@ -1167,8 +556,8 @@ async function handleReviewAction(button, index, action) {
     const loadingText = t('LOADING') || '處理中...';
 
     // 🌟 修正點 (問題8.6)：添加確認對話框
-    const actionText = action === 'approve' ? '核准' : '拒絕';
-    const confirmMsg = `確定要${ actionText } 此項申請嗎？`;
+    const actionText = t(action === 'approve' ? 'ACTION_APPROVE' : 'ACTION_REJECT');
+    const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
     const confirmed = await showConfirmDialog(confirmMsg);
 
     if (!confirmed) {
@@ -1218,27 +607,12 @@ async function loadEmployeeList() {
             const employees = data.employeesList;
             allEmployeeList = employees; // 儲存員工列表 (來自 state.js)
 
-            // 清空並填充下拉菜單 (使用全域變數)
-            // ✅ XSS防護：使用 DOM API 代替 innerHTML
-            adminSelectEmployee.replaceChildren();
-            const option0 = document.createElement('option');
-            option0.value = '';
-            option0.textContent = '-- 請選擇一位員工 --';
-            adminSelectEmployee.appendChild(option0);
-
-            employees.forEach(employee => {
-                const option = document.createElement('option');
-                option.value = employee.userId;
-                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)`;
-                adminSelectEmployee.appendChild(option);
-            });
-
-            // 清空並填充下拉菜單 (使用全域變數)
+            // Phase 1：合併員工選擇器，只填充唯一的 mgmt select
             // ✅ XSS防護：使用 DOM API 代替 innerHTML
             adminSelectEmployeeMgmt.replaceChildren();
             const mgmtOption0 = document.createElement('option');
             mgmtOption0.value = '';
-            mgmtOption0.textContent = '-- 請選擇一位員工 --';
+            mgmtOption0.textContent = t('OPT_SELECT_EMPLOYEE') || '-- 請選擇一位員工 --';
             adminSelectEmployeeMgmt.appendChild(mgmtOption0);
 
             employees.forEach(employee => {
@@ -1290,34 +664,63 @@ function setupRequestToggle() {
  * 統一管理員頁面事件的綁定
  */
 function initAdminEvents() {
-    // 1. 處理員工選擇事件
-    adminSelectEmployee.addEventListener('change', async (e) => {
-
-        adminSelectedUserId = e.target.value; // 來自 state.js
-        currentManagingEmployee = allEmployeeList.find(emp => emp.userId === adminSelectedUserId);;
-
-        if (adminSelectedUserId) {
-            adminEmployeeCalendarCard.style.display = 'block';
-            await renderAdminCalendar(adminSelectedUserId, adminCurrentDate); // 來自 state.js
-        } else {
-            adminEmployeeCalendarCard.style.display = 'none';
-        }
-    });
-
-    // 1. 處理員工選擇事件
+    // Phase 1：合併員工選擇器
+    // 一個 select 觸發：員工資料設定卡 + 員工日曆卡 + 後續所有 dashboard 卡
     adminSelectEmployeeMgmt.addEventListener('change', async (e) => {
         const selectedUserId = e.target.value;
         const employee = allEmployeeList.find(emp => emp.userId === selectedUserId);
+
+        // 全域 state（給其他模組用）
+        adminSelectedUserId = selectedUserId || null;
+        currentManagingEmployee = employee || null;
+
+        // 同步顯示／隱藏員工日曆卡（原本在獨立 handler 內）
+        if (selectedUserId) {
+            // Phase L2：預熱公司休息時段 cache（fire-and-forget；後續 enrich 取 getCachedBreakTimes()）
+            loadBreakTimes().catch((err) => console.error('預熱 breakTimes cache 失敗：', err));
+
+            adminEmployeeCalendarCard.style.display = 'block';
+            renderAdminCalendar(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderAdminCalendar 失敗：', err)
+            );
+            // Phase 3：載入並計算當月 KPI
+            renderEmployeeKpi(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderEmployeeKpi 失敗：', err)
+            );
+            // Phase 4：載入該員工申請紀錄（預設「待審核」tab）
+            renderEmployeeRequestHistory(selectedUserId, '?').catch((err) =>
+                console.error('renderEmployeeRequestHistory 失敗：', err)
+            );
+            // Phase 5：連續上工 + 請假統計
+            renderEmployeeStreakAndLeaveStats(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderEmployeeStreakAndLeaveStats 失敗：', err)
+            );
+            // Phase 6：本月打卡紀錄表格
+            renderEmployeePunchTable(selectedUserId, adminCurrentDate).catch((err) =>
+                console.error('renderEmployeePunchTable 失敗：', err)
+            );
+        } else {
+            adminEmployeeCalendarCard.style.display = 'none';
+            renderEmployeeKpi(null);
+            renderEmployeeRequestHistory(null);
+            renderEmployeeStreakAndLeaveStats(null);
+            renderEmployeePunchTable(null);
+        }
+
         if (employee) {
             // 修正屬性名稱：src 和您的資料屬性
             mgmtEmployeeName.textContent = employee.name;
             //mgmtEmployeeId.textContent = employee.userId;
             const joinTimeSource = employee.firstLoginTime;
-            let seniorityText = 'N/A';
-            let joinDateText = 'N/A';
+            const naText = t('VALUE_NA') || 'N/A';
+            let seniorityText = naText;
+            let joinDateText = naText;
 
-            if (joinTimeSource) {
-                const joinDate = new Date(joinTimeSource);
+            // 防 Invalid Date：缺值或解析失敗均顯示 N/A，不嘗試 toLocaleDateString
+            const joinDate = joinTimeSource ? new Date(joinTimeSource) : null;
+            const hasValidJoinDate = joinDate && !isNaN(joinDate.getTime());
+
+            if (hasValidJoinDate) {
                 // 假設 currentLang 已經定義 (在 state.js 中)
                 const formattedDate = joinDate.toLocaleDateString(currentLang, {
                     year: 'numeric',
@@ -1352,7 +755,7 @@ function initAdminEvents() {
                 if (years > 0) seniorityText += `${ years } ${ t("YEAR") || '年' } `;
                 // 只有當月份 > 0 或者總年資不到一年時才顯示月份
                 if (months > 0 || (years === 0 && months === 0)) seniorityText += `${ months } ${ t("MONTH") || '個月' } `;
-                seniorityText = seniorityText.trim() || 'N/A';
+                seniorityText = seniorityText.trim() || naText;
             }
 
             // P2-3 優化：動態生成 Info Items
@@ -1393,23 +796,23 @@ function initAdminEvents() {
             }
 
             mgmtEmployeeAvatar.src = employee.picture || '預設頭像 URL';
-            salaryValueSpan.innerText = employee.salary || 60;
-            basicSalaryInput.value = employee.salary || 0;
+            // 薪資 UI 已移除，待重新設計後重建
 
             // P2-3 優化：動態生成 Toggle 設定項
             const settingsContainer = document.getElementById('employee-settings-container');
             if (settingsContainer) {
                 settingsContainer.replaceChildren();
 
-                // 管理員權限 Toggle
+                // 管理員權限 Toggle（修：用 isAdmin 取代 position）
+                const isCurrentlyAdmin = employee.isAdmin === true || employee.dept === "管理員";
                 const adminToggle = UIComponentGenerator.createToggleSetting({
                     id: 'toggle-admin',
                     label: t('IS_ADMIN') || '管理員權限',
-                    checked: employee.position === "管理員",
+                    checked: isCurrentlyAdmin,
                     colorScheme: 'yellow',
                     statusText: { on: '啟用', off: '關閉' },
                     i18nKey: 'IS_ADMIN',
-                    onchange: (e) => toggleAdminStatus(currentManagingEmployee.userId, e.target.checked)
+                    onchange: (e) => toggleAdminStatus(currentManagingEmployee.userId, e.target.checked, e.target)
                 });
                 settingsContainer.appendChild(adminToggle);
 
@@ -1421,7 +824,7 @@ function initAdminEvents() {
                     colorScheme: 'green',
                     statusText: { on: '啟用', off: '關閉' },
                     i18nKey: 'ACCOUNT_STATUS',
-                    onchange: (e) => toggleAccountStatus(currentManagingEmployee.userId, e.target.checked)
+                    onchange: (e) => toggleAccountStatus(currentManagingEmployee.userId, e.target.checked, e.target)
                 });
                 settingsContainer.appendChild(activeToggle);
 
@@ -1432,11 +835,17 @@ function initAdminEvents() {
 
             employeeDetailCard.style.display = 'block';
             mgmtPlaceholder.style.display = 'none';
+
+            // Phase L7：填薪資設定表單
+            _fillSalaryProfileForm(employee);
         } else {
             // 處理未選擇或找不到的情況
             employeeDetailCard.style.display = 'none';
             mgmtPlaceholder.style.display = 'block';
         }
+
+        // Phase L0：跨 tab 共用員工選擇 → 同步顯示員工設定內容
+        syncEmployeeSettingsVisibility();
     });
 
     // 2. 處理月份切換事件
@@ -1444,6 +853,9 @@ function initAdminEvents() {
         adminCurrentDate.setMonth(adminCurrentDate.getMonth() - 1);
         if (adminSelectedUserId) {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
+            renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeeStreakAndLeaveStats(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeePunchTable(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -1451,6 +863,9 @@ function initAdminEvents() {
         adminCurrentDate.setMonth(adminCurrentDate.getMonth() + 1);
         if (adminSelectedUserId) {
             renderAdminCalendar(adminSelectedUserId, adminCurrentDate);
+            renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeeStreakAndLeaveStats(adminSelectedUserId, adminCurrentDate).catch(console.error);
+            renderEmployeePunchTable(adminSelectedUserId, adminCurrentDate).catch(console.error);
         }
     });
 
@@ -1502,12 +917,12 @@ function initAdminEvents() {
         const lng = locationLngInput.value;
 
         if (!name || !lat || !lng) {
-            showNotification("請填寫所有欄位並取得位置", "error");
+            showNotification(t("MSG_FILL_FIELDS_AND_LOCATION"), "error");
             return;
         }
 
         // 🌟 修正點 (問題8.6)：添加確認對話框
-        const confirmMsg = `確定要新增地點 "${name}" 嗎？`;
+        const confirmMsg = t('CONFIRM_ADD_LOCATION', { name: name });
         const confirmed = await showConfirmDialog(confirmMsg);
 
         if (!confirmed) {
@@ -1522,7 +937,7 @@ function initAdminEvents() {
                 lng: encodeURIComponent(lng)
             });
             if (res.ok) {
-                showNotification("地點新增成功！", "success");
+                showNotification(t("MSG_LOCATION_ADDED"), "success");
                 // 清空輸入欄位
                 locationName.value = ''; // 假設您有宣告 locationName
                 locationLatInput.value = '';
@@ -1532,7 +947,7 @@ function initAdminEvents() {
                 getLocationBtn.disabled = false;
                 addLocationBtn.disabled = true;
             } else {
-                showNotification("新增地點失敗：" + res.msg, "error");
+                showNotification(t("MSG_ADD_LOCATION_FAILED", { msg: res.msg || "" }), "error");
             }
         } catch (err) {
             console.error(err);
@@ -1540,8 +955,392 @@ function initAdminEvents() {
     });
 
     // 註冊月薪收折與匯出功能（確保 DOM 元素已存在）
-    setupAdminSalaryToggle && setupAdminSalaryToggle();
     setupAdminExport();
+    setupTestNotificationButton();
+    setupBreakTimesEditor();
+    // Phase L0：員工設定 sub-tab 切換
+    setupEmployeeSettingTabs();
+    // Phase L5 add-on：勞基法工時詳細「計算說明」彈窗
+    setupKpiLaborHelpModal();
+    // Phase L7：員工薪資設定表單事件
+    setupSalaryProfileForm();
+    // Phase M3：詳細薪資 Excel 匯出
+    setupDetailedPayrollExport();
+}
+
+// ===================================
+// #region 員工帳號狀態：管理員權限 / 帳號啟用 toggle
+// ===================================
+
+/**
+ * 通用 toggle handler：呼叫 setEmployeeStatus，失敗時 rollback checkbox
+ * @param {string} userId
+ * @param {'isAdmin'|'active'} field
+ * @param {boolean} value 新值
+ * @param {HTMLInputElement} checkbox 來源 checkbox（用於 rollback 與暫時 disable）
+ * @param {object} updates 成功後要套回 currentManagingEmployee 的 patch
+ */
+async function _setEmployeeStatusField(userId, field, value, checkbox, updates) {
+    if (!userId) {
+        if (checkbox) checkbox.checked = !value;
+        return;
+    }
+    if (checkbox) checkbox.disabled = true;
+    try {
+        const res = await callApifetch({
+            action: 'setEmployeeStatus',
+            userId,
+            field,
+            value,
+        });
+        if (res && res.ok) {
+            // 同步本地 state（避免下次切員工時顯示舊值）
+            if (currentManagingEmployee && currentManagingEmployee.userId === userId) {
+                Object.assign(currentManagingEmployee, updates);
+            }
+            const emp = (allEmployeeList || []).find((e) => e && e.userId === userId);
+            if (emp) Object.assign(emp, updates);
+            showNotification(t('MSG_EMPLOYEE_STATUS_UPDATED') || '更新成功', 'success');
+        } else {
+            const code = res?.code || 'UNKNOWN_ERROR';
+            showNotification(t(code) || res?.msg || '更新失敗', 'error');
+            if (checkbox) checkbox.checked = !value; // rollback
+        }
+    } catch (err) {
+        console.error('setEmployeeStatus 失敗：', err);
+        showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+        if (checkbox) checkbox.checked = !value; // rollback
+    } finally {
+        if (checkbox) checkbox.disabled = false;
+    }
+}
+
+/**
+ * 切換管理員權限
+ */
+async function toggleAdminStatus(userId, value, checkbox) {
+    return _setEmployeeStatusField(userId, 'isAdmin', value, checkbox, {
+        isAdmin: value,
+        dept: value ? '管理員' : '一般員工',
+    });
+}
+
+/**
+ * 切換帳號啟用狀態
+ */
+async function toggleAccountStatus(userId, value, checkbox) {
+    return _setEmployeeStatusField(userId, 'active', value, checkbox, {
+        status: value ? '啟用' : '停用',
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.toggleAdminStatus = toggleAdminStatus;
+    window.toggleAccountStatus = toggleAccountStatus;
+}
+
+// #endregion
+// ===================================
+
+// ===================================
+// #region Phase L7：員工薪資與勞保設定
+// ===================================
+
+const MIN_MONTHLY_WAGE_2026 = 28590;
+const MIN_HOURLY_WAGE_2026 = 190;
+
+/**
+ * 切換薪資制度顯示（monthly / hourly）
+ */
+function _setSalaryTypeUI(type) {
+    const monthlyBlock = document.getElementById('salary-monthly-block');
+    const hourlyBlock = document.getElementById('salary-hourly-block');
+    if (!monthlyBlock || !hourlyBlock) return;
+    if (type === 'hourly') {
+        monthlyBlock.style.display = 'none';
+        hourlyBlock.style.display = 'block';
+    } else {
+        monthlyBlock.style.display = 'block';
+        hourlyBlock.style.display = 'none';
+    }
+}
+
+/**
+ * 用 LABOR_INSURANCE_GRADES 填等級下拉
+ */
+function _populateGradeOptions() {
+    const sel = document.getElementById('salary-grade-select');
+    if (!sel || sel.options.length > 1) return; // 已填過跳過
+    if (!Array.isArray(window.LABOR_INSURANCE_GRADES)) return;
+    window.LABOR_INSURANCE_GRADES.forEach((g) => {
+        const opt = document.createElement('option');
+        opt.value = String(g.grade);
+        opt.textContent = `第 ${g.grade} 級 (${g.salary.toLocaleString()})`;
+        sel.appendChild(opt);
+    });
+}
+
+/**
+ * 即時換算：月薪 → 時薪、警告基本工資、扣繳預覽
+ */
+function _refreshSalaryPreview() {
+    const isMonthly = document.getElementById('salary-type-monthly')?.checked;
+    const monthlyInput = document.getElementById('salary-monthly-input');
+    const hourlyInput = document.getElementById('salary-hourly-input');
+    const gradeSel = document.getElementById('salary-grade-select');
+    const autoChk = document.getElementById('salary-grade-auto');
+    const pensionOn = document.getElementById('salary-pension-on');
+    const pensionRateInput = document.getElementById('salary-pension-rate');
+    const previewLaborEl = document.getElementById('salary-preview-labor');
+    const previewHealthEl = document.getElementById('salary-preview-health');
+    const previewPensionEl = document.getElementById('salary-preview-pension');
+    const previewTotalEl = document.getElementById('salary-preview-total');
+    const previewHourlyEl = document.getElementById('salary-hourly-preview');
+    const minWageWarn = document.getElementById('salary-min-wage-warn');
+
+    // 月薪 → 時薪換算
+    let monthlyVal = 0;
+    if (isMonthly && monthlyInput) {
+        monthlyVal = Number(monthlyInput.value) || 0;
+        const hourly = (typeof window.monthlyToHourly === 'function')
+            ? window.monthlyToHourly(monthlyVal)
+            : Math.round(monthlyVal / 240);
+        if (previewHourlyEl) previewHourlyEl.textContent = hourly > 0 ? `${hourly} 元/小時` : '--';
+        if (minWageWarn) {
+            minWageWarn.style.display = (monthlyVal > 0 && monthlyVal < MIN_MONTHLY_WAGE_2026) ? 'block' : 'none';
+        }
+    }
+
+    // 自動推算等級
+    if (isMonthly && autoChk?.checked && monthlyVal > 0 && typeof window.inferGradeFromSalary === 'function') {
+        const inferred = window.inferGradeFromSalary(monthlyVal);
+        if (inferred && gradeSel) {
+            gradeSel.value = String(inferred.grade);
+            gradeSel.disabled = true;
+        }
+    } else if (gradeSel) {
+        gradeSel.disabled = false;
+    }
+
+    // 扣繳預覽（依當前選擇等級的投保薪資）
+    const gradeVal = Number(gradeSel?.value) || 0;
+    const gradeObj = (window.LABOR_INSURANCE_GRADES || []).find((g) => g.grade === gradeVal);
+    const insuredSalary = gradeObj ? gradeObj.salary : 0;
+    const pensionRate = pensionOn?.checked ? (Number(pensionRateInput?.value) || 0) : 0;
+
+    if (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function') {
+        const ded = window.calcEmployeeDeductions(insuredSalary, pensionRate);
+        if (previewLaborEl) previewLaborEl.textContent = ded.labor.toLocaleString();
+        if (previewHealthEl) previewHealthEl.textContent = ded.health.toLocaleString();
+        if (previewPensionEl) previewPensionEl.textContent = ded.pension.toLocaleString();
+        if (previewTotalEl) previewTotalEl.textContent = ded.total.toLocaleString();
+    } else {
+        [previewLaborEl, previewHealthEl, previewPensionEl, previewTotalEl].forEach((el) => {
+            if (el) el.textContent = '--';
+        });
+    }
+
+    // 啟停勞退率輸入
+    if (pensionRateInput) pensionRateInput.disabled = !pensionOn?.checked;
+}
+
+/**
+ * 點員工 → 把該員工的 salary profile 填入 form
+ */
+function _fillSalaryProfileForm(employee) {
+    if (!employee) return;
+    _populateGradeOptions();
+
+    const type = employee.salaryType || 'monthly';
+    const monthlyInput = document.getElementById('salary-type-monthly');
+    const hourlyInput = document.getElementById('salary-type-hourly');
+    if (monthlyInput) monthlyInput.checked = (type === 'monthly');
+    if (hourlyInput) hourlyInput.checked = (type === 'hourly');
+    _setSalaryTypeUI(type);
+
+    const monthlyEl = document.getElementById('salary-monthly-input');
+    const hourlyEl = document.getElementById('salary-hourly-input');
+    if (monthlyEl) monthlyEl.value = employee.monthlySalary || '';
+    if (hourlyEl) hourlyEl.value = employee.hourlyRate || '';
+
+    const gradeSel = document.getElementById('salary-grade-select');
+    if (gradeSel) gradeSel.value = employee.laborInsuranceGrade != null ? String(employee.laborInsuranceGrade) : '';
+
+    const autoChk = document.getElementById('salary-grade-auto');
+    if (autoChk) autoChk.checked = false; // 預設不自動
+
+    const pensionOn = document.getElementById('salary-pension-on');
+    if (pensionOn) pensionOn.checked = employee.hasLaborPension !== false;
+
+    const pensionRate = document.getElementById('salary-pension-rate');
+    if (pensionRate) pensionRate.value = employee.laborPensionRate || 0;
+
+    _refreshSalaryPreview();
+}
+
+/**
+ * 表單提交：呼叫 setEmployeeSalaryProfile
+ */
+async function handleSalaryProfileSubmit(e) {
+    e.preventDefault();
+    if (!adminSelectedUserId) {
+        showNotification(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT') || '請先選擇員工', 'error');
+        return false;
+    }
+    const isMonthly = document.getElementById('salary-type-monthly')?.checked;
+    const monthly = Number(document.getElementById('salary-monthly-input')?.value) || 0;
+    if (isMonthly && monthly > 0 && monthly < MIN_MONTHLY_WAGE_2026) {
+        showNotification(t('LABOR_BELOW_MIN_WAGE'), 'error');
+        return false;
+    }
+
+    const payload = {
+        action: 'setEmployeeSalaryProfile',
+        userId: adminSelectedUserId,
+        salaryType: isMonthly ? 'monthly' : 'hourly',
+        monthlySalary: monthly,
+        hourlyRate: Number(document.getElementById('salary-hourly-input')?.value) || 0,
+        hasLaborPension: !!document.getElementById('salary-pension-on')?.checked,
+        laborPensionRate: Number(document.getElementById('salary-pension-rate')?.value) || 0,
+    };
+    const gradeVal = Number(document.getElementById('salary-grade-select')?.value);
+    if (gradeVal >= 1 && gradeVal <= 23) payload.laborInsuranceGrade = gradeVal;
+
+    const submitBtn = document.getElementById('salary-submit-btn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = t('LOADING') || '處理中...';
+    }
+    try {
+        const res = await callApifetch(payload);
+        if (res && res.ok) {
+            showNotification(t('MSG_SALARY_SAVED') || '薪資設定已儲存', 'success');
+            // 同步更新 currentManagingEmployee（之後切員工再切回來會看到新值）
+            if (currentManagingEmployee) {
+                Object.assign(currentManagingEmployee, {
+                    salaryType: payload.salaryType,
+                    monthlySalary: payload.monthlySalary,
+                    hourlyRate: payload.hourlyRate,
+                    laborInsuranceGrade: payload.laborInsuranceGrade ?? currentManagingEmployee.laborInsuranceGrade,
+                    hasLaborPension: payload.hasLaborPension,
+                    laborPensionRate: payload.laborPensionRate,
+                });
+            }
+            // 重 render KPI（會顯示新的估算月薪）
+            renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
+        } else {
+            const code = res?.code || 'UNKNOWN_ERROR';
+            showNotification(t(code) || res?.msg || '儲存失敗', 'error');
+        }
+    } catch (err) {
+        console.error('handleSalaryProfileSubmit 失敗：', err);
+        showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = t('BTN_SAVE_SALARY') || '儲存薪資設定';
+        }
+    }
+    return false;
+}
+
+/**
+ * 綁 form 內各輸入的 input/change 事件 → 即時換算
+ */
+function setupSalaryProfileForm() {
+    const form = document.getElementById('form-salary-profile');
+    if (!form || form.dataset.bound === '1') return;
+    form.dataset.bound = '1';
+
+    _populateGradeOptions();
+
+    const fields = [
+        'salary-type-monthly', 'salary-type-hourly',
+        'salary-monthly-input', 'salary-hourly-input',
+        'salary-grade-select', 'salary-grade-auto',
+        'salary-pension-on', 'salary-pension-rate',
+    ];
+    fields.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const evt = (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio'))
+            ? 'change'
+            : (el.tagName === 'SELECT' ? 'change' : 'input');
+        el.addEventListener(evt, () => {
+            if (id === 'salary-type-monthly' || id === 'salary-type-hourly') {
+                _setSalaryTypeUI(document.getElementById('salary-type-monthly')?.checked ? 'monthly' : 'hourly');
+            }
+            _refreshSalaryPreview();
+        });
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.handleSalaryProfileSubmit = handleSalaryProfileSubmit;
+    window.setupSalaryProfileForm = setupSalaryProfileForm;
+}
+
+// #endregion
+// ===================================
+
+/**
+ * Phase L5 add-on：勞基法工時詳細的「計算說明」modal
+ *  - 點 summary 內 ❓ 按鈕 → 不觸發 details toggle，彈出 modal
+ *  - 點背景 / 關閉鈕 / ESC → 關閉
+ *  - 內容多段落，從 i18n 取（含計算公式）
+ */
+function setupKpiLaborHelpModal() {
+    const helpBtn = document.getElementById('kpi-labor-help-btn');
+    const modal = document.getElementById('kpi-labor-help-modal');
+    const closeBtn = document.getElementById('kpi-labor-help-close-btn');
+    const okBtn = document.getElementById('kpi-labor-help-ok-btn');
+    const body = document.getElementById('kpi-labor-help-body');
+    if (!helpBtn || !modal || !closeBtn || !okBtn || !body) return;
+
+    // 計算說明內容用一個 i18n key 帶 markdown-like 區段，
+    // 由 JS 渲染為段落。維持 i18n 友善（單 key 多行）。
+    const sections = [
+        { titleKey: 'LABOR_HELP_RULE_DAYKIND', bodyKey: 'LABOR_HELP_RULE_DAYKIND_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_NET',     bodyKey: 'LABOR_HELP_RULE_NET_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_PLAIN',   bodyKey: 'LABOR_HELP_RULE_PLAIN_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_REST',    bodyKey: 'LABOR_HELP_RULE_REST_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_PUBLIC',  bodyKey: 'LABOR_HELP_RULE_PUBLIC_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_REGULAR', bodyKey: 'LABOR_HELP_RULE_REGULAR_BODY' },
+        { titleKey: 'LABOR_HELP_RULE_EQUIV',   bodyKey: 'LABOR_HELP_RULE_EQUIV_BODY' },
+    ];
+
+    const renderBody = () => {
+        body.innerHTML = sections.map((s) => `
+            <div>
+                <h4 class="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-1"
+                    data-i18n="${s.titleKey}">${t(s.titleKey)}</h4>
+                <p class="text-xs sm:text-sm" style="white-space: pre-line;"
+                    data-i18n="${s.bodyKey}">${t(s.bodyKey)}</p>
+            </div>
+        `).join('');
+        renderTranslations(body);
+    };
+
+    const open = () => {
+        renderBody();
+        modal.style.display = 'flex';
+    };
+    const close = () => { modal.style.display = 'none'; };
+
+    helpBtn.addEventListener('click', (e) => {
+        // 阻止 details toggle（summary 內按鈕點擊會冒泡觸發 details 開關）
+        e.preventDefault();
+        e.stopPropagation();
+        open();
+    });
+    closeBtn.addEventListener('click', close);
+    okBtn.addEventListener('click', close);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) close();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') close();
+    });
 }
 
 /**
@@ -1584,13 +1383,13 @@ document.getElementById('test-api-btn').addEventListener('click', async () => {
     try {
         const res = await callApifetch({ action: testAction });
         if (res && res.ok) {
-            showNotification("API 測試成功！回應：" + JSON.stringify(res), "success");
+            showNotification(t("MSG_API_TEST_SUCCESS", { response: JSON.stringify(res) }), "success");
         } else {
-            showNotification("API 測試失敗：" + (res ? res.msg : "無回應資料"), "error");
+            showNotification(t("MSG_API_TEST_FAILED", { msg: (res && res.msg) || "" }), "error");
         }
     } catch (error) {
         console.error("API 呼叫發生錯誤:", error);
-        showNotification("API 呼叫失敗，請檢查網路連線或後端服務。", "error");
+        showNotification(t("MSG_API_CALL_FAILED"), "error");
     }
 });
 // #endregion
@@ -1605,8 +1404,20 @@ document.getElementById('test-api-btn').addEventListener('click', async () => {
  */
 
 const switchAdminSubTab = (subTabId) => {
-    const subTabs = ['employee-mgmt-view', 'punch-mgmt-view', 'form-review-view', 'scheduling-view'];
-    const subBtns = ['tab-employee-mgmt-btn', 'tab-punch-mgmt-btn', 'tab-form-review-btn', 'tab-scheduling-btn'];
+    const subTabs = [
+        'employee-mgmt-view',
+        'employee-settings-view',
+        'punch-mgmt-view',
+        'form-review-view',
+        'scheduling-view'
+    ];
+    const subBtns = [
+        'tab-employee-mgmt-btn',
+        'tab-employee-settings-btn',
+        'tab-punch-mgmt-btn',
+        'tab-form-review-btn',
+        'tab-scheduling-btn'
+    ];
 
     // 1. 移除所有子頁籤內容的顯示
     subTabs.forEach(id => {
@@ -1637,360 +1448,76 @@ const switchAdminSubTab = (subTabId) => {
         newBtnElement.classList.replace('text-gray-600', 'text-white');
     }
 
-    // 5. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
+    // 5. 員工選擇器只與「員工報表 / 員工設定」相關，其他 tab 隱藏
+    const selectorCard = document.getElementById('admin-employee-selector-card');
+    if (selectorCard) {
+        const needSelector = (subTabId === 'employee-mgmt-view' || subTabId === 'employee-settings-view');
+        selectorCard.style.display = needSelector ? 'block' : 'none';
+    }
+
+    // 6. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
     console.log(`切換到管理員子頁籤: ${ subTabId } `);
     if (subTabId === 'review-requests') {
         fetchAndRenderReviewRequests(); // 載入表單
-    } else if (subTabId === 'manage-Punch') {
-        // renderLocationManagement(); // 待實現
-        console.log('載入打卡管理介面...');
-    } else if (subTabId === 'manage-users') {
-        // renderUserManagement(); // 待實現
-        console.log('載入員工帳號管理介面...');
+    } else if (subTabId === 'employee-settings-view') {
+        // 切到員工設定 tab：依當前選擇狀態同步顯示
+        syncEmployeeSettingsVisibility();
     }
 };
+
+/**
+ * Phase L0：依目前選擇的員工，同步顯示「員工設定」內容或空狀態
+ */
+function syncEmployeeSettingsVisibility() {
+    const content = document.getElementById('employee-settings-content');
+    const empty = document.getElementById('employee-settings-empty');
+    if (!content || !empty) return;
+    if (adminSelectedUserId) {
+        content.style.display = 'block';
+        empty.style.display = 'none';
+    } else {
+        content.style.display = 'none';
+        empty.style.display = 'block';
+    }
+}
+
+/**
+ * Phase L0：員工設定 sub-tab 切換（帳號權限 / 打卡政策 / 薪資與勞保）
+ */
+function setupEmployeeSettingTabs() {
+    const tabs = document.querySelectorAll('#employee-settings-content .emp-setting-tab');
+    if (!tabs.length) return;
+    const panels = document.querySelectorAll('#employee-settings-content .emp-setting-panel');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.panel;
+            // 切換 active 狀態
+            tabs.forEach(t => {
+                t.classList.remove('active');
+                t.classList.replace('bg-indigo-600', 'bg-gray-200');
+                t.classList.replace('text-white', 'text-gray-600');
+            });
+            tab.classList.add('active');
+            tab.classList.replace('bg-gray-200', 'bg-indigo-600');
+            tab.classList.replace('text-gray-600', 'text-white');
+            // 切換 panel 顯示
+            panels.forEach(p => {
+                if (p.dataset.panel === target) {
+                    p.removeAttribute('hidden');
+                } else {
+                    p.setAttribute('hidden', '');
+                }
+            });
+        });
+    });
+}
 // #endregion
 // ===================================
 
 // ===================================
-// #region 6. 管理員月薪摘要收折邏輯
+// #region 6. 管理員 Excel 匯出（完整打卡紀錄）
 // ===================================
-/**
- * 設置管理員月薪摘要的收合/展開功能。
- */
-function setupAdminSalaryToggle() {
-    const btn = document.getElementById('toggle-admin-salary-btn');
-    const panel = document.getElementById('admin-monthly-salary-display');
-    if (!btn || !panel) return;
-
-    // 初始化狀態（預設收折）
-    panel.style.display = 'none';
-    btn.setAttribute('aria-expanded', 'false');
-    btn.textContent = '顯示月薪摘要 ▼';
-
-    btn.addEventListener('click', () => {
-        const isHidden = panel.style.display === 'none' || panel.style.display === '';
-        panel.style.display = isHidden ? 'block' : 'none';
-        btn.setAttribute('aria-expanded', String(isHidden));
-        btn.textContent = isHidden ? '隱藏月薪摘要 ▲' : '顯示月薪摘要 ▼';
-    });
-}
-/**
- * 設置管理員匯出月曆為 Excel 的功能
- */
-/**
- * 生成薪資明細表 Sheet 的數據行
- * @param {Array} summaryRows - 日摘要的行數據
- * @param {number} baseMonthly - 基本月薪
- * @param {number} hourlyRate - 時薪
- * @param {object} employeeInfo - 員工信息
- * @param {string} year - 年度
- * @param {string} month - 月份
- * @returns {Array} 薪資明細表的所有行數據
- */
-function generatePayrollSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo, year, month) {
-    const sheetRows = [];
-
-    // 第一部分：員工基本信息
-    sheetRows.push(['', employeeInfo?.name || '']);
-    sheetRows.push([year + '年', '', '', '']);
-    sheetRows.push([month + '月', '', '', '']);
-    sheetRows.push(['本薪', baseMonthly, '', '']);
-
-    // 空行分隔
-    sheetRows.push([]);
-
-    // 第二部分：日期明細區
-    // 🔧 更新：新的 summaryRows 結構包含22列（增加日期類型和9種加班分類）
-    // [日期, 星期, 日期類型, 上班時間, 上班地點, 下班時間, 下班地點,
-    //  原始時數, 淨工時, 休息扣除, 正常工時,
-    //  平日2H以內, 平日3~4H以上, 休息日2H以內, 休息日3~8H, 休息日9H以上,
-    //  例假日8H以內, 例假日8H以上, 國定假日9~10H, 國定假日11~12H以上,
-    //  日薪, 備註]
-    sheetRows.push(['例', '日', '年月日', '上班', '下班', '', '加班時數']);
-
-    // 遍歷summaryRows，添加日期明細（跳過標題行）
-    // 新增：收集各類加班時數用於計算加班費
-    const overtimeByCategory = {
-        '平日2H以內': { hours: 0, rate: 1.34 },
-        '平日3~4H以上': { hours: 0, rate: 1.67 },
-        '休息日2H以內': { hours: 0, rate: 1.34 },
-        '休息日3~8H': { hours: 0, rate: 1.67 },
-        '休息日9H以上': { hours: 0, rate: 2.67 },
-        '例假日8H以內': { hours: 0, rate: 1.0 },
-        '例假日8H以上': { hours: 0, rate: 2.0 },
-        '國定假日9~10H': { hours: 0, rate: 1.34 },
-        '國定假日11~12H以上': { hours: 0, rate: 1.67 }
-    };
-
-    summaryRows.slice(1).forEach(row => {
-        if (row.length === 0 || !row[0]) return; // 跳過空行和沒有日期的行
-
-        const dateStr = row[0]; // 日期 (YYYY-MM-DD)
-        const weekday = row[1]; // 星期
-        const dateType = row[2]; // 日期類型
-        const inTime = row[3]; // 上班時間
-        const outTime = row[5]; // 下班時間
-
-        // 確保使用正確的時間格式（保持為字符串，直接來自summaryRows，避免Date解析時區問題）
-        const inTimeStr = typeof inTime === 'string' ? inTime : (inTime ? String(inTime) : '');
-        const outTimeStr = typeof outTime === 'string' ? outTime : (outTime ? String(outTime) : '');
-
-        // 只添加有打卡記錄的日期
-        if (inTimeStr || outTimeStr) {
-            sheetRows.push([
-                dateType || '',  // 例休
-                weekday,         // 日期星期
-                dateStr,         // 日期
-                inTimeStr,       // 上班時間
-                outTimeStr,      // 下班時間
-                '',              // 空
-                ''               // 加班時數（這裡不再使用簡單的總數）
-            ]);
-        }
-
-        // 🔧 新增：收集各類加班時數
-        if (row.length >= 20) {
-            overtimeByCategory['平日2H以內'].hours += Number(row[11] || 0);
-            overtimeByCategory['平日3~4H以上'].hours += Number(row[12] || 0);
-            overtimeByCategory['休息日2H以內'].hours += Number(row[13] || 0);
-            overtimeByCategory['休息日3~8H'].hours += Number(row[14] || 0);
-            overtimeByCategory['休息日9H以上'].hours += Number(row[15] || 0);
-            overtimeByCategory['例假日8H以內'].hours += Number(row[16] || 0);
-            overtimeByCategory['例假日8H以上'].hours += Number(row[17] || 0);
-            overtimeByCategory['國定假日9~10H'].hours += Number(row[18] || 0);
-            overtimeByCategory['國定假日11~12H以上'].hours += Number(row[19] || 0);
-        }
-    });
-
-    // 空行分隔
-    sheetRows.push([]);
-
-    // 第三部分：應發項目區
-    sheetRows.push(['', '應發項目']);
-    sheetRows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
-    sheetRows.push(['', '本薪', baseMonthly]);
-
-    // 🔧 改進：按各類加班費率計算加班費
-    let totalOvertimeFee = 0;
-    for (const [category, data] of Object.entries(overtimeByCategory)) {
-        if (data.hours > 0) {
-            const fee = data.hours * hourlyRate * data.rate;
-            totalOvertimeFee += fee;
-            // 可選：添加詳細的加班費行（如需要在 Excel 中顯示）
-            // sheetRows.push(['', category, Number(fee.toFixed(0)), '', '', data.rate, data.hours]);
-        }
-    }
-
-    if (totalOvertimeFee > 0) {
-        sheetRows.push(['', '加班費', Number(totalOvertimeFee.toFixed(0))]);
-    }
-
-    const totalIncome = baseMonthly + Number(totalOvertimeFee.toFixed(0));
-    sheetRows.push(['', '合計', totalIncome]);
-
-    // 空行分隔
-    sheetRows.push([]);
-
-    // 第四部分：應扣金額區
-    sheetRows.push(['', '應扣金額']);
-    sheetRows.push(['', '項目', '金額']);
-
-    const leaveInsuranceLevel = String(employeeInfo?.leaveInsurance || '第2級').trim();
-    const healthInsuranceLevel = String(employeeInfo?.healthInsurance || '第2級').trim();
-    const laborInsuranceFee = totalIncome * (INSURANCE_RATES["勞保"][leaveInsuranceLevel] || 0.0225);
-    const healthInsuranceFee = totalIncome * (INSURANCE_RATES["健保"][healthInsuranceLevel] || 0.0130);
-    const housingExpense = employeeInfo?.housingExpense || 1000;
-    const incomeTax = totalIncome * 0.06;
-
-    sheetRows.push(['', '勞保費', Number(laborInsuranceFee.toFixed(0)), '', '', '', '', '']);
-    sheetRows.push(['', '健保費', Number(healthInsuranceFee.toFixed(0))]);
-    sheetRows.push(['', '住宿', housingExpense]);
-    sheetRows.push(['', '所得稅', Number(incomeTax.toFixed(0))]);
-
-    const totalDeductions = Number(laborInsuranceFee.toFixed(0)) + Number(healthInsuranceFee.toFixed(0)) + housingExpense + Number(incomeTax.toFixed(0));
-    sheetRows.push(['', '合計', -totalDeductions]);
-
-    // 空行分隔
-    sheetRows.push([]);
-
-    // 第五部分：最終結算
-    sheetRows.push(['', '小計', totalIncome]);
-    sheetRows.push(['', '實支額', totalIncome - totalDeductions]);
-
-    return sheetRows;
-}
-
-/**
- * 生成對齊「外籍薪資範例 Excel」版型的試算表資料
- * @param {Array} summaryRows - 日摘要的行數據
- * @param {number} baseMonthly - 基本月薪
- * @param {number} hourlyRate - 時薪
- * @param {object} employeeInfo - 員工資訊
- * @param {number} year - 西元年
- * @returns {Array} 範例版型工作表行資料
- */
-function generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, employeeInfo, year) {
-    const rows = [];
-    const rocYear = Number(year) - 1911;
-
-    const normalizeSheetTime = (rawTime) => {
-        if (!rawTime) return '休';
-        if (typeof rawTime !== 'string') return String(rawTime);
-
-        // 若已是 HH:MM，直接返回
-        if (/^\d{1,2}:\d{2}$/.test(rawTime)) {
-            return rawTime;
-        }
-
-        // 處理格式不標準的空白（將 "2026-02-01 06:31" 轉為 "2026-02-01T06:31" 讓 Date 好讀取）
-        const standardFormat = rawTime.replace(' ', 'T');
-        const dt = new Date(standardFormat);
-        if (!isNaN(dt.getTime())) {
-            const h = String(dt.getHours()).padStart(2, '0');
-            const m = String(dt.getMinutes()).padStart(2, '0');
-            return `${ h }:${ m } `;
-        }
-
-        if (rawTime.includes('T')) return rawTime.split('T')[1].substring(0, 5);
-        if (rawTime.includes(' ')) return rawTime.split(' ')[1].substring(0, 5);
-        return rawTime;
-    };
-
-    const categories = [
-        { key: '平日2H以內', idx: 11, rate: 1.34, multiplierLabel: '1又1/3' },
-        { key: '平日3~4H以上', idx: 12, rate: 1.67, multiplierLabel: '1又2/3' },
-        { key: '休息日2H以內', idx: 13, rate: 1.34, multiplierLabel: '1又1/3' },
-        { key: '休息日3~8H', idx: 14, rate: 1.67, multiplierLabel: '1又2/3' },
-        { key: '休息日9H以上', idx: 15, rate: 2.67, multiplierLabel: '2又2/3' },
-        { key: '例假日8H以內', idx: 16, rate: 1.0, multiplierLabel: '1' },
-        { key: '例假日8H以上', idx: 17, rate: 2.0, multiplierLabel: '2' },
-        { key: '國定假日9~10H', idx: 18, rate: 1.34, multiplierLabel: '1又1/3' },
-        { key: '國定假日11~12H以上', idx: 19, rate: 1.67, multiplierLabel: '1又2/3' }
-    ];
-
-    const categoryTotals = {};
-    categories.forEach(c => {
-        categoryTotals[c.key] = 0;
-    });
-
-    let totalEffectiveHours = 0;
-    let workedRegularOffDays = 0;
-    let workedHolidayDays = 0;
-
-    rows.push([
-        '',
-        employeeInfo?.name || '',
-        `${ rocYear } 年`,
-        '上班',
-        '下班',
-        '上班',
-        '下班',
-        '加班時數',
-        '平日2H以內',
-        '平日3~4H以上',
-        '休息日2H以內',
-        '休息日3~8H',
-        '休息日9H以上',
-        '例假日8H以內',
-        '例假日8H以上',
-        '國定假日9~10H',
-        '國定假日11~12H以上'
-    ]);
-
-    summaryRows.slice(1).forEach(row => {
-        if (!row || !row[0]) return;
-
-        const dateStr = String(row[0] || '');
-        const parts = dateStr.split('-');
-        const md = parts.length === 3 ? `${ Number(parts[1]) }/${Number(parts[2])}` : dateStr;
-
-    const rawDayType = String(row[2] || '');
-    const dayType = rawDayType === '國' ? '國定假日' : rawDayType;
-    const weekday = String(row[1] || '').replace('週', '');
-    const inTime = normalizeSheetTime(row[3]);
-    const outTime = normalizeSheetTime(row[5]);
-    const effectiveHours = Number(row[8] || 0);
-
-    const categoryValues = categories.map(c => {
-        const v = Number(row[c.idx] || 0);
-        categoryTotals[c.key] += v;
-        return Number(v.toFixed(2));
-    });
-
-    totalEffectiveHours += effectiveHours;
-    if (rawDayType === '例' && effectiveHours > 0) workedRegularOffDays += 1;
-    if (rawDayType === '國' && effectiveHours > 0) workedHolidayDays += 1;
-
-    rows.push([
-        dayType,
-        weekday,
-        md,
-        inTime,
-        outTime,
-        '',
-        '',
-        Number(effectiveHours.toFixed(2)),
-        ...categoryValues
-    ]);
-});
-
-const overtimeHourValues = categories.map(c => Number(categoryTotals[c.key].toFixed(2)));
-const overtimeRateValues = categories.map(c => Number((hourlyRate * c.rate).toFixed(0)));
-const overtimeFeeValues = categories.map(c => Number((categoryTotals[c.key] * hourlyRate * c.rate).toFixed(0)));
-const totalOvertimeHours = overtimeHourValues.reduce((sum, v) => sum + Number(v || 0), 0);
-const totalOvertimeFee = overtimeFeeValues.reduce((sum, v) => sum + Number(v || 0), 0);
-
-rows.push(['', '', '', '', '', '', Number(totalOvertimeHours.toFixed(2)), '加班時數', ...overtimeHourValues, Number(totalOvertimeHours.toFixed(2))]);
-rows.push(['', '', '', '', '', '', '', '加班時薪', ...overtimeRateValues]);
-rows.push(['', '', '', '', '', '', '', '加班費', ...overtimeFeeValues, Number(totalOvertimeFee.toFixed(0))]);
-rows.push([]);
-rows.push([]);
-
-const regularOffAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
-const holidayAllowancePerDay = Number((hourlyRate * 8).toFixed(0));
-const regularOffAllowance = workedRegularOffDays * regularOffAllowancePerDay;
-const holidayAllowance = workedHolidayDays * holidayAllowancePerDay;
-
-rows.push(['', '應發項目']);
-rows.push(['', '項目', '金額', '加班別', '', '倍率', '時數', '加班費']);
-rows.push(['', '本薪', Number(baseMonthly.toFixed(0)), '平日加班', '', categories[0].multiplierLabel, overtimeHourValues[0], overtimeFeeValues[0]]);
-rows.push(['', `例假日補休折現${workedRegularOffDays}天`, regularOffAllowance, '', '', categories[1].multiplierLabel, overtimeHourValues[1], overtimeFeeValues[1]]);
-rows.push(['', `國定假日${workedHolidayDays}天`, holidayAllowance, '休息日加班', '8小時以內', categories[2].multiplierLabel, overtimeHourValues[2], overtimeFeeValues[2]]);
-rows.push(['', '', '', '', '', categories[3].multiplierLabel, overtimeHourValues[3], overtimeFeeValues[3]]);
-rows.push(['', '', '', '', '逾8小時', categories[4].multiplierLabel, overtimeHourValues[4], overtimeFeeValues[4]]);
-rows.push(['', '', '', '例假日出勤', '8小時以內', categories[5].multiplierLabel, overtimeHourValues[5], overtimeFeeValues[5]]);
-rows.push(['', '', '', '', '逾8小時', categories[6].multiplierLabel, overtimeHourValues[6], overtimeFeeValues[6]]);
-rows.push(['', '', '', '國定假日出勤', '9~10小時', categories[7].multiplierLabel, overtimeHourValues[7], overtimeFeeValues[7]]);
-rows.push(['', '', '', '', '11~12小時', categories[8].multiplierLabel, overtimeHourValues[8], overtimeFeeValues[8]]);
-
-const totalIncome = Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance + Number(totalOvertimeFee.toFixed(0));
-rows.push(['', '合計', Number((Number(baseMonthly.toFixed(0)) + regularOffAllowance + holidayAllowance).toFixed(0)), '', '', '合計', '', Number(totalOvertimeFee.toFixed(0))]);
-rows.push([]);
-rows.push(['', '應扣金額', '', '', '', '', Number(totalIncome.toFixed(0))]);
-
-const leaveInsuranceLevel = String(employeeInfo?.leaveInsurance || '第2級').trim();
-const healthInsuranceLevel = String(employeeInfo?.healthInsurance || '第2級').trim();
-const laborInsuranceFee = Number((totalIncome * (INSURANCE_RATES['勞保'][leaveInsuranceLevel] || 0.0225)).toFixed(0));
-const healthInsuranceFee = Number((totalIncome * (INSURANCE_RATES['健保'][healthInsuranceLevel] || 0.0130)).toFixed(0));
-const housingExpense = Number(employeeInfo?.housingExpense || 1000);
-const incomeTax = Number((totalIncome * 0.06).toFixed(0));
-
-rows.push(['', `勞保費29500`, '', -laborInsuranceFee]);
-rows.push(['', `健保費29500`, '', -healthInsuranceFee]);
-rows.push(['', '住宿', '', -housingExpense]);
-rows.push(['', '所得稅', '', -incomeTax]);
-rows.push([]);
-
-const totalDeductions = laborInsuranceFee + healthInsuranceFee + housingExpense + incomeTax;
-const netPay = totalIncome - totalDeductions;
-rows.push(['', '合計', '', -totalDeductions]);
-rows.push([]);
-rows.push(['', '小計', '', netPay]);
-rows.push(['', '實支額', '', netPay]);
-
-return rows;
-}
 
 function setupAdminExport() {
     const btn = document.getElementById('export-admin-month-excel-btn');
@@ -1998,43 +1525,20 @@ function setupAdminExport() {
 
     const pad = n => String(n).padStart(2, '0');
 
-    function tryParseHoursFromTimes(inTime, outTime, dateStr) {
-        // 保留舊的兼容性實作（仍可用）
-        if (!inTime || !outTime) return null;
-        try {
-            const base = new Date(dateStr);
-            if (isNaN(base.getTime())) base.setFullYear(new Date().getFullYear());
-            const parse = t => {
-                if (!t) return null;
-                if (/^\d{1,2}:\d{2}$/.test(t)) {
-                    const [hh, mm] = t.split(':').map(Number);
-                    const d = new Date(base);
-                    d.setHours(hh, mm, 0, 0);
-                    return d;
-                }
-                const d = new Date(t);
-                return isNaN(d.getTime()) ? null : d;
-            };
-            const a = parse(inTime);
-            const b = parse(outTime);
-            if (!a || !b) return null;
-            const diffH = (b - a) / 3600000;
-            return diffH >= 0 ? Number(diffH.toFixed(2)) : null;
-        } catch (e) {
-            return null;
-        }
-    }
-
     btn.addEventListener('click', async () => {
-        const selectEl = document.getElementById('admin-select-employee') || document.getElementById('admin-select-employee-mgmt');
-        const userId = selectEl && selectEl.value ? selectEl.value : (currentManagingEmployee && currentManagingEmployee.userId);
+        const selectEl = document.getElementById('admin-select-employee-mgmt');
+        const userId = selectEl && selectEl.value
+            ? selectEl.value
+            : (currentManagingEmployee && currentManagingEmployee.userId);
         if (!userId) {
-            alert('請先選擇員工');
+            alert(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT'));
             return;
         }
 
         // 解析目前顯示的月份
-        const monthText = (adminCurrentMonthDisplay && adminCurrentMonthDisplay.textContent) ? adminCurrentMonthDisplay.textContent.trim() : '';
+        const monthText = (adminCurrentMonthDisplay && adminCurrentMonthDisplay.textContent)
+            ? adminCurrentMonthDisplay.textContent.trim()
+            : '';
         let year, month;
         const m = monthText.match(/(\d{4}).*?(\d{1,2})/);
         if (m) {
@@ -2047,9 +1551,7 @@ function setupAdminExport() {
         }
 
         const monthParam = `${year}-${pad(month + 1)}`;
-        const { baseMonthly, hourlyRate } = resolveHourlyRateForExport();
 
-        // 從後端直接取得所有該月份的打卡記錄（完整紀錄）
         try {
             const response = await callApifetch({
                 action: 'getAttendanceDetails',
@@ -2057,327 +1559,56 @@ function setupAdminExport() {
                 userId: userId
             });
             if (!response.ok) {
-                alert('無法取得完整的打卡記錄');
+                alert(t('MSG_FETCH_RECORDS_FAILED'));
                 return;
             }
 
-            // 將 dailyStatus 展開成個別打卡紀錄的平坦列表
-            const allRecords = [];
-            const dailyStatus = response.records?.dailyStatus || [];
-            dailyStatus.forEach(day => {
-                if (!Array.isArray(day.record)) return;
-                day.record.forEach(punch => {
-                    allRecords.push({
-                        date: `${day.date} ${punch.time || ''}`.trim(),
-                        type: punch.type || '',
-                        location: punch.location || '',
-                        note: punch.note || '',
-                        audit: punch.audit || '',
-                        isHoliday: day.isHoliday || false,
-                        holiday: day.holiday
-                    });
-                });
-            });
-
-            // Sheet 1: 所有完整打卡紀錄
+            // 只輸出完整打卡紀錄（薪資與加班分類已於重新設計前移除）
             const completeRecordRows = [
                 ['日期', '時間', '打卡類型', '地點', '備註', '審核狀態']
             ];
 
-            // Sheet 2: 日摘要（用於薪資計算）
-            const summaryRows = [
-                ['日期', '星期', '日期類型', '上班時間', '上班地點', '下班時間', '下班地點',
-                    '原始時數(小時)', '淨工時(小時)',
-                    '休息扣除(小時)', '正常工時(小時)',
-                    '平日2H以內', '平日3~4H以上',
-                    '休息日2H以內', '休息日3~8H', '休息日9H以上',
-                    '例假日8H以內', '例假日8H以上',
-                    '國定假日9~10H', '國定假日11~12H以上',
-                    '日薪(NTD)', '備註']
-            ];
+            const dailyStatus = response.records?.dailyStatus || [];
+            dailyStatus.forEach(day => {
+                if (!Array.isArray(day.record)) return;
+                day.record.forEach(punch => {
+                    const dateStr = normalizeDateKey(day.date) || day.date || '';
+                    const timeStr = punch.time || '';
+                    const punchType = punch.type || '未知';
+                    const location = punch.location || '';
+                    const recordNote = punch.note || '';
+                    const auditStatus = punch.audit === '?' ? '審核中'
+                        : (punch.audit === 'v' ? '已批准'
+                            : (punch.audit === 'x' ? '已拒絕' : ''));
 
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-            // ===== 處理完整紀錄 =====
-            allRecords.forEach(record => {
-                if (!record.date) return;
-
-                const dateStr = normalizeDateKey(record.date);
-                if (!dateStr) return;
-
-                // 提取時間字串（處理各種日期格式）
-                let timeStr = '';
-                let dateObj = null;
-
-                if (typeof record.date === 'string') {
-                    // 處理格式不標準的空白（將 "2026-02-01 06:31" 轉為 "2026-02-01T06:31" 讓 Date 好讀取）
-                    const standardFormat = record.date.replace(' ', 'T');
-                    dateObj = new Date(standardFormat);
-                } else if (record.date instanceof Date) {
-                    dateObj = record.date;
-                }
-
-                if (dateObj && !isNaN(dateObj.getTime())) {
-                    // 使用 getHours() 會根據使用者電腦的時區顯示
-                    const h = String(dateObj.getHours()).padStart(2, '0');
-                    const m = String(dateObj.getMinutes()).padStart(2, '0');
-                    timeStr = `${h}:${m}`;
-                }
-
-                const punchType = record.type || '未知';
-                const location = record.location || '';
-                const recordNote = record.note || '';
-                const auditStatus = record.audit === '?' ? '審核中' : (record.audit === 'v' ? '已批准' : (record.audit === 'x' ? '已拒絕' : ''));
-
-                completeRecordRows.push([
-                    dateStr,
-                    timeStr,
-                    punchType,
-                    location,
-                    recordNote,
-                    auditStatus
-                ]);
+                    completeRecordRows.push([
+                        dateStr,
+                        timeStr,
+                        punchType,
+                        location,
+                        recordNote,
+                        auditStatus
+                    ]);
+                });
             });
-
-            // ===== 處理日摘要（含薪資計算）=====
-            let totalHours = 0, totalRawHours = 0, totalBreakMinutes = 0, totalSalary = 0;
-            let totalNormalHours = 0, totalOvertimeHours = 0;
-
-            // 根據日期分組打卡記錄
-            const dailyGroupMap = {};
-            allRecords.forEach(record => {
-                if (!record.date) return;
-                const dateKey = normalizeDateKey(record.date);
-                if (!dateKey) return;
-                if (!dailyGroupMap[dateKey]) {
-                    dailyGroupMap[dateKey] = [];
-                }
-                dailyGroupMap[dateKey].push(record);
-            });
-
-            // 由月曆快取建立國定假日日期集合，避免無打卡日無法判斷日期類型
-            const monthCacheKey = `${userId}-${year}-${pad(month + 1)}`;
-            let monthCacheRecords = (typeof adminMonthDataCache !== 'undefined' && adminMonthDataCache[monthCacheKey])
-                ? adminMonthDataCache[monthCacheKey]
-                : [];
-
-            // 匯出時若該月快取不存在，主動補抓月摘要，避免國定假日（例如春節）漏判。
-            if ((!Array.isArray(monthCacheRecords) || monthCacheRecords.length === 0) && typeof callApifetch === 'function') {
-                try {
-                    const monthSummaryRes = await callApifetch({
-                        action: 'getCalendarSummary',
-                        month: monthParam,
-                        userId: userId
-                    });
-                    if (monthSummaryRes && monthSummaryRes.ok) {
-                        monthCacheRecords = monthSummaryRes.records?.dailyStatus || [];
-                        if (typeof cacheAdminMonthData === 'function') {
-                            cacheAdminMonthData(monthCacheKey, monthCacheRecords);
-                        } else if (typeof adminMonthDataCache !== 'undefined') {
-                            adminMonthDataCache[monthCacheKey] = monthCacheRecords;
-                        }
-                    }
-                } catch (e) {
-                    console.warn('匯出時取得月份摘要失敗，改用既有資料判斷國定假日:', e?.message || e);
-                }
-            }
-
-            const isNationalHolidayRecord = (r) => {
-                if (!r) return false;
-                if (r.isHoliday === true || r.holiday === true) return true;
-
-                const rawHoliday = String(r.isHoliday ?? r.holiday ?? r.holidayType ?? r.dayType ?? '').toLowerCase();
-                if (rawHoliday === 'true' || rawHoliday === '1') return true;
-
-                const hint = `${r?.note || ''}${r?.type || ''}${r?.tag || ''}${r?.dayType || ''}${r?.holidayName || ''}${r?.holidayType || ''}`;
-                return /國定假日|national\s*holiday|holiday|春節|農曆年|農曆新年|除夕/i.test(hint);
-            };
-
-            const isWeekendWorkdayRecord = (r) => {
-                if (!r) return false;
-                const hasHolidayField = Object.prototype.hasOwnProperty.call(r, 'isHoliday')
-                    || Object.prototype.hasOwnProperty.call(r, 'holiday')
-                    || Object.prototype.hasOwnProperty.call(r, 'is_holiday');
-                const rawHoliday = r?.isHoliday ?? r?.holiday ?? r?.is_holiday;
-                if (hasHolidayField && isExplicitNonHolidayValue(rawHoliday)) {
-                    return true;
-                }
-
-                const hint = `${r?.note || ''}${r?.type || ''}${r?.tag || ''}${r?.dayType || ''}${r?.holidayName || ''}${r?.holidayType || ''}${r?.caption || ''}`;
-                return /補班|補上班|make\s*up\s*work/i.test(hint);
-            };
-
-            const nationalHolidaySet = new Set(
-                (Array.isArray(monthCacheRecords) ? monthCacheRecords : [])
-                    .filter(isNationalHolidayRecord)
-                    .map(r => normalizeDateKey(r?.date || r?.day || r?.workDate || r?.dateKey || ''))
-                    .filter(Boolean)
-            );
-
-            const weekendWorkdaySet = new Set(
-                (Array.isArray(monthCacheRecords) ? monthCacheRecords : [])
-                    .filter(isWeekendWorkdayRecord)
-                    .map(r => normalizeDateKey(r?.date || r?.day || r?.workDate || r?.dateKey || ''))
-                    .filter(Boolean)
-            );
-
-            // 遍歷該月份的每一天
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateKey = `${year}-${pad(month + 1)}-${pad(d)}`;
-                const dateObj = new Date(year, month, d);
-                const weekday = dateObj.toLocaleDateString(currentLang || 'zh-TW', { weekday: 'short' });
-
-                const dayRecords = dailyGroupMap[dateKey] || [];
-
-                // 挑出上班和下班記錄
-                const inRecord = dayRecords.find(r => /上班|IN|in/i.test(String(r.type || '')));
-                const outRecord = dayRecords.find(r => /下班|OUT|out/i.test(String(r.type || '')));
-
-                // 補打卡或請假記錄
-                const specialRecord = dayRecords.find(r => /補打卡|系統請假記錄/i.test(String(r.note || '')));
-
-                // 提取時間的輔助函式：統一走本地時區，避免與完整打卡紀錄出現 8 小時差
-                const extractTime = (dateVal) => {
-                    if (!dateVal) return '';
-
-                    const formatLocalHM = (dt) => {
-                        const h = String(dt.getHours()).padStart(2, '0');
-                        const m = String(dt.getMinutes()).padStart(2, '0');
-                        return `${h}:${m}`;
-                    };
-
-                    if (dateVal instanceof Date) {
-                        return isNaN(dateVal.getTime()) ? '' : formatLocalHM(dateVal);
-                    }
-
-                    if (typeof dateVal === 'string') {
-                        const normalized = dateVal.includes(' ') ? dateVal.replace(' ', 'T') : dateVal;
-                        const parsed = new Date(normalized);
-                        if (!isNaN(parsed.getTime())) {
-                            return formatLocalHM(parsed);
-                        }
-
-                        // 無法被 Date 正確解析時，退回字串提取（例如僅 HH:MM）
-                        if (/^\d{1,2}:\d{2}/.test(dateVal)) {
-                            return dateVal.substring(0, 5);
-                        }
-                        if (dateVal.includes('T')) {
-                            return dateVal.split('T')[1].substring(0, 5);
-                        }
-                        if (dateVal.includes(' ')) {
-                            return dateVal.split(' ')[1].substring(0, 5);
-                        }
-                    }
-
-                    return '';
-                };
-
-                const inTime = inRecord ? extractTime(inRecord.date) : '';
-                const inLoc = inRecord?.location || '';
-
-                const outTime = outRecord ? extractTime(outRecord.date) : '';
-                const outLoc = outRecord?.location || '';
-
-                // 計算工時
-                const dayOfWeek = dateObj.getDay();
-                const isNationalHoliday = nationalHolidaySet.has(dateKey) || dayRecords.some(isNationalHolidayRecord);
-                const isWeekendWorkday = weekendWorkdaySet.has(dateKey) || dayRecords.some(isWeekendWorkdayRecord);
-                const dayType = determineDayType(dayOfWeek, isNationalHoliday, isWeekendWorkday);
-
-                let rawHours = 0, effectiveHours = 0, breakMinutes = 0, dailySalary = 0;
-                let normalHours = 0, overtimeHours = 0, restHours = 0;
-
-                if (inTime && outTime && typeof calculateDailySalaryFromPunches === 'function') {
-                    const res = calculateDailySalaryFromPunches(inTime, outTime, hourlyRate, dayType);
-                    rawHours = computeRawHoursFromPunches({ time: inTime }, { time: outTime }, dateKey) || 0;
-                    effectiveHours = Number(res.effectiveHours || 0);
-                    breakMinutes = Number(res.totalBreakMinutes || 0);
-                    dailySalary = Number(res.dailySalary || 0);
-                    if (res.laborHoursDetails) {
-                        normalHours = Number(res.laborHoursDetails.normalHours || 0);
-                        overtimeHours = Number(res.laborHoursDetails.overtimeHours || 0);
-                        restHours = Number(res.laborHoursDetails.restHours || 0);
-                    }
-                } else if (inTime && outTime) {
-                    rawHours = computeRawHoursFromPunches({ time: inTime }, { time: outTime }, dateKey) || 0;
-                    effectiveHours = rawHours;
-                    if (typeof calculateDailySalary === 'function') {
-                        const rcalc = calculateDailySalary(effectiveHours, hourlyRate, dayType);
-                        dailySalary = rcalc?.dailySalary ? Number(rcalc.dailySalary) : (effectiveHours * hourlyRate);
-                    } else {
-                        dailySalary = effectiveHours * hourlyRate;
-                    }
-                }
-
-                const remark = specialRecord ? (specialRecord.note || specialRecord.audit) : '';
-
-                // 🔧 新增：計算日期類型字符串和加班分類
-                let dateTypeStr = '';
-                switch (dayType) {
-                    case DAY_TYPE.REGULAR_OFF:
-                        dateTypeStr = '例';
-                        break;
-                    case DAY_TYPE.REST_DAY:
-                        dateTypeStr = '休';
-                        break;
-                    case DAY_TYPE.HOLIDAY:
-                        dateTypeStr = '國';
-                        break;
-                    default:
-                        dateTypeStr = '';
-                }
-
-                // 計算9種加班分類
-                const overtimeDetails = classifyOvertimeHours(effectiveHours, dayType, false);
-
-                summaryRows.push([
-                    dateKey, weekday, dateTypeStr, inTime, inLoc, outTime, outLoc,
-                    Number(rawHours.toFixed(2)),
-                    Number(effectiveHours.toFixed(2)),
-                    Number((breakMinutes / 60).toFixed(2)),
-                    Number(normalHours.toFixed(2)),
-                    // 9種加班分類
-                    Number((overtimeDetails["平日2H以內"] || 0).toFixed(2)),
-                    Number((overtimeDetails["平日3~4H以上"] || 0).toFixed(2)),
-                    Number((overtimeDetails["休息日2H以內"] || 0).toFixed(2)),
-                    Number((overtimeDetails["休息日3~8H"] || 0).toFixed(2)),
-                    Number((overtimeDetails["休息日9H以上"] || 0).toFixed(2)),
-                    Number((overtimeDetails["例假日8H以內"] || 0).toFixed(2)),
-                    Number((overtimeDetails["例假日8H以上"] || 0).toFixed(2)),
-                    Number((overtimeDetails["國定假日9~10H"] || 0).toFixed(2)),
-                    Number((overtimeDetails["國定假日11~12H以上"] || 0).toFixed(2)),
-                    Number(dailySalary.toFixed(2)),
-                    remark
-                ]);
-
-                totalRawHours += Number(rawHours || 0);
-                totalHours += Number(effectiveHours || 0);
-                totalBreakMinutes += Number(breakMinutes || 0);
-                totalSalary += Number(dailySalary || 0);
-                totalNormalHours += normalHours;
-                totalOvertimeHours += overtimeHours;
-            }
-
-            // 生成「範例 Excel 格式」工作表
-            const samplePayrollSheetRows = generateSamplePayrollFormatSheet(summaryRows, baseMonthly, hourlyRate, currentManagingEmployee, year);
 
             try {
-                const ws1 = XLSX.utils.aoa_to_sheet(completeRecordRows);
-                const ws2 = XLSX.utils.aoa_to_sheet(samplePayrollSheetRows);
+                const ws = XLSX.utils.aoa_to_sheet(completeRecordRows);
                 const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws1, '完整打卡紀錄');
-                XLSX.utils.book_append_sheet(wb, ws2, '薪資明細(範例格式)');
+                XLSX.utils.book_append_sheet(wb, ws, '完整打卡紀錄');
                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                 const blob = new Blob([wbout], { type: 'application/octet-stream' });
 
-                // 檔名使用員工姓名或 userId（簡單過濾）
+                // 檔名用員工姓名（過濾非法字元）
                 let employeeName = (currentManagingEmployee && currentManagingEmployee.name) || '';
                 if (!employeeName && Array.isArray(allEmployeeList)) {
                     const found = allEmployeeList.find(e => e.userId === userId);
                     if (found) employeeName = found.name || '';
                 }
                 if (!employeeName) employeeName = userId ? userId.slice(0, 8) : 'unknown';
-                employeeName = String(employeeName).replace(/[\/\\:\*\?"<>\|]/g, '').replace(/\s+/g, '_');
+                employeeName = String(employeeName)
+                    .replace(/[\/\\:\*\?"<>\|]/g, '')
+                    .replace(/\s+/g, '_');
 
                 const filename = `${employeeName}-${year}-${pad(month + 1)}.xlsx`;
                 const url = URL.createObjectURL(blob);
@@ -2390,13 +1621,1516 @@ function setupAdminExport() {
                 URL.revokeObjectURL(url);
             } catch (err) {
                 console.error('Excel 匯出失敗', err);
-                alert('匯出失敗，請看 console 取得詳細錯誤訊息。');
+                alert(t('MSG_EXPORT_FAILED'));
             }
         } catch (err) {
             console.error('取得打卡記錄失敗', err);
-            alert('無法取得打卡記錄，請重試。');
+            alert(t('MSG_FETCH_RECORDS_RETRY'));
         }
     });
+}
+
+// ===================================
+// #region Phase M3：詳細薪資 Excel 匯出
+// ===================================
+
+/**
+ * 把當天 record array 配對為「上下班班次」。
+ * 規則：
+ *   - 依時間排序
+ *   - 上班 配 下一筆 下班；中間有缺則該班缺打卡
+ *   - 一天可有多班（早班 + 晚班、跨午休、加班補回等）
+ *
+ * @returns {Array<{ inTime, outTime, complete: boolean }>}
+ */
+function _pairShifts(record) {
+    const arr = (record || []).filter((r) => r && r.time)
+        .map((r) => ({ time: String(r.time), type: r.type }))
+        .sort((a, b) => a.time.localeCompare(b.time));
+    const shifts = [];
+    let pending = null;
+    for (const r of arr) {
+        if (r.type === '上班') {
+            if (pending) {
+                // 連兩個上班 → 把舊的當缺下班
+                shifts.push({ inTime: pending.time, outTime: '', complete: false });
+            }
+            pending = r;
+        } else if (r.type === '下班') {
+            if (pending) {
+                shifts.push({ inTime: pending.time, outTime: r.time, complete: true });
+                pending = null;
+            } else {
+                // 只有下班 → 缺上班
+                shifts.push({ inTime: '', outTime: r.time, complete: false });
+            }
+        }
+    }
+    if (pending) {
+        shifts.push({ inTime: pending.time, outTime: '', complete: false });
+    }
+    return shifts;
+}
+
+/**
+ * 計算「上下班區間 [in, out] 與休息時段」的重疊分鐘加總
+ */
+function _overlapBreakMinutes(inTime, outTime, breakTimes) {
+    const toMin = (s) => {
+        const m = String(s || '').match(/^(\d{1,2}):(\d{2})/);
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    };
+    const inM = toMin(inTime);
+    const outM = toMin(outTime);
+    if (inM == null || outM == null || outM <= inM) return 0;
+    let total = 0;
+    for (const b of (breakTimes || [])) {
+        const bs = toMin(b.start);
+        const be = toMin(b.end);
+        if (bs == null || be == null || be <= bs) continue;
+        total += Math.max(0, Math.min(outM, be) - Math.max(inM, bs));
+    }
+    return total;
+}
+
+/**
+ * Phase M3：產生詳細薪資 Excel（3 sheet：摘要+結算 / 每日打卡 / 公司休息時段）
+ *
+ * @param {string} userId
+ * @param {number} year
+ * @param {number} month  0-indexed
+ */
+async function handleDetailedPayrollExport(userId, year, month) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const monthKey = `${year}-${pad(month + 1)}`;
+
+    // 取資料
+    const [dailyStatusRaw, breakTimes] = await Promise.all([
+        loadEnrichedMonthData(monthKey, userId),
+        loadBreakTimes(),
+    ]);
+
+    const employee = (allEmployeeList || []).find((e) => e && e.userId === userId)
+        || currentManagingEmployee
+        || {};
+    const employeeName = employee.name || userId.slice(0, 8) || 'unknown';
+
+    // 薪資設定
+    const salaryType = employee.salaryType || 'monthly';
+    const monthlySalary = Number(employee.monthlySalary || 0);
+    const hourlyRate = salaryType === 'hourly'
+        ? Number(employee.hourlyRate || 0)
+        : (typeof window.monthlyToHourly === 'function'
+            ? window.monthlyToHourly(monthlySalary)
+            : Math.round(monthlySalary / 240));
+
+    // 月度合計
+    const sum = (typeof window.aggregateMonthLaborStats === 'function')
+        ? window.aggregateMonthLaborStats(dailyStatusRaw || [])
+        : { equivalentHours: 0 };
+
+    // 工資計算（依各段倍率 × 時薪）
+    const r = (n) => Math.round(Number(n || 0));
+    const pay = {
+        normal:        r(sum.normal        * 1     * hourlyRate),
+        ot1:           r(sum.ot1           * (4/3) * hourlyRate),
+        ot2:           r(sum.ot2           * (5/3) * hourlyRate),
+        rest_ot1:      r(sum.rest_ot1      * (4/3) * hourlyRate),
+        rest_ot2:      r(sum.rest_ot2      * (5/3) * hourlyRate),
+        rest_ot3:      r(sum.rest_ot3      * (8/3) * hourlyRate),
+        public_base:   r(sum.public_base   * 1     * hourlyRate),
+        public_ot1:    r(sum.public_ot1    * (4/3) * hourlyRate),
+        public_ot2:    r(sum.public_ot2    * (5/3) * hourlyRate),
+        regular_base:  r(sum.regular_base  * 1     * hourlyRate),
+        regular_comp:  r(sum.regular_comp  * 1     * hourlyRate),
+        regular_ot:    r(sum.regular_ot    * 1     * hourlyRate),  // 已 ×2 過
+    };
+    const grossTotal = Object.values(pay).reduce((a, b) => a + b, 0);
+
+    // 扣繳（依勞保等級）
+    const grade = (window.LABOR_INSURANCE_GRADES || []).find((g) => g.grade === Number(employee.laborInsuranceGrade));
+    const insuredSalary = grade ? grade.salary : 0;
+    const pensionRate = employee.hasLaborPension !== false ? Number(employee.laborPensionRate || 0) : 0;
+    const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
+        ? window.calcEmployeeDeductions(insuredSalary, pensionRate)
+        : { labor: 0, health: 0, pension: 0, total: 0 };
+    const netPay = grossTotal - ded.total;
+
+    // ===== Sheet 1: 摘要與薪資結算 =====
+    const dayKindLabel = (k) => ({
+        workday: '平日', rest: '休息日', regular: '例假日', public: '國定假日'
+    }[k] || k || '');
+
+    const summaryRows = [
+        [`${employeeName} ${monthKey} 薪資詳細`],
+        [],
+        ['【員工資訊】'],
+        ['員工姓名', employeeName],
+        ['員工 ID', userId],
+        ['結算月份', monthKey],
+        ['薪資制度', salaryType === 'hourly' ? '時薪制' : '月薪制'],
+        ['月薪 (NT$)', salaryType === 'monthly' ? monthlySalary.toLocaleString() : '—'],
+        ['時薪 (NT$/h)', hourlyRate.toLocaleString() + (salaryType === 'monthly' ? '（月薪 ÷ 240）' : '')],
+        ['勞保投保等級', employee.laborInsuranceGrade ? `第 ${employee.laborInsuranceGrade} 級` : '未設定'],
+        ['月投保薪資', insuredSalary ? insuredSalary.toLocaleString() : '—'],
+        ['提繳勞退', employee.hasLaborPension !== false ? `是 (自提 ${pensionRate}%)` : '否'],
+        [],
+        ['【勞基法工時與工資（本月合計）】'],
+        ['類型', '段別', '時數 (h)', '倍率', '工資 (NT$)'],
+        ['平日',     '正常工時',     sum.normal,       '1.00',   pay.normal],
+        ['平日',     '加班 OT1',     sum.ot1,          '4/3 ≈ 1.34', pay.ot1],
+        ['平日',     '加班 OT2',     sum.ot2,          '5/3 ≈ 1.67', pay.ot2],
+        ['休息日',   '前 2h',        sum.rest_ot1,     '4/3 ≈ 1.34', pay.rest_ot1],
+        ['休息日',   '2~8h',         sum.rest_ot2,     '5/3 ≈ 1.67', pay.rest_ot2],
+        ['休息日',   '8h+',          sum.rest_ot3,     '8/3 ≈ 2.67', pay.rest_ot3],
+        ['國定假日', '保證 8h',      sum.public_base,  '1.00',   pay.public_base],
+        ['國定假日', '加班 OT1',     sum.public_ot1,   '4/3 ≈ 1.34', pay.public_ot1],
+        ['國定假日', '加班 OT2',     sum.public_ot2,   '5/3 ≈ 1.67', pay.public_ot2],
+        ['例假日',   '基本工資 8h',  sum.regular_base, '1.00',   pay.regular_base],
+        ['例假日',   '補休折現 8h',  sum.regular_comp, '1.00',   pay.regular_comp],
+        ['例假日',   '加倍 (×2)',    sum.regular_ot,   '已含 ×2', pay.regular_ot],
+        ['', '等價時數合計', sum.equivalentHours, '', ''],
+        ['', '應發合計 (NT$)', '', '', grossTotal],
+        [],
+        ['【員工自付扣繳】'],
+        ['項目', '計算公式', '金額 (NT$)'],
+        ['勞保普通事故', `投保薪資 ${insuredSalary.toLocaleString()} × 12% × 員工 20% = 2.4%`, ded.labor],
+        ['健保',         `投保薪資 ${insuredSalary.toLocaleString()} × 5.17% × 員工 30% ≈ 1.55%`, ded.health],
+        ['自提勞退',     `投保薪資 ${insuredSalary.toLocaleString()} × 自提率 ${pensionRate}%`, ded.pension],
+        ['', '扣繳合計', ded.total],
+        [],
+        ['【實領薪資】'],
+        ['應發', grossTotal],
+        ['扣繳', -ded.total],
+        ['實領 (NT$)', netPay],
+        [],
+        ['【公司休息時段（自動扣除）】'],
+        ['名稱', '開始', '結束'],
+        ...(breakTimes || []).map((b) => [b.name || '', b.start || '', b.end || '']),
+    ];
+
+    // ===== Sheet 2: 每日打卡明細 =====
+    const dailyHeader = [
+        '日期', '星期', '日類型',
+        '第1班 上班', '第1班 下班', '第1班 工時(h)', '第1班 扣休息(分)', '第1班 淨工時(h)',
+        '第2班 上班', '第2班 下班', '第2班 工時(h)', '第2班 扣休息(分)', '第2班 淨工時(h)',
+        '當日總工時(h)', '當日淨工時(h)',
+        '正常', 'OT1', 'OT2',
+        '休息日 OT1', '休息日 OT2', '休息日 OT3',
+        '國定 base', '國定 OT1', '國定 OT2',
+        '例假 base', '例假 補休', '例假 OT(×2)',
+        '備註',
+    ];
+    const dailyRows = [dailyHeader];
+
+    const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+    (dailyStatusRaw || []).forEach((day) => {
+        const dateKey = day.date || '';
+        const m = dateKey.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        let weekday = '';
+        if (m) {
+            const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+            weekday = WEEKDAYS[dt.getDay()];
+        }
+        const shifts = _pairShifts(day.record || []);
+        const s = day.laborStats || {};
+        const kind = dayKindLabel(s.kind);
+
+        // 算每班工時/扣休息
+        const shiftCells = [0, 1].map((idx) => {
+            const sh = shifts[idx];
+            if (!sh) return ['', '', '', '', ''];
+            const inT = sh.inTime || '';
+            const outT = sh.outTime || '';
+            if (!inT || !outT) return [inT, outT, '', '', '缺打卡'];
+            const wh = (typeof window.calcWorkHours === 'function')
+                ? window.calcWorkHours(inT, outT, [])  // gross 不扣
+                : { gross: 0, net: 0 };
+            const breakMin = _overlapBreakMinutes(inT, outT, breakTimes);
+            const netH = Math.round((wh.gross - breakMin / 60) * 100) / 100;
+            return [inT, outT, wh.gross.toFixed(2), breakMin, netH.toFixed(2)];
+        });
+
+        // 備註：缺打卡 / 多班標記
+        const notes = [];
+        if (shifts.length === 0) notes.push('無打卡');
+        if (shifts.length >= 3) notes.push(`${shifts.length} 班`);
+        if (shifts.some((sh) => !sh.complete)) notes.push('有缺打卡');
+        if (day.reason && day.reason.includes('LEAVE')) notes.push('請假');
+        if (day.reason && day.reason.includes('VACATION')) notes.push('休假');
+
+        dailyRows.push([
+            dateKey, weekday, kind,
+            ...shiftCells[0],
+            ...shiftCells[1],
+            (s.gross != null ? s.gross : (Number(day.hours) || 0)).toString(),
+            (s.net != null ? s.net : 0).toString(),
+            s.normal || 0, s.ot1 || 0, s.ot2 || 0,
+            s.rest_ot1 || 0, s.rest_ot2 || 0, s.rest_ot3 || 0,
+            s.public_base || 0, s.public_ot1 || 0, s.public_ot2 || 0,
+            s.regular_base || 0, s.regular_comp || 0, s.regular_ot || 0,
+            notes.join('、'),
+        ]);
+    });
+
+    // 月底加合計列
+    if (dailyRows.length > 1) {
+        dailyRows.push([
+            '合計', '', '',
+            '', '', '', '', '',
+            '', '', '', '', '',
+            '', '',
+            sum.normal, sum.ot1, sum.ot2,
+            sum.rest_ot1, sum.rest_ot2, sum.rest_ot3,
+            sum.public_base, sum.public_ot1, sum.public_ot2,
+            sum.regular_base, sum.regular_comp, sum.regular_ot,
+            `等價 ${sum.equivalentHours}h`,
+        ]);
+    }
+
+    // ===== Sheet 3: 規則說明 =====
+    const rulesRows = [
+        ['【勞基法工時計算規則】'],
+        [],
+        ['日期類型分類'],
+        ['平日',     '週一～週五，且非國定假日 / 非補班日'],
+        ['休息日',   '週六（無國定假日覆蓋）'],
+        ['例假日',   '週日（強制休）'],
+        ['國定假日', '依台灣勞動部公告（春節、清明、端午、中秋、雙十、元旦等）'],
+        [],
+        ['平日工時段（淨工時）'],
+        ['0–8h',  '正常工資 ×1.0'],
+        ['8–10h', '加班 OT1 ×4/3 ≈ 1.34'],
+        ['10h+',  '加班 OT2 ×5/3 ≈ 1.67'],
+        [],
+        ['休息日工時段（全部視為加班）'],
+        ['0–2h',  '×4/3 ≈ 1.34'],
+        ['2–8h',  '×5/3 ≈ 1.67'],
+        ['8–12h', '×8/3 ≈ 2.67  上限 12h'],
+        [],
+        ['國定假日工時段（出勤即至少給 8h）'],
+        ['出勤',  '保證 8h 工資'],
+        ['9–10h', '加班 ×4/3'],
+        ['10h+',  '加班 ×5/3'],
+        [],
+        ['例假日工時段（強制休）'],
+        ['出勤',  '1 日工資 = 8h × 時薪'],
+        ['補休',  '折現 8h × 時薪'],
+        ['超 8h', '×2 倍工資'],
+        [],
+        ['淨工時計算'],
+        ['公式',  '總工時 = 下班 − 上班 (同日內，分鐘級)'],
+        ['',      '扣除 = 與「公司休息時段」設定重疊的分鐘'],
+        ['',      '淨工時 = 總工時 − 重疊休息分鐘'],
+        [],
+        ['月薪 → 時薪換算'],
+        ['公式', '勞基法施行細則第 31 條：時薪 = 月薪 ÷ 30 ÷ 8 = 月薪 ÷ 240'],
+        [],
+        ['員工自付費率（2026 年）'],
+        ['勞保普通事故', '投保薪資 × 12% × 員工 20% = 2.4%'],
+        ['健保',         '投保薪資 × 5.17% × 員工 30% ≈ 1.55%'],
+        ['自提勞退',     '投保薪資 × 員工自選提繳率 0~6%'],
+    ];
+
+    // 寫 Excel
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(summaryRows);
+    const ws2 = XLSX.utils.aoa_to_sheet(dailyRows);
+    const ws3 = XLSX.utils.aoa_to_sheet(rulesRows);
+
+    // 簡單欄寬（Sheet1: 第 1 欄較寬；Sheet2: 日期欄較寬）
+    ws1['!cols'] = [{ wch: 22 }, { wch: 32 }, { wch: 12 }, { wch: 18 }, { wch: 14 }];
+    ws2['!cols'] = [
+        { wch: 12 }, { wch: 6 }, { wch: 10 },
+        { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+        { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+        { wch: 14 }, { wch: 14 },
+        { wch: 8 }, { wch: 6 }, { wch: 6 },
+        { wch: 11 }, { wch: 11 }, { wch: 11 },
+        { wch: 10 }, { wch: 10 }, { wch: 10 },
+        { wch: 10 }, { wch: 10 }, { wch: 12 },
+        { wch: 20 },
+    ];
+    ws3['!cols'] = [{ wch: 16 }, { wch: 60 }];
+
+    XLSX.utils.book_append_sheet(wb, ws1, '摘要與結算');
+    XLSX.utils.book_append_sheet(wb, ws2, '每日打卡明細');
+    XLSX.utils.book_append_sheet(wb, ws3, '規則說明');
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+    // 安全檔名
+    const safeName = String(employeeName).replace(/[\/\\:\*\?"<>\|]/g, '').replace(/\s+/g, '_');
+    const filename = `${safeName}-${monthKey}-薪資詳細.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * 註冊「詳細薪資 Excel」按鈕事件
+ */
+function setupDetailedPayrollExport() {
+    const btn = document.getElementById('export-detailed-payroll-btn');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+
+    btn.addEventListener('click', async () => {
+        const userId = adminSelectedUserId
+            || (currentManagingEmployee && currentManagingEmployee.userId)
+            || (document.getElementById('admin-select-employee-mgmt')?.value);
+        if (!userId) {
+            showNotification(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT') || '請先選擇員工', 'error');
+            return;
+        }
+
+        // 解析目前顯示的月份
+        const monthText = (adminCurrentMonthDisplay && adminCurrentMonthDisplay.textContent)
+            ? adminCurrentMonthDisplay.textContent.trim()
+            : '';
+        let year, month;
+        const m = monthText.match(/(\d{4}).*?(\d{1,2})/);
+        if (m) {
+            year = parseInt(m[1], 10);
+            month = parseInt(m[2], 10) - 1;
+        } else {
+            const d = adminCurrentDate || new Date();
+            year = d.getFullYear();
+            month = d.getMonth();
+        }
+
+        if (typeof XLSX === 'undefined') {
+            showNotification(t('MSG_EXPORT_FAILED') || '匯出失敗：XLSX 未載入', 'error');
+            return;
+        }
+
+        const loadingText = t('LOADING') || '處理中...';
+        generalButtonState(btn, 'processing', loadingText);
+        try {
+            await handleDetailedPayrollExport(userId, year, month);
+            showNotification(t('MSG_EXPORT_SUCCESS') || '匯出成功', 'success');
+        } catch (err) {
+            console.error('詳細薪資 Excel 匯出失敗', err);
+            showNotification(t('MSG_EXPORT_FAILED') || '匯出失敗', 'error');
+        } finally {
+            generalButtonState(btn, 'idle');
+        }
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.handleDetailedPayrollExport = handleDetailedPayrollExport;
+}
+
+// #endregion
+// ===================================
+
+function setupTestNotificationButton() {
+    const btn = document.getElementById('test-notification-btn');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+
+    btn.addEventListener('click', async () => {
+        const loadingText = t('LOADING') || '處理中...';
+        generalButtonState(btn, 'processing', loadingText);
+        try {
+            const res = await callApifetch({ action: 'testNotification' }, 'loadingMsg');
+            if (res && res.ok) {
+                const adminCount = res.adminCount != null ? res.adminCount : '';
+                showNotification(`${res.msg || '測試通知發送成功'}（管理員 ${adminCount} 位）`, 'success');
+            } else {
+                const code = (res && res.code) || 'UNKNOWN_ERROR';
+                showNotification(t(code) || (res && res.msg) || '測試通知發送失敗', 'error');
+            }
+        } catch (err) {
+            console.error('testNotification 失敗', err);
+            showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+        } finally {
+            generalButtonState(btn, 'idle');
+        }
+    });
+}
+
+// 休息時間設定編輯器
+/**
+ * Phase 6：本月打卡紀錄表格（含篩選與排序）
+ *
+ * 桌機：HTML table（日期 / 上班 / 下班 / 工時 / 地點 / 狀態），點表頭可切換排序
+ * 手機：每筆 card（垂直堆疊欄位）
+ * Toolbar：狀態篩選 dropdown + 排序欄位 dropdown + 升降序切換
+ *
+ * 來源：dailyStatus（與其他卡共用 loadMonthDetailData cache）
+ */
+async function renderEmployeePunchTable(userId, date) {
+    const card = document.getElementById('employee-punch-table-card');
+    if (!card) return;
+    const titleHtml = `
+        <h3 data-i18n="PUNCH_TABLE_TITLE"
+            class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+            <i class="fas fa-table mr-2 text-emerald-500"></i>${t('PUNCH_TABLE_TITLE')}
+        </h3>`;
+
+    if (!userId) {
+        card.innerHTML = titleHtml +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        renderTranslations(card);
+        return;
+    }
+
+    card.innerHTML = titleHtml + `<p class="dashboard-placeholder">…</p>`;
+
+    const d = date || new Date();
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    let dailyStatus = [];
+    try {
+        // Phase L3：取 enriched 版本（含 laborStats），cache 與其他 render 共用
+        dailyStatus = await loadEnrichedMonthData(month, userId);
+    } catch (err) {
+        console.error('renderEmployeePunchTable fetch 失敗：', err);
+    }
+
+    if (!dailyStatus || dailyStatus.length === 0) {
+        card.innerHTML = titleHtml +
+            `<p class="dashboard-placeholder">${t('TABLE_NO_DATA') || '本月無打卡紀錄'}</p>`;
+        renderTranslations(card);
+        return;
+    }
+
+    // ===== 篩選/排序 state（card scope，每次 dropdown change 直接重渲染 rows）=====
+    // 從 dailyStatus 萃取出現過的 reason 作為 filter options（避免顯示無資料的選項）
+    const seenReasons = [...new Set(dailyStatus.map((d) => d.reason).filter(Boolean))];
+    let filterReason = 'ALL';
+    // Phase L4：sortBy 增加勞基法分段欄位
+    let sortBy = 'date';   // 'date' | 'punchInTime' | 'punchOutTime' | 'hours' | 'plainOt' | 'restTotal'
+    let sortDir = 'desc';  // 'asc' | 'desc'
+
+    // Phase L4：從 laborStats 取分段加總（給排序用）
+    const plainOtOf = (day) => {
+        const s = day && day.laborStats;
+        return s ? Number(s.ot1 || 0) + Number(s.ot2 || 0) : 0;
+    };
+    const restTotalOf = (day) => {
+        const s = day && day.laborStats;
+        return s ? Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0) : 0;
+    };
+
+    // 比較函式：時間/字串字典序、數字比大小、勞基法分段加總
+    const cmp = (a, b) => {
+        let av, bv;
+        if (sortBy === 'hours') {
+            av = Number(a.hours || 0); bv = Number(b.hours || 0);
+        } else if (sortBy === 'plainOt') {
+            av = plainOtOf(a); bv = plainOtOf(b);
+        } else if (sortBy === 'restTotal') {
+            av = restTotalOf(a); bv = restTotalOf(b);
+        } else {
+            av = String(a[sortBy] || ''); bv = String(b[sortBy] || '');
+        }
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    };
+    const applyFilterSort = () => {
+        let rows = dailyStatus;
+        if (filterReason !== 'ALL') rows = rows.filter((r) => r.reason === filterReason);
+        return [...rows].sort(cmp);
+    };
+
+    // Phase L4：依日期類型把 laborStats 簡化成可讀字串
+    //   workday: 「平日 8 +OT 0.5」
+    //   rest:    「休息日 4」
+    //   public:  「國定 6」
+    //   regular: 「例假 +16」
+    const laborBreakdownText = (day) => {
+        const s = day && day.laborStats;
+        if (!s) return '';
+        const fmt = (n) => {
+            const v = Number(n || 0);
+            return v % 1 === 0 ? String(v) : v.toFixed(1);
+        };
+        switch (s.kind) {
+            case 'workday': {
+                const ot = Number(s.ot1 || 0) + Number(s.ot2 || 0);
+                const normal = Number(s.normal || 0);
+                if (normal === 0 && ot === 0) return '';
+                return ot > 0
+                    ? `${t('LABOR_NORMAL_HOURS')} ${fmt(normal)} + OT ${fmt(ot)}`
+                    : `${t('LABOR_NORMAL_HOURS')} ${fmt(normal)}`;
+            }
+            case 'rest': {
+                const total = Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0);
+                if (total === 0) return '';
+                return `${t('DAY_KIND_REST_DAY')} ${fmt(total)}`;
+            }
+            case 'public': {
+                const total = Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0);
+                if (total === 0) return '';
+                return `${t('DAY_KIND_PUBLIC_HOLIDAY')} ${fmt(total)}`;
+            }
+            case 'regular': {
+                const total = Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0);
+                if (total === 0) return '';
+                return `${t('DAY_KIND_REGULAR_LEAVE')} +${fmt(total)}`;
+            }
+            default:
+                return '';
+        }
+    };
+
+    // 每筆萃取地點：去重 record.location，取非空
+    const locationOf = (day) => {
+        const set = new Set();
+        (day.record || []).forEach((r) => {
+            const loc = (r.location || '').trim();
+            if (loc) set.add(loc);
+        });
+        const arr = [...set];
+        if (arr.length === 0) return '–';
+        if (arr.length === 1) return arr[0];
+        return `${arr[0]} (+${arr.length - 1})`;
+    };
+
+    const reasonBadge = (reason) => {
+        if (!reason) return '–';
+        // 使用既有 STATUS_* i18n keys
+        const cls = (() => {
+            switch (reason) {
+                case 'STATUS_PUNCH_NORMAL':
+                case 'STATUS_LEAVE_APPROVED':
+                case 'STATUS_VACATION_APPROVED':
+                case 'STATUS_REPAIR_APPROVED':
+                    return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200';
+                case 'STATUS_LEAVE_PENDING':
+                case 'STATUS_VACATION_PENDING':
+                case 'STATUS_REPAIR_PENDING':
+                    return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200';
+                case 'STATUS_BOTH_MISSING':
+                case 'STATUS_PUNCH_IN_MISSING':
+                case 'STATUS_PUNCH_OUT_MISSING':
+                    return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200';
+                default:
+                    return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
+            }
+        })();
+        return `<span data-i18n="${reason}" class="text-xs font-semibold px-2 py-0.5 rounded ${cls}">${t(reason) || reason}</span>`;
+    };
+
+    // ===== Toolbar HTML =====
+    const filterOptions = `<option value="ALL" data-i18n="TABLE_FILTER_ALL">${t('TABLE_FILTER_ALL')}</option>` +
+        seenReasons.map((reason) => `<option value="${reason}" data-i18n="${reason}">${t(reason) || reason}</option>`).join('');
+
+    const sortFields = [
+        { val: 'date', i18n: 'TABLE_HEADER_DATE' },
+        { val: 'punchInTime', i18n: 'TABLE_HEADER_PUNCH_IN' },
+        { val: 'punchOutTime', i18n: 'TABLE_HEADER_PUNCH_OUT' },
+        { val: 'hours', i18n: 'TABLE_HEADER_HOURS' },
+        // Phase L4：依勞基法分段加總排序
+        { val: 'plainOt', i18n: 'TABLE_SORT_PLAIN_OT' },
+        { val: 'restTotal', i18n: 'TABLE_SORT_REST_TOTAL' },
+    ];
+    const sortFieldOptions = sortFields.map((s) =>
+        `<option value="${s.val}" data-i18n="${s.i18n}">${t(s.i18n)}</option>`
+    ).join('');
+
+    const inputCls = 'p-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white';
+    const toolbarHtml = `
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:0.75rem;">
+            <div style="flex:1 1 160px;min-width:140px;">
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="TABLE_FILTER_LABEL">${t('TABLE_FILTER_LABEL')}</label>
+                <select id="emp-punch-filter" class="${inputCls}" style="width:100%;">${filterOptions}</select>
+            </div>
+            <div style="flex:1 1 140px;min-width:120px;">
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1" data-i18n="TABLE_SORT_LABEL">${t('TABLE_SORT_LABEL')}</label>
+                <select id="emp-punch-sort-by" class="${inputCls}" style="width:100%;">${sortFieldOptions}</select>
+            </div>
+            <div style="flex:0 0 auto;">
+                <button id="emp-punch-sort-dir" type="button"
+                    class="${inputCls}"
+                    style="cursor:pointer;font-weight:600;min-width:60px;"
+                    title="${t('TABLE_SORT_DESC')}">↓</button>
+            </div>
+        </div>`;
+
+    // 表頭可點切換排序：點擊欄位設定 sortBy；同欄再點切換方向
+    const headerHtml = (i18n, field) => {
+        const arrow = (sortBy === field) ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+        const clickable = field !== '_';
+        return `<th data-sort="${field}" class="py-2 px-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300"
+            style="${clickable ? 'cursor:pointer;user-select:none;' : ''}">
+            <span data-i18n="${i18n}">${t(i18n)}</span>${arrow}
+        </th>`;
+    };
+
+    function rerenderTableBodies(rows) {
+        const tableRowsHtml = rows.map((day) => {
+            const breakdown = laborBreakdownText(day);
+            const breakdownHtml = breakdown
+                ? `<div style="font-size:0.7rem;margin-top:2px;color:#6b7280;">${breakdown}</div>`
+                : '';
+            return `
+            <tr class="border-b border-gray-200 dark:border-gray-700">
+                <td class="py-2 px-3 text-sm font-medium text-gray-700 dark:text-gray-200">${day.date || ''}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchInTime || '–'}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${day.punchOutTime || '–'}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">
+                    <div>${Number(day.hours || 0).toFixed(1)}</div>
+                    ${breakdownHtml}
+                </td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${locationOf(day)}</td>
+                <td class="py-2 px-3">${reasonBadge(day.reason)}</td>
+            </tr>`;
+        }).join('');
+        const cardRowsHtml = rows.map((day) => {
+            const breakdown = laborBreakdownText(day);
+            const breakdownLine = breakdown
+                ? `<div style="font-size:0.7rem;margin-top:6px;color:#6b7280;">
+                    <i class="fas fa-balance-scale mr-1"></i>${breakdown}
+                   </div>`
+                : '';
+            return `
+            <li class="emp-punch-card-row p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-200">${day.date || ''}</span>
+                    ${reasonBadge(day.reason)}
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:0.75rem;" class="text-gray-500 dark:text-gray-400">
+                    <div><span data-i18n="TABLE_HEADER_PUNCH_IN">${t('TABLE_HEADER_PUNCH_IN')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchInTime || '–'}</span></div>
+                    <div><span data-i18n="TABLE_HEADER_PUNCH_OUT">${t('TABLE_HEADER_PUNCH_OUT')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${day.punchOutTime || '–'}</span></div>
+                    <div><span data-i18n="TABLE_HEADER_HOURS">${t('TABLE_HEADER_HOURS')}</span><br><span class="text-gray-800 dark:text-gray-100" style="font-weight:600;">${Number(day.hours || 0).toFixed(1)}</span></div>
+                </div>
+                ${breakdownLine}
+                <div style="font-size:0.75rem;margin-top:6px;" class="text-gray-500 dark:text-gray-400">
+                    <span data-i18n="TABLE_HEADER_LOCATION">${t('TABLE_HEADER_LOCATION')}</span>：<span class="text-gray-800 dark:text-gray-100">${locationOf(day)}</span>
+                </div>
+            </li>`;
+        }).join('');
+        const tbody = card.querySelector('table tbody');
+        const cardList = card.querySelector('.emp-punch-card-list');
+        if (tbody) tbody.innerHTML = tableRowsHtml;
+        if (cardList) cardList.innerHTML = cardRowsHtml;
+        // table 內的 badge 仍含 data-i18n，確保切語言時有效
+        renderTranslations(tbody);
+        renderTranslations(cardList);
+    }
+
+    function rerenderHeaders() {
+        const thead = card.querySelector('table thead');
+        if (!thead) return;
+        thead.innerHTML = `<tr style="background:rgba(99,102,241,0.06);">
+            ${headerHtml('TABLE_HEADER_DATE', 'date')}
+            ${headerHtml('TABLE_HEADER_PUNCH_IN', 'punchInTime')}
+            ${headerHtml('TABLE_HEADER_PUNCH_OUT', 'punchOutTime')}
+            ${headerHtml('TABLE_HEADER_HOURS', 'hours')}
+            ${headerHtml('TABLE_HEADER_LOCATION', '_')}
+            ${headerHtml('TABLE_HEADER_STATUS', '_')}
+        </tr>`;
+        thead.querySelectorAll('th[data-sort]').forEach((th) => {
+            const field = th.dataset.sort;
+            if (field === '_') return;
+            th.addEventListener('click', () => {
+                if (sortBy === field) sortDir = (sortDir === 'asc' ? 'desc' : 'asc');
+                else { sortBy = field; sortDir = (field === 'date' ? 'desc' : 'asc'); }
+                syncToolbarFromState();
+                rerenderHeaders();
+                rerenderTableBodies(applyFilterSort());
+            });
+        });
+    }
+
+    function syncToolbarFromState() {
+        const sortBySel = card.querySelector('#emp-punch-sort-by');
+        const sortDirBtn = card.querySelector('#emp-punch-sort-dir');
+        if (sortBySel) sortBySel.value = sortBy;
+        if (sortDirBtn) {
+            sortDirBtn.textContent = sortDir === 'asc' ? '↑' : '↓';
+            sortDirBtn.title = sortDir === 'asc' ? (t('TABLE_SORT_ASC') || 'Asc') : (t('TABLE_SORT_DESC') || 'Desc');
+        }
+    }
+
+    card.innerHTML = titleHtml + toolbarHtml + `
+        <!-- 桌機 table -->
+        <div class="emp-punch-table-wrap" style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <!-- 手機 card 列表 -->
+        <ul class="emp-punch-card-list" style="display:none;list-style:none;padding:0;margin:0;"></ul>`;
+    rerenderHeaders();
+    rerenderTableBodies(applyFilterSort());
+    renderTranslations(card);
+
+    // toolbar 事件綁定
+    const filterSel = card.querySelector('#emp-punch-filter');
+    const sortBySel = card.querySelector('#emp-punch-sort-by');
+    const sortDirBtn = card.querySelector('#emp-punch-sort-dir');
+    if (filterSel) {
+        filterSel.addEventListener('change', () => {
+            filterReason = filterSel.value;
+            rerenderTableBodies(applyFilterSort());
+        });
+    }
+    if (sortBySel) {
+        sortBySel.addEventListener('change', () => {
+            sortBy = sortBySel.value;
+            rerenderHeaders();
+            rerenderTableBodies(applyFilterSort());
+        });
+    }
+    if (sortDirBtn) {
+        sortDirBtn.addEventListener('click', () => {
+            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            syncToolbarFromState();
+            rerenderHeaders();
+            rerenderTableBodies(applyFilterSort());
+        });
+    }
+}
+
+/**
+ * Phase 5：連續上工天數 + 請假/休假統計（純前端從 dailyStatus 推導）
+ *
+ * 連續上工：從今天反向掃描，連續 STATUS_PUNCH_NORMAL 的天數
+ *   中斷規則：
+ *   - PUNCH_NORMAL                    → +1
+ *   - LEAVE/VACATION_APPROVED         → skip 不算也不中斷
+ *   - 國定假日 / 例假日 (週日)         → skip
+ *   - 其他狀態（缺打卡/異常/未來日）    → 中斷
+ *
+ * 請假統計：scan dailyStatus，找出 reason='STATUS_LEAVE_APPROVED' /
+ *   'STATUS_VACATION_APPROVED' 的日子，從 record 裡 adjustmentType=
+ *   '系統請假記錄' 的 location 欄位取請假類別（年假/病假/事假/...），
+ *   按類別計天數。
+ *
+ * @param {string|null} userId
+ * @param {Date}        date
+ */
+async function renderEmployeeStreakAndLeaveStats(userId, date) {
+    const streakCard = document.getElementById('employee-streak-card');
+    const leaveCard = document.getElementById('employee-leave-stats-card');
+    if (!streakCard || !leaveCard) return;
+
+    const titleStreak = `<h3 data-i18n="CONSECUTIVE_WORKDAYS_TITLE"
+        class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+        <i class="fas fa-fire mr-2 text-orange-500"></i>${t('CONSECUTIVE_WORKDAYS_TITLE')}</h3>`;
+    const titleLeave = `<h3 data-i18n="LEAVE_STATS_TITLE"
+        class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-2">
+        <i class="fas fa-umbrella-beach mr-2 text-cyan-500"></i>${t('LEAVE_STATS_TITLE')}</h3>`;
+
+    if (!userId) {
+        streakCard.innerHTML = titleStreak +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        leaveCard.innerHTML = titleLeave +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        renderTranslations(streakCard);
+        renderTranslations(leaveCard);
+        return;
+    }
+
+    // 載入中
+    streakCard.innerHTML = titleStreak + `<p class="dashboard-placeholder">…</p>`;
+    leaveCard.innerHTML = titleLeave + `<p class="dashboard-placeholder">…</p>`;
+
+    const d = date || new Date();
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    let dailyStatus = [];
+    try {
+        // Phase L3：取 enriched 版本，cache 與其他 render 共用
+        dailyStatus = await loadEnrichedMonthData(month, userId);
+    } catch (err) {
+        console.error('renderEmployeeStreakAndLeaveStats fetch 失敗：', err);
+    }
+
+    // ===== 連續上工：從「昨天」往前掃 =====
+    // 規則：當天有「上班」或「下班」其一打卡即算 +1；
+    // 完全沒打卡（含請假/休假/國定假日）→ 中斷
+    // 起點為昨天：今天還沒過完，無從判斷
+    const byDate = {};
+    (dailyStatus || []).forEach((day) => { if (day.date) byDate[day.date] = day; });
+    const fmtKey = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const today = new Date();
+    let streak = 0;
+    const cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    for (let i = 0; i < 60; i++) {
+        const key = fmtKey(cursor);
+        const day = byDate[key];
+        if (day && (day.punchInTime || day.punchOutTime)) {
+            streak += 1;
+            cursor.setDate(cursor.getDate() - 1);
+        } else {
+            break;
+        }
+    }
+
+    // 連續上工：大數字置中顯示
+    streakCard.innerHTML = titleStreak + `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem 0;">
+            <div style="font-size:4rem;font-weight:800;line-height:1;color:#ea580c;">${streak}</div>
+            <div data-i18n="CONSECUTIVE_DAYS_UNIT" style="font-size:0.95rem;color:#6b7280;margin-top:0.5rem;">${t('CONSECUTIVE_DAYS_UNIT') || '天'}</div>
+        </div>`;
+    renderTranslations(streakCard);
+
+    // ===== 請假/休假統計：請假與休假分開計 =====
+    // attendance.type 是中文「請假」/「休假」（submitLeave 寫入）
+    // 請假組：員工提出的「不可預期/個人事務」(病假/事假/其他)
+    // 休假組：使用「年假/特休/補休」等假別（休息日）
+    const leaveStats = {};
+    const vacationStats = {};
+    (dailyStatus || []).forEach((day) => {
+        if (day.reason !== 'STATUS_LEAVE_APPROVED' && day.reason !== 'STATUS_VACATION_APPROVED') return;
+        const leaveRec = (day.record || []).find((r) => r.adjustmentType === '系統請假記錄');
+        if (!leaveRec) return;
+        const category = leaveRec.location || (t('VALUE_NA') || '其他');
+        if (leaveRec.type === '休假') {
+            vacationStats[category] = (vacationStats[category] || 0) + 1;
+        } else {
+            // 預設視為請假（含 type 為空或 '請假'）
+            leaveStats[category] = (leaveStats[category] || 0) + 1;
+        }
+    });
+
+    const leaveEntries = Object.entries(leaveStats).sort((a, b) => b[1] - a[1]);
+    const vacationEntries = Object.entries(vacationStats).sort((a, b) => b[1] - a[1]);
+
+    // ===== 異常統計：scan 月初 ~ 昨天 =====
+    // 完全沒記錄 → 算「未打卡」(STATUS_BOTH_MISSING)
+    // 有部分記錄但缺上/下班 → 各別算
+    const abnormalStats = { both: 0, in: 0, out: 0 };
+    const monthFirst = new Date(d.getFullYear(), d.getMonth(), 1);
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    // 只 scan 該月內 + 不超過昨天的日子
+    const monthEndExclusive = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const scanEnd = yesterday < monthEndExclusive ? yesterday : new Date(monthEndExclusive.getTime() - 86400000);
+    for (let scan = new Date(monthFirst); scan <= scanEnd; scan.setDate(scan.getDate() + 1)) {
+        const key = fmtKey(scan);
+        const day = byDate[key];
+        if (!day) {
+            abnormalStats.both += 1;
+        } else if (day.reason === 'STATUS_BOTH_MISSING') {
+            abnormalStats.both += 1;
+        } else if (day.reason === 'STATUS_PUNCH_IN_MISSING') {
+            abnormalStats.in += 1;
+        } else if (day.reason === 'STATUS_PUNCH_OUT_MISSING') {
+            abnormalStats.out += 1;
+        }
+    }
+    const abnormalEntries = [
+        ['ABNORMAL_BOTH_MISSING', abnormalStats.both],
+        ['ABNORMAL_IN_MISSING', abnormalStats.in],
+        ['ABNORMAL_OUT_MISSING', abnormalStats.out],
+    ].filter(([, n]) => n > 0);
+    // 異常總數，0 也要顯示讓管理員確認
+    const abnormalTotal = abnormalStats.both + abnormalStats.in + abnormalStats.out;
+
+    if (leaveEntries.length === 0 && vacationEntries.length === 0 && abnormalTotal === 0) {
+        leaveCard.innerHTML = titleLeave +
+            `<p class="dashboard-placeholder">${t('LEAVE_NO_RECORDS') || '本月無紀錄'}</p>`;
+        renderTranslations(leaveCard);
+        return;
+    }
+
+    const unit = t('CONSECUTIVE_DAYS_UNIT') || '天';
+    const sectionHtml = (groupKey, color, entries, useI18nKeyAsLabel = false) => {
+        if (entries.length === 0) return '';
+        const total = entries.reduce((s, [, n]) => s + n, 0);
+        const itemsHtml = entries.map(([cat, days]) => {
+            const label = useI18nKeyAsLabel
+                ? `<span data-i18n="${cat}" style="color:#4b5563;">${t(cat)}</span>`
+                : `<span style="color:#4b5563;">${cat}</span>`;
+            return `
+            <li style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(156,163,175,0.18);font-size:0.875rem;">
+                ${label}
+                <span style="font-weight:700;color:${color};">${days} ${unit}</span>
+            </li>`;
+        }).join('');
+        return `
+            <div style="margin-top:0.75rem;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+                    <span data-i18n="${groupKey}" style="font-size:0.8rem;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:0.05em;">${t(groupKey)}</span>
+                    <span style="font-size:0.75rem;color:#9ca3af;">${total} ${unit}</span>
+                </div>
+                <ul style="margin:0;padding:0;list-style:none;">${itemsHtml}</ul>
+            </div>`;
+    };
+
+    // 異常組永遠顯示：即使 0 天也讓管理員看到本月「無異常」
+    const abnormalSectionHtml = (() => {
+        const color = '#a855f7';
+        if (abnormalEntries.length === 0) {
+            const unitTxt = t('CONSECUTIVE_DAYS_UNIT') || '天';
+            return `
+            <div style="margin-top:0.75rem;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+                    <span data-i18n="ABNORMAL_GROUP" style="font-size:0.8rem;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:0.05em;">${t('ABNORMAL_GROUP')}</span>
+                    <span style="font-size:0.75rem;color:#9ca3af;">0 ${unitTxt}</span>
+                </div>
+            </div>`;
+        }
+        return sectionHtml('ABNORMAL_GROUP', color, abnormalEntries, true);
+    })();
+
+    leaveCard.innerHTML = titleLeave +
+        sectionHtml('LEAVE_GROUP_LEAVE', '#dc2626', leaveEntries) +
+        sectionHtml('LEAVE_GROUP_VACATION', '#0891b2', vacationEntries) +
+        abnormalSectionHtml;
+    renderTranslations(leaveCard);
+}
+
+/**
+ * Phase 4：員工申請紀錄整合（待審核 / 已批准 / 已拒絕 三 tab）
+ *
+ * 從擴充後的 getReviewRequest（接 userId + audit 參數）拉資料，
+ * 渲染到員工 dashboard 的「申請紀錄」卡，待審核項目可直接 approve/reject。
+ *
+ * @param {string|null} userId       選中的員工 ID；null 重設為 placeholder
+ * @param {string}      audit        '?' | 'v' | 'x'，預設 '?' (待審核)
+ */
+async function renderEmployeeRequestHistory(userId, audit = '?') {
+    const card = document.getElementById('employee-request-history-card');
+    if (!card) return;
+
+    const titleHtml = `
+        <h3 data-i18n="REQUEST_HISTORY_TITLE"
+            class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3">
+            <i class="fas fa-clipboard-list mr-2 text-indigo-500"></i>${t('REQUEST_HISTORY_TITLE')}
+        </h3>`;
+
+    if (!userId) {
+        card.innerHTML = titleHtml +
+            `<p class="dashboard-placeholder">${t('MSG_PLEASE_SELECT_EMPLOYEE') || '請先選擇員工'}</p>`;
+        renderTranslations(card);
+        return;
+    }
+
+    const tabs = [
+        { audit: '?', i18n: 'REQUEST_TAB_PENDING' },
+        { audit: 'v', i18n: 'REQUEST_TAB_APPROVED' },
+        { audit: 'x', i18n: 'REQUEST_TAB_REJECTED' },
+    ];
+    const tabsHtml = tabs.map((tabItem) => {
+        const active = tabItem.audit === audit;
+        return `<button type="button" data-audit="${tabItem.audit}"
+            class="emp-req-tab${active ? ' active' : ''}">
+            <span data-i18n="${tabItem.i18n}">${t(tabItem.i18n)}</span>
+        </button>`;
+    }).join('');
+
+    card.innerHTML = titleHtml +
+        `<div class="flex flex-wrap gap-2 mb-3">${tabsHtml}</div>` +
+        `<div id="employee-request-body" class="dashboard-placeholder">…</div>`;
+
+    // tab 切換
+    card.querySelectorAll('.emp-req-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            renderEmployeeRequestHistory(userId, btn.dataset.audit);
+        });
+    });
+    renderTranslations(card);
+
+    // 取資料
+    let res;
+    try {
+        res = await callApifetch({ action: 'getReviewRequest', userId, audit });
+    } catch (err) {
+        console.error('renderEmployeeRequestHistory fetch 失敗：', err);
+    }
+
+    const body = card.querySelector('#employee-request-body');
+    if (!body) return;
+    if (!res || !res.ok) {
+        body.textContent = t('MSG_FETCH_REVIEW_NETWORK_ERROR') || '載入失敗';
+        return;
+    }
+    const items = res.reviewRequest || [];
+    if (items.length === 0) {
+        body.innerHTML = `<p class="dashboard-placeholder">${t('VALUE_NA') || '無資料'}</p>`;
+        return;
+    }
+
+    // 顯示 list（每筆：類型 badge + 狀態 badge + 時間 + 動作）
+    const STATUS_BADGE = {
+        '?': { i18n: 'REQUEST_TAB_PENDING', cls: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200' },
+        'v': { i18n: 'REQUEST_TAB_APPROVED', cls: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200' },
+        'x': { i18n: 'REQUEST_TAB_REJECTED', cls: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200' },
+    };
+
+    const itemsHtml = items.map((req) => {
+        const isLeave = req.remark && req.remark !== '補打卡';
+        const labelTimeKey = isLeave ? 'LABEL_LEAVE_VACATION_TIME' : 'LABEL_REPAIR_TIME';
+        const typeBadgeKey = isLeave ? 'BADGE_LEAVE_VACATION' : 'BADGE_REPAIR';
+        const typeBadgeCls = isLeave
+            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200'
+            : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200';
+        const statusBadge = STATUS_BADGE[req.audit] || STATUS_BADGE['?'];
+        const showActions = req.audit === '?';
+        const remarkLine = (isLeave && req.remark)
+            ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${req.remark}</p>`
+            : '';
+        return `
+        <li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div class="flex-grow min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span data-i18n="${typeBadgeKey}" class="text-xs font-semibold px-2 py-0.5 rounded ${typeBadgeCls}">${t(typeBadgeKey)}</span>
+                    <span class="text-xs font-medium text-gray-600 dark:text-gray-300">${req.type || ''}</span>
+                    <span data-i18n="${statusBadge.i18n}" class="text-xs font-semibold px-2 py-0.5 rounded ${statusBadge.cls}">${t(statusBadge.i18n)}</span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span data-i18n="${labelTimeKey}">${t(labelTimeKey)}</span>：${req.targetTime || ''}
+                    <span class="mx-1">·</span>
+                    <span data-i18n="LABEL_APPLICATION_TIME">${t('LABEL_APPLICATION_TIME')}</span>：${req.applicationTime || ''}
+                </p>
+                ${remarkLine}
+            </div>
+            ${showActions ? `
+            <div class="flex gap-2 shrink-0">
+                <button type="button" data-action="approve" data-id="${req.id}"
+                    class="emp-req-act px-3 py-1 rounded text-xs font-bold btn-primary"
+                    data-i18n="ADMIN_APPROVE_BUTTON">${t('ADMIN_APPROVE_BUTTON') || '核准'}</button>
+                <button type="button" data-action="reject" data-id="${req.id}"
+                    class="emp-req-act px-3 py-1 rounded text-xs font-bold btn-warning"
+                    data-i18n="ADMIN_REJECT_BUTTON">${t('ADMIN_REJECT_BUTTON') || '拒絕'}</button>
+            </div>` : ''}
+        </li>`;
+    }).join('');
+
+    body.outerHTML = `<ul id="employee-request-body" class="space-y-2">${itemsHtml}</ul>`;
+    const newBody = card.querySelector('#employee-request-body');
+    if (newBody) renderTranslations(newBody);
+
+    // 綁 approve/reject
+    card.querySelectorAll('.emp-req-act').forEach((btn) => {
+        btn.addEventListener('click', () => handleEmployeeRequestAction(btn, userId, audit));
+    });
+}
+
+async function handleEmployeeRequestAction(button, userId, currentAudit) {
+    const action = button.dataset.action;
+    const id = button.dataset.id;
+    if (!id || !action) return;
+
+    const isAdmin = await verifyAdminPermission();
+    if (!isAdmin) {
+        showNotification(t('ERR_NO_PERMISSION') || '您沒有管理員權限', 'error');
+        return;
+    }
+
+    const actionText = t(action === 'approve' ? 'ACTION_APPROVE' : 'ACTION_REJECT');
+    const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
+    const confirmed = await showConfirmDialog(confirmMsg);
+    if (!confirmed) return;
+
+    const loadingText = t('LOADING') || '處理中...';
+    generalButtonState(button, 'processing', loadingText);
+    try {
+        const endpoint = action === 'approve' ? 'approveReview' : 'rejectReview';
+        const res = await callApifetch({ action: endpoint, id });
+        if (res && res.ok) {
+            const key = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
+            showNotification(t(key) || (action === 'approve' ? '已批准' : '已拒絕'), 'success');
+            await renderEmployeeRequestHistory(userId, currentAudit);
+        } else {
+            showNotification(t('REVIEW_FAILED', { msg: (res && res.msg) || '' }) || '審核失敗', 'error');
+        }
+    } catch (err) {
+        showNotification(t('REVIEW_NETWORK_ERROR') || '網路錯誤', 'error');
+        console.error(err);
+    } finally {
+        generalButtonState(button, 'idle');
+    }
+}
+
+/**
+ * Phase 3：員工本月 KPI（總工時 / 正常 / 加班 / 請假天數）
+ *
+ * 從 loadMonthDetailData 拿 dailyStatus 算 4 個數字並寫入 #kpi-* span。
+ * 標準工時 8 小時/天（與 weekly-chart 一致）。
+ *
+ * @param {string|null} userId  選中的員工 ID；null 重設 KPI 為 --
+ * @param {Date}        date    決定月份（year/month）
+ */
+async function renderEmployeeKpi(userId, date) {
+    const STANDARD = 8;
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+
+    // Phase L5：勞基法工時詳細 12 格 + 等價時數
+    const LABOR_IDS = [
+        'kpi-l-normal', 'kpi-l-ot1', 'kpi-l-ot2',
+        'kpi-l-rest-ot1', 'kpi-l-rest-ot2', 'kpi-l-rest-ot3',
+        'kpi-l-public-base', 'kpi-l-public-ot1', 'kpi-l-public-ot2',
+        'kpi-l-regular-base', 'kpi-l-regular-comp', 'kpi-l-regular-ot',
+        'kpi-l-equiv',
+    ];
+
+    if (!userId) {
+        ['kpi-total-hours', 'kpi-normal-hours', 'kpi-overtime-hours', 'kpi-leave-days']
+            .forEach((id) => setVal(id, '--'));
+        LABOR_IDS.forEach((id) => setVal(id, '--'));
+        return;
+    }
+
+    const d = date || new Date();
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    // 重設為 loading 狀態
+    ['kpi-total-hours', 'kpi-normal-hours', 'kpi-overtime-hours', 'kpi-leave-days']
+        .forEach((id) => setVal(id, '…'));
+    LABOR_IDS.forEach((id) => setVal(id, '…'));
+
+    let dailyStatus = [];
+    try {
+        // Phase L3：取 enriched 版本（含 laborStats）
+        dailyStatus = await loadEnrichedMonthData(month, userId);
+    } catch (err) {
+        console.error('renderEmployeeKpi loadEnrichedMonthData 失敗：', err);
+    }
+
+    // 上層 4 格 KPI（沿用 day.hours 原邏輯，與既有打卡資料一致）
+    let total = 0, normal = 0, overtime = 0, leaveDays = 0;
+    for (const day of (dailyStatus || [])) {
+        const h = Number(day.hours || 0);
+        total += h;
+        normal += Math.min(h, STANDARD);
+        overtime += Math.max(0, h - STANDARD);
+        if (day.reason === 'STATUS_LEAVE_APPROVED' || day.reason === 'STATUS_VACATION_APPROVED') {
+            leaveDays += 1;
+        }
+    }
+
+    setVal('kpi-total-hours', total.toFixed(1));
+    setVal('kpi-normal-hours', normal.toFixed(1));
+    setVal('kpi-overtime-hours', overtime.toFixed(1));
+    setVal('kpi-leave-days', String(leaveDays));
+
+    // Phase L5：勞基法分段詳細（aggregateMonthLaborStats 來自 labor-hours.js）
+    const fmt = (n) => {
+        const v = Number(n || 0);
+        return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)) + 'h';
+    };
+    let sum = null;
+    if (typeof window.aggregateMonthLaborStats === 'function') {
+        sum = window.aggregateMonthLaborStats(dailyStatus || []);
+        // 平日
+        setVal('kpi-l-normal', fmt(sum.normal));
+        setVal('kpi-l-ot1', fmt(sum.ot1));
+        setVal('kpi-l-ot2', fmt(sum.ot2));
+        // 休息日
+        setVal('kpi-l-rest-ot1', fmt(sum.rest_ot1));
+        setVal('kpi-l-rest-ot2', fmt(sum.rest_ot2));
+        setVal('kpi-l-rest-ot3', fmt(sum.rest_ot3));
+        // 國定假日
+        setVal('kpi-l-public-base', fmt(sum.public_base));
+        setVal('kpi-l-public-ot1', fmt(sum.public_ot1));
+        setVal('kpi-l-public-ot2', fmt(sum.public_ot2));
+        // 例假日
+        setVal('kpi-l-regular-base', fmt(sum.regular_base));
+        setVal('kpi-l-regular-comp', fmt(sum.regular_comp));
+        setVal('kpi-l-regular-ot', fmt(sum.regular_ot));
+        // 等價時數
+        setVal('kpi-l-equiv', fmt(sum.equivalentHours));
+    } else {
+        console.warn('aggregateMonthLaborStats 未載入，跳過勞基法詳細');
+        LABOR_IDS.forEach((id) => setVal(id, '--'));
+    }
+
+    // Phase L7：薪資估算（員工有薪資設定才顯示）
+    const estimationEl = document.getElementById('kpi-salary-estimation');
+    if (!estimationEl) return;
+    const emp = currentManagingEmployee;
+    const hourly = emp?.salaryType === 'hourly'
+        ? Number(emp.hourlyRate || 0)
+        : (emp?.monthlySalary
+            ? (typeof window.monthlyToHourly === 'function'
+                ? window.monthlyToHourly(emp.monthlySalary)
+                : Math.round(emp.monthlySalary / 240))
+            : 0);
+    if (!emp || hourly <= 0 || !sum) {
+        estimationEl.style.display = 'none';
+        return;
+    }
+    estimationEl.style.display = 'grid';
+
+    // 應發 = 等價時數 × 時薪
+    const gross = Math.round(Number(sum.equivalentHours || 0) * hourly);
+    // 自付扣繳：依勞保等級
+    const grade = (window.LABOR_INSURANCE_GRADES || [])
+        .find((g) => g.grade === Number(emp.laborInsuranceGrade));
+    const insuredSalary = grade ? grade.salary : 0;
+    const pensionRate = emp.hasLaborPension ? Number(emp.laborPensionRate || 0) : 0;
+    const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
+        ? window.calcEmployeeDeductions(insuredSalary, pensionRate)
+        : { labor: 0, health: 0, pension: 0, total: 0 };
+    const net = gross - ded.total;
+
+    setVal('kpi-salary-gross', `NT$ ${gross.toLocaleString()}`);
+    setVal('kpi-salary-deduct', `-${ded.total.toLocaleString()}`);
+    setVal('kpi-salary-net', `NT$ ${net.toLocaleString()}`);
+}
+
+// ===================================
+// #region Phase L2：公司休息時段 cache（給 labor-hours / dashboard 共用）
+// ===================================
+
+/**
+ * 公司休息時段 cache（module-level，全部管理員 dashboard 共用）。
+ * 與 setupBreakTimesEditor 的編輯區同步：editor 儲存成功後 invalidate。
+ */
+let _breakTimesCache = null;          // null = 尚未載入；Array = 已載入結果
+let _breakTimesLoadingPromise = null; // 正在 fetch 的 Promise，併發去重用
+
+/**
+ * 載入公司休息時段（預設 cache，多次呼叫只 fetch 一次）。
+ * @param {boolean} force  傳 true 強制重抓（編輯後用）
+ * @returns {Promise<Array<{name,start,end}>>}
+ */
+async function loadBreakTimes(force = false) {
+    if (!force && Array.isArray(_breakTimesCache)) return _breakTimesCache;
+    if (_breakTimesLoadingPromise) return _breakTimesLoadingPromise;
+    _breakTimesLoadingPromise = (async () => {
+        try {
+            const res = await callApifetch({ action: 'getBreakTimes' });
+            if (res && res.ok && Array.isArray(res.breaks)) {
+                _breakTimesCache = res.breaks;
+            } else {
+                _breakTimesCache = [];
+                console.warn('loadBreakTimes：API 回傳異常，使用空陣列', res);
+            }
+        } catch (err) {
+            console.error('loadBreakTimes 失敗', err);
+            _breakTimesCache = [];
+        } finally {
+            _breakTimesLoadingPromise = null;
+        }
+        return _breakTimesCache;
+    })();
+    return _breakTimesLoadingPromise;
+}
+
+/**
+ * 同步取得 cache（未載入回空陣列）。給 render function 使用。
+ */
+function getCachedBreakTimes() {
+    return Array.isArray(_breakTimesCache) ? _breakTimesCache : [];
+}
+
+/**
+ * 編輯休息時段成功時呼叫，使下次取得自動重 fetch。
+ */
+function invalidateBreakTimesCache() {
+    _breakTimesCache = null;
+    _breakTimesLoadingPromise = null;
+}
+
+if (typeof window !== 'undefined') {
+    window.loadBreakTimes = loadBreakTimes;
+    window.getCachedBreakTimes = getCachedBreakTimes;
+    window.invalidateBreakTimesCache = invalidateBreakTimesCache;
+}
+
+// #endregion
+// ===================================
+
+// ===================================
+// #region Phase L3：月度 enriched dailyStatus cache（補上勞基法分段工時）
+// ===================================
+
+/**
+ * 月度 enriched dailyStatus cache。
+ * key 格式：`${userId}-${monthKey}` (monthKey = 'YYYY-MM')
+ * value：Array<{ ...rawDay, laborStats }>
+ *
+ * 每月一個鍵；切月時 key 不同會自動重算。
+ * 編輯休息時段時應呼叫 invalidateEnrichedMonthCache() 清空。
+ */
+const _enrichedMonthCache = {};
+
+function _enrichedCacheKey(userId, monthKey) {
+    return `${userId}-${monthKey}`;
+}
+
+/**
+ * 取得指定月份 enriched dailyStatus（每筆已加 laborStats 分段工時）。
+ *
+ * - 自動 ensure breakTimes cache 已載入
+ * - 結果 cache 在 module-level；同月份重複呼叫不重新 enrich
+ * - 若 enrichDayWithLaborStats 未載入會 fallback 回 raw（不阻塞）
+ *
+ * @param {string} monthKey 'YYYY-MM'
+ * @param {string} userId
+ * @returns {Promise<Array>} enriched days；若取不到資料回空陣列
+ */
+async function loadEnrichedMonthData(monthKey, userId) {
+    if (!monthKey || !userId) return [];
+    const ck = _enrichedCacheKey(userId, monthKey);
+    if (Array.isArray(_enrichedMonthCache[ck])) return _enrichedMonthCache[ck];
+
+    const [rawDays, breakTimes] = await Promise.all([
+        loadMonthDetailData(monthKey, userId),
+        loadBreakTimes(),
+    ]);
+
+    if (typeof window.enrichDayWithLaborStats !== 'function') {
+        console.warn('enrichDayWithLaborStats 未載入，回傳 raw dailyStatus');
+        return rawDays || [];
+    }
+
+    const enriched = (rawDays || []).map((d) => window.enrichDayWithLaborStats(d, breakTimes));
+    _enrichedMonthCache[ck] = enriched;
+    return enriched;
+}
+
+/**
+ * Invalidate enriched cache。
+ *   - (userId, monthKey)：清單一月份
+ *   - (userId)：清該員工所有月份
+ *   - 無參數：清全部
+ */
+function invalidateEnrichedMonthCache(userId, monthKey) {
+    if (userId && monthKey) {
+        delete _enrichedMonthCache[_enrichedCacheKey(userId, monthKey)];
+        return;
+    }
+    if (userId) {
+        const prefix = `${userId}-`;
+        Object.keys(_enrichedMonthCache).forEach((k) => {
+            if (k.startsWith(prefix)) delete _enrichedMonthCache[k];
+        });
+        return;
+    }
+    Object.keys(_enrichedMonthCache).forEach((k) => delete _enrichedMonthCache[k]);
+}
+
+if (typeof window !== 'undefined') {
+    window.loadEnrichedMonthData = loadEnrichedMonthData;
+    window.invalidateEnrichedMonthCache = invalidateEnrichedMonthCache;
+}
+
+// #endregion
+// ===================================
+
+function setupBreakTimesEditor() {
+    const listEl = document.getElementById('break-times-list');
+    const addBtn = document.getElementById('break-times-add-btn');
+    const saveBtn = document.getElementById('break-times-save-btn');
+    if (!listEl || !addBtn || !saveBtn || listEl.dataset.bound === '1') return;
+    listEl.dataset.bound = '1';
+
+    function rowHtml(b) {
+        const name = (b && b.name) || '';
+        const start = (b && b.start) || '';
+        const end = (b && b.end) || '';
+        const nameLabel = t('BREAK_NAME_LABEL') || '休息名稱';
+        const startLabel = t('BREAK_START_LABEL') || '開始時間';
+        const endLabel = t('BREAK_END_LABEL') || '結束時間';
+        const removeLabel = t('BTN_REMOVE_BREAK') || '移除';
+        const inputCls = 'p-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white';
+        // 兩列：第一列 = 休息名稱（填滿）+ 移除按鈕
+        // 第二列 = 開始時間 + 結束時間（左右並列）
+        return `
+            <div class="break-row p-3 rounded-md bg-gray-50 dark:bg-gray-700"
+                 style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;gap:8px;align-items:flex-end;">
+                    <div style="flex:1 1 auto;min-width:0;">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${nameLabel}</label>
+                        <input type="text" class="break-name ${inputCls}" style="width:100%;box-sizing:border-box;" value="${String(name).replace(/"/g, '&quot;')}" />
+                    </div>
+                    <div style="flex:0 0 auto;">
+                        <button type="button" class="break-remove-btn text-sm font-semibold rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900"
+                                style="padding:8px 10px;" title="${removeLabel}">✕</button>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <div style="flex:1 1 0;min-width:0;">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${startLabel}</label>
+                        <input type="time" class="break-start ${inputCls}" style="width:100%;box-sizing:border-box;" value="${start}" />
+                    </div>
+                    <div style="flex:1 1 0;min-width:0;">
+                        <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${endLabel}</label>
+                        <input type="time" class="break-end ${inputCls}" style="width:100%;box-sizing:border-box;" value="${end}" />
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function render(breaks) {
+        const safeHtml = (breaks || []).map(rowHtml).join('');
+        listEl.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(safeHtml) : safeHtml;
+    }
+
+    function collect() {
+        return [...listEl.querySelectorAll('.break-row')].map((row) => ({
+            name: (row.querySelector('.break-name')?.value || '').trim(),
+            start: (row.querySelector('.break-start')?.value || '').trim(),
+            end: (row.querySelector('.break-end')?.value || '').trim(),
+        }));
+    }
+
+    listEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.break-remove-btn');
+        if (!btn) return;
+        const row = btn.closest('.break-row');
+        if (row) row.remove();
+    });
+
+    addBtn.addEventListener('click', () => {
+        const current = collect();
+        current.push({ name: '', start: '12:00', end: '13:00' });
+        render(current);
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        const breaks = collect();
+        const loadingText = t('LOADING') || '處理中...';
+        generalButtonState(saveBtn, 'processing', loadingText);
+        try {
+            const res = await callApifetch({ action: 'setBreakTimes', breaks }, 'loadingMsg');
+            if (res && res.ok) {
+                showNotification(t('MSG_BREAK_TIMES_SAVED'), 'success');
+                if (Array.isArray(res.breaks)) render(res.breaks);
+                // Phase L2：儲存後 invalidate module-level cache，下次 dashboard 取會重抓
+                invalidateBreakTimesCache();
+                // Phase L3：休息時段改變 → enriched 結果失效，全部清空
+                invalidateEnrichedMonthCache();
+                loadBreakTimes(true).catch(() => { /* 已記錄 */ });
+            } else {
+                const code = (res && res.code) || 'UNKNOWN_ERROR';
+                const msg = t(code) || (res && res.msg) || '';
+                showNotification(t('MSG_BREAK_TIMES_SAVE_FAILED', { msg }), 'error');
+            }
+        } catch (err) {
+            console.error('setBreakTimes 失敗', err);
+            showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+        } finally {
+            generalButtonState(saveBtn, 'idle');
+        }
+    });
+
+    // 首次載入：用 module-level cache（與 dashboard 共用，不會重複 fetch）
+    (async () => {
+        try {
+            const breaks = await loadBreakTimes();
+            render(breaks);
+            if (!Array.isArray(breaks) || breaks.length === 0) {
+                // 空陣列可能代表 API 失敗 — 顯示警告但不阻塞 UI
+                console.warn('setupBreakTimesEditor：cache 為空');
+            }
+        } catch (err) {
+            console.error('setupBreakTimesEditor 載入失敗', err);
+            render([]);
+            showNotification(t('MSG_BREAK_TIMES_LOAD_FAILED'), 'error');
+        }
+    })();
 }
 // #endregion
 // ===================================
@@ -2427,85 +3161,6 @@ function normalizeDateKey(raw) {
         return `${y}-${mo}-${d}`;
     }
     return '';
-}
-
-/**
- * 從 record 物件取出打卡陣列 (容錯)
- */
-function getPunchesFromRecord(r) {
-    if (!r) return [];
-    if (Array.isArray(r.record)) return r.record;
-    if (Array.isArray(r.punches)) return r.punches;
-    if (Array.isArray(r.dailyPunches)) return r.dailyPunches;
-    if (Array.isArray(r.records)) return r.records;
-    return [];
-}
-
-/**
- * 從 punches 陣列挑出最合理的上班(第一個 IN)與下班(最後一個 OUT)
- * @param {Array} punches
- * @returns {{inPunch:object|null, outPunch:object|null}}
- */
-function pickInOutPunches(punches) {
-    let inPunch = null, outPunch = null;
-    if (!Array.isArray(punches) || punches.length === 0) return { inPunch, outPunch };
-
-    const isInType = t => /上班|上班打卡|IN|in|clock_in|checkin|start/i.test(String(t || ''));
-    const isOutType = t => /下班|下班打卡|OUT|out|clock_out|checkout|end|finish/i.test(String(t || ''));
-
-    for (let i = 0; i < punches.length; i++) {
-        const p = punches[i];
-        if (!inPunch && (isInType(p.type || p.label || p.tag) || isInType(p.mode || p.action))) inPunch = p;
-    }
-    for (let i = punches.length - 1; i >= 0; i--) {
-        const p = punches[i];
-        if (!outPunch && (isOutType(p.type || p.label || p.tag) || isOutType(p.mode || p.action))) outPunch = p;
-    }
-    if (!inPunch) inPunch = punches[0];
-    if (!outPunch) outPunch = punches[punches.length - 1];
-    return { inPunch, outPunch };
-}
-
-/**
- * 將時間字串（HH:MM 或 ISO）轉為當日 Date（使用 dateKey 作 base）
- */
-function parseTimeToDate(timeStr, dateKey) {
-    if (!timeStr) return null;
-    // 如果是 HH:MM
-    const hm = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    if (hm && dateKey) {
-        const [y, m, d] = dateKey.split('-').map(Number);
-        const dt = new Date(y, m - 1, d, Number(hm[1]), Number(hm[2]), 0, 0);
-        return dt;
-    }
-    // 嘗試直接解析
-    const dt2 = new Date(timeStr);
-    return isNaN(dt2.getTime()) ? null : dt2;
-}
-
-/**
- * 由 in/out 打卡物件與 dateKey 計算原始時數 (小時，保留兩位)
- */
-function computeRawHoursFromPunches(inPunch, outPunch, dateKey) {
-    const inTimeStr = inPunch && (inPunch.time || inPunch.timeString || inPunch.clockTime || inPunch.t || inPunch.ts) || '';
-    const outTimeStr = outPunch && (outPunch.time || outPunch.timeString || outPunch.clockTime || outPunch.t || outPunch.ts) || '';
-    const a = parseTimeToDate(inTimeStr, dateKey);
-    const b = parseTimeToDate(outTimeStr, dateKey);
-    if (!a || !b) return 0;
-    const diff = (b - a) / 3600000;
-    return diff >= 0 ? Number(diff.toFixed(2)) : 0;
-}
-
-/**
- * 取得時薪（優先 employee.salary，次優 UI 輸入，否則回預設）
- */
-function resolveHourlyRateForExport() {
-    const empSalary = (currentManagingEmployee && Number(currentManagingEmployee.salary)) || 0;
-    const basicSalaryInputEl = document.getElementById('basic-salary') || document.getElementById('basicSalary') || null;
-    const inputSalary = basicSalaryInputEl ? Number(basicSalaryInputEl.value || 0) : 0;
-    const base = empSalary || inputSalary || 28950;
-    const standardMonthHours = 240;
-    return { baseMonthly: base, hourlyRate: base > 0 ? (base / standardMonthHours) : 0 };
 }
 // #endregion
 // ===================================

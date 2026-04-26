@@ -116,15 +116,9 @@ const mgmtEmployeeAvatar = document.getElementById('mgmt-employee-avatar');
 let toggleAdmin = null;
 let toggleActive = null;
 
-// 薪資與政策
-const basicSalaryInput = document.getElementById('basic-salary');
-const salaryValueSpan = document.getElementById('salary-value');
+// 打卡政策（薪資相關已移除，待重新設計）
 const requireGpsCheckbox = document.getElementById('require-gps');
 const allowManualAdjustCheckbox = document.getElementById('allow-manual-adjust');
-const formLeaveSalary = document.getElementById('form-leave-salary');
 const formPunchPolicy = document.getElementById('form-punch-policy');
 
-//計算薪水
-// state.js
-let adminMonthlySalaryDisplay;  // 用於顯示月薪資摘要的 DOM 元素
 let currentManagingEmployee;

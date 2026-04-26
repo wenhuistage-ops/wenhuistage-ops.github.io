@@ -94,7 +94,7 @@ async function approveRequest(requestId, adminUserId) {
     }
   } catch (err) {
     console.error('批准請求出錯:', err);
-    showNotification('批准請求時發生錯誤', 'error');
+    showNotification(t('MSG_APPROVE_ERROR'), 'error');
     return false;
   }
 }
@@ -124,7 +124,7 @@ async function rejectRequest(requestId, reason, adminUserId) {
     }
   } catch (err) {
     console.error('拒絕請求出錯:', err);
-    showNotification('拒絕請求時發生錯誤', 'error');
+    showNotification(t('MSG_REJECT_ERROR'), 'error');
     return false;
   }
 }

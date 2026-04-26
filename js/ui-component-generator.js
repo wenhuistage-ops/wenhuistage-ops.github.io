@@ -62,17 +62,23 @@ const UIComponentGenerator = (() => {
 
     const scheme = colors[colorScheme] || colors.yellow;
     const div = document.createElement('div');
-    div.className = `info-item bg-gradient-to-br ${scheme.bg} p-4 rounded-xl shadow-md border-l-4 ${scheme.border}`;
+    // 輕量化：取消大 shadow / 漸層，僅保留左側色條 + 淡背景，與其他卡片風格一致
+    div.className = `info-item ${scheme.bg.replace(/from-\S+\s+to-\S+/, '').trim()} bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border-l-4 ${scheme.border}`;
 
+    // label：icon + 文字 拆兩個 <span>，data-i18n 只作用在文字 span，
+    // 避免 renderTranslations 把整個 <i>...</i> 也覆蓋掉
     const labelEl = document.createElement('p');
-    labelEl.className = `text-base font-semibold ${scheme.label} flex items-center`;
-    if (i18nKey) {
-      labelEl.setAttribute('data-i18n', i18nKey);
-    }
-    labelEl.innerHTML = `<i class="fas ${icon} mr-2 ${scheme.icon}"></i>${label}`;
+    labelEl.className = `text-xs font-medium ${scheme.label} flex items-center`;
+    const iconEl = document.createElement('i');
+    iconEl.className = `fas ${icon} mr-2 ${scheme.icon}`;
+    const labelTextEl = document.createElement('span');
+    if (i18nKey) labelTextEl.setAttribute('data-i18n', i18nKey);
+    labelTextEl.textContent = label;
+    labelEl.appendChild(iconEl);
+    labelEl.appendChild(labelTextEl);
 
     const valueEl = document.createElement('p');
-    valueEl.className = `text-3xl font-extrabold ${scheme.value} mt-2`;
+    valueEl.className = `text-base sm:text-lg font-bold ${scheme.value} mt-1`;
     valueEl.textContent = value;
 
     div.appendChild(labelEl);
