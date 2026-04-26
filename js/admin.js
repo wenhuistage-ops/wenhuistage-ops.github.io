@@ -1978,9 +1978,19 @@ async function renderEmployeeKpi(userId, date) {
         if (el) el.textContent = val;
     };
 
+    // Phase L5：勞基法工時詳細 12 格 + 等價時數
+    const LABOR_IDS = [
+        'kpi-l-normal', 'kpi-l-ot1', 'kpi-l-ot2',
+        'kpi-l-rest-ot1', 'kpi-l-rest-ot2', 'kpi-l-rest-ot3',
+        'kpi-l-public-base', 'kpi-l-public-ot1', 'kpi-l-public-ot2',
+        'kpi-l-regular-base', 'kpi-l-regular-comp', 'kpi-l-regular-ot',
+        'kpi-l-equiv',
+    ];
+
     if (!userId) {
         ['kpi-total-hours', 'kpi-normal-hours', 'kpi-overtime-hours', 'kpi-leave-days']
             .forEach((id) => setVal(id, '--'));
+        LABOR_IDS.forEach((id) => setVal(id, '--'));
         return;
     }
 
@@ -1990,16 +2000,17 @@ async function renderEmployeeKpi(userId, date) {
     // 重設為 loading 狀態
     ['kpi-total-hours', 'kpi-normal-hours', 'kpi-overtime-hours', 'kpi-leave-days']
         .forEach((id) => setVal(id, '…'));
+    LABOR_IDS.forEach((id) => setVal(id, '…'));
 
     let dailyStatus = [];
     try {
-        // Phase L3：取 enriched 版本，cache 與其他 render 共用（KPI 仍用原 day.hours，
-        // 勞基法分段 KPI 在 Phase L5 才會用到 day.laborStats）
+        // Phase L3：取 enriched 版本（含 laborStats）
         dailyStatus = await loadEnrichedMonthData(month, userId);
     } catch (err) {
         console.error('renderEmployeeKpi loadEnrichedMonthData 失敗：', err);
     }
 
+    // 上層 4 格 KPI（沿用 day.hours 原邏輯，與既有打卡資料一致）
     let total = 0, normal = 0, overtime = 0, leaveDays = 0;
     for (const day of (dailyStatus || [])) {
         const h = Number(day.hours || 0);
@@ -2015,6 +2026,36 @@ async function renderEmployeeKpi(userId, date) {
     setVal('kpi-normal-hours', normal.toFixed(1));
     setVal('kpi-overtime-hours', overtime.toFixed(1));
     setVal('kpi-leave-days', String(leaveDays));
+
+    // Phase L5：勞基法分段詳細（aggregateMonthLaborStats 來自 labor-hours.js）
+    const fmt = (n) => {
+        const v = Number(n || 0);
+        return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)) + 'h';
+    };
+    if (typeof window.aggregateMonthLaborStats === 'function') {
+        const sum = window.aggregateMonthLaborStats(dailyStatus || []);
+        // 平日
+        setVal('kpi-l-normal', fmt(sum.normal));
+        setVal('kpi-l-ot1', fmt(sum.ot1));
+        setVal('kpi-l-ot2', fmt(sum.ot2));
+        // 休息日
+        setVal('kpi-l-rest-ot1', fmt(sum.rest_ot1));
+        setVal('kpi-l-rest-ot2', fmt(sum.rest_ot2));
+        setVal('kpi-l-rest-ot3', fmt(sum.rest_ot3));
+        // 國定假日
+        setVal('kpi-l-public-base', fmt(sum.public_base));
+        setVal('kpi-l-public-ot1', fmt(sum.public_ot1));
+        setVal('kpi-l-public-ot2', fmt(sum.public_ot2));
+        // 例假日
+        setVal('kpi-l-regular-base', fmt(sum.regular_base));
+        setVal('kpi-l-regular-comp', fmt(sum.regular_comp));
+        setVal('kpi-l-regular-ot', fmt(sum.regular_ot));
+        // 等價時數
+        setVal('kpi-l-equiv', fmt(sum.equivalentHours));
+    } else {
+        console.warn('aggregateMonthLaborStats 未載入，跳過勞基法詳細');
+        LABOR_IDS.forEach((id) => setVal(id, '--'));
+    }
 }
 
 // ===================================

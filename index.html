@@ -153,6 +153,83 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         .emp-setting-panel {
             margin-top: 0.5rem;
         }
+
+        /* Phase L5：KPI 工時詳細摺疊區 */
+        .kpi-labor-details > summary {
+            list-style: none;
+        }
+        .kpi-labor-details > summary::-webkit-details-marker { display: none; }
+        .kpi-labor-details > summary::after {
+            content: ' ▸';
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        .kpi-labor-details[open] > summary::after { transform: rotate(90deg); }
+        .kpi-labor-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        @media (min-width: 640px) {
+            .kpi-labor-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+        .kpi-labor-block {
+            padding: 0.75rem;
+            background-color: rgba(99, 102, 241, 0.06);
+            border-radius: 0.5rem;
+        }
+        html.dark .kpi-labor-block {
+            background-color: rgba(99, 102, 241, 0.12);
+        }
+        .kpi-labor-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #4338ca;
+            margin-bottom: 0.5rem;
+        }
+        html.dark .kpi-labor-title { color: #a5b4fc; }
+        .kpi-labor-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.7rem;
+            color: #6b7280;
+        }
+        html.dark .kpi-labor-list { color: #d1d5db; }
+        .kpi-labor-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 2px 0;
+        }
+        .kpi-labor-value {
+            font-weight: 600;
+            color: #111827;
+            font-variant-numeric: tabular-nums;
+        }
+        html.dark .kpi-labor-value { color: #f3f4f6; }
+        .kpi-labor-equiv {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding-top: 0.5rem;
+            border-top: 1px dashed #d1d5db;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #4b5563;
+        }
+        html.dark .kpi-labor-equiv {
+            border-top-color: #4b5563;
+            color: #d1d5db;
+        }
+        .kpi-labor-equiv-value {
+            font-size: 1.1rem;
+            color: #4338ca;
+            font-variant-numeric: tabular-nums;
+        }
+        html.dark .kpi-labor-equiv-value { color: #a5b4fc; }
     </style>
 
     <script>
@@ -521,6 +598,55 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                         <div><span class="employee-kpi-value" id="kpi-leave-days">--</span><span class="employee-kpi-unit" data-i18n="CONSECUTIVE_DAYS_UNIT">天</span></div>
                                     </div>
                                 </div>
+
+                                <!-- Phase L5：勞基法工時詳細（摺疊）-->
+                                <details id="kpi-labor-details" class="mt-4 kpi-labor-details">
+                                    <summary class="cursor-pointer text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                                        <i class="fas fa-balance-scale mr-1"></i><span data-i18n="LABOR_DETAIL_TITLE">工時詳細（勞基法分段）</span>
+                                    </summary>
+                                    <div class="kpi-labor-grid mt-3">
+                                        <!-- 平日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_WORKDAY">平日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_NORMAL_HOURS">正常</span><span id="kpi-l-normal" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PLAINDAY_OT1">加班 (1.34×)</span><span id="kpi-l-ot1" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PLAINDAY_OT2">加班 (1.67×)</span><span id="kpi-l-ot2" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                        <!-- 休息日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_REST_DAY">休息日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_REST_OT1">前 2h (1.34×)</span><span id="kpi-l-rest-ot1" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REST_OT2">2~8h (1.67×)</span><span id="kpi-l-rest-ot2" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REST_OT3">8h+ (2.67×)</span><span id="kpi-l-rest-ot3" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                        <!-- 國定假日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_PUBLIC_HOLIDAY">國定假日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_PUBLIC_BASE">保證 8h</span><span id="kpi-l-public-base" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PUBLIC_OT1">加班 (1.34×)</span><span id="kpi-l-public-ot1" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_PUBLIC_OT2">加班 (1.67×)</span><span id="kpi-l-public-ot2" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                        <!-- 例假日 -->
+                                        <div class="kpi-labor-block">
+                                            <h5 class="kpi-labor-title" data-i18n="DAY_KIND_REGULAR_LEAVE">例假日</h5>
+                                            <ul class="kpi-labor-list">
+                                                <li><span data-i18n="LABOR_REGULAR_BASE">基本工資</span><span id="kpi-l-regular-base" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REGULAR_COMP">補休折現</span><span id="kpi-l-regular-comp" class="kpi-labor-value">--</span></li>
+                                                <li><span data-i18n="LABOR_REGULAR_OT">加倍 (×2)</span><span id="kpi-l-regular-ot" class="kpi-labor-value">--</span></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="kpi-labor-equiv mt-3">
+                                        <span data-i18n="LABOR_EQUIVALENT_HOURS">等價時數合計</span>
+                                        <span id="kpi-l-equiv" class="kpi-labor-equiv-value">--</span>
+                                    </div>
+                                </details>
                             </div>
 
                             <!-- B3. 月曆卡（桌機跨 2col + 2row，讓右側填連續上工/請假統計）-->
