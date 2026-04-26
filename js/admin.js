@@ -803,15 +803,16 @@ function initAdminEvents() {
             if (settingsContainer) {
                 settingsContainer.replaceChildren();
 
-                // 管理員權限 Toggle
+                // 管理員權限 Toggle（修：用 isAdmin 取代 position）
+                const isCurrentlyAdmin = employee.isAdmin === true || employee.dept === "管理員";
                 const adminToggle = UIComponentGenerator.createToggleSetting({
                     id: 'toggle-admin',
                     label: t('IS_ADMIN') || '管理員權限',
-                    checked: employee.position === "管理員",
+                    checked: isCurrentlyAdmin,
                     colorScheme: 'yellow',
                     statusText: { on: '啟用', off: '關閉' },
                     i18nKey: 'IS_ADMIN',
-                    onchange: (e) => toggleAdminStatus(currentManagingEmployee.userId, e.target.checked)
+                    onchange: (e) => toggleAdminStatus(currentManagingEmployee.userId, e.target.checked, e.target)
                 });
                 settingsContainer.appendChild(adminToggle);
 
@@ -823,7 +824,7 @@ function initAdminEvents() {
                     colorScheme: 'green',
                     statusText: { on: '啟用', off: '關閉' },
                     i18nKey: 'ACCOUNT_STATUS',
-                    onchange: (e) => toggleAccountStatus(currentManagingEmployee.userId, e.target.checked)
+                    onchange: (e) => toggleAccountStatus(currentManagingEmployee.userId, e.target.checked, e.target)
                 });
                 settingsContainer.appendChild(activeToggle);
 
@@ -964,6 +965,80 @@ function initAdminEvents() {
     // Phase L7：員工薪資設定表單事件
     setupSalaryProfileForm();
 }
+
+// ===================================
+// #region 員工帳號狀態：管理員權限 / 帳號啟用 toggle
+// ===================================
+
+/**
+ * 通用 toggle handler：呼叫 setEmployeeStatus，失敗時 rollback checkbox
+ * @param {string} userId
+ * @param {'isAdmin'|'active'} field
+ * @param {boolean} value 新值
+ * @param {HTMLInputElement} checkbox 來源 checkbox（用於 rollback 與暫時 disable）
+ * @param {object} updates 成功後要套回 currentManagingEmployee 的 patch
+ */
+async function _setEmployeeStatusField(userId, field, value, checkbox, updates) {
+    if (!userId) {
+        if (checkbox) checkbox.checked = !value;
+        return;
+    }
+    if (checkbox) checkbox.disabled = true;
+    try {
+        const res = await callApifetch({
+            action: 'setEmployeeStatus',
+            userId,
+            field,
+            value,
+        });
+        if (res && res.ok) {
+            // 同步本地 state（避免下次切員工時顯示舊值）
+            if (currentManagingEmployee && currentManagingEmployee.userId === userId) {
+                Object.assign(currentManagingEmployee, updates);
+            }
+            const emp = (allEmployeeList || []).find((e) => e && e.userId === userId);
+            if (emp) Object.assign(emp, updates);
+            showNotification(t('MSG_EMPLOYEE_STATUS_UPDATED') || '更新成功', 'success');
+        } else {
+            const code = res?.code || 'UNKNOWN_ERROR';
+            showNotification(t(code) || res?.msg || '更新失敗', 'error');
+            if (checkbox) checkbox.checked = !value; // rollback
+        }
+    } catch (err) {
+        console.error('setEmployeeStatus 失敗：', err);
+        showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+        if (checkbox) checkbox.checked = !value; // rollback
+    } finally {
+        if (checkbox) checkbox.disabled = false;
+    }
+}
+
+/**
+ * 切換管理員權限
+ */
+async function toggleAdminStatus(userId, value, checkbox) {
+    return _setEmployeeStatusField(userId, 'isAdmin', value, checkbox, {
+        isAdmin: value,
+        dept: value ? '管理員' : '一般員工',
+    });
+}
+
+/**
+ * 切換帳號啟用狀態
+ */
+async function toggleAccountStatus(userId, value, checkbox) {
+    return _setEmployeeStatusField(userId, 'active', value, checkbox, {
+        status: value ? '啟用' : '停用',
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.toggleAdminStatus = toggleAdminStatus;
+    window.toggleAccountStatus = toggleAccountStatus;
+}
+
+// #endregion
+// ===================================
 
 // ===================================
 // #region Phase L7：員工薪資與勞保設定

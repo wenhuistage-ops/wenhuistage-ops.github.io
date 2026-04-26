@@ -47,3 +47,6 @@ exports.setBreakTimes = require("./src/setBreakTimes");
 
 // ===== 員工薪資與勞保（管理員專用） =====
 exports.setEmployeeSalaryProfile = require("./src/setEmployeeSalaryProfile");
+
+// ===== 員工帳號狀態切換（管理員專用） =====
+exports.setEmployeeStatus = require("./src/setEmployeeStatus");
