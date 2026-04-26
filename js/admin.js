@@ -1275,37 +1275,65 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
         cursor.setDate(cursor.getDate() - 1);
     }
 
+    // 連續上工：大數字置中顯示
     streakCard.innerHTML = titleStreak + `
-        <div style="display:flex;align-items:baseline;gap:6px;">
-            <span style="font-size:2.5rem;font-weight:800;color:#ea580c;">${streak}</span>
-            <span data-i18n="CONSECUTIVE_DAYS_UNIT" style="font-size:0.875rem;color:#6b7280;">${t('CONSECUTIVE_DAYS_UNIT') || '天'}</span>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem 0;">
+            <div style="font-size:4rem;font-weight:800;line-height:1;color:#ea580c;">${streak}</div>
+            <div data-i18n="CONSECUTIVE_DAYS_UNIT" style="font-size:0.95rem;color:#6b7280;margin-top:0.5rem;">${t('CONSECUTIVE_DAYS_UNIT') || '天'}</div>
         </div>`;
     renderTranslations(streakCard);
 
-    // ===== 請假統計：分類計天數 =====
-    const stats = {}; // { '年假': 3, '病假': 1 }
+    // ===== 請假/休假統計：請假與休假分開計 =====
+    // attendance.type 是中文「請假」/「休假」（submitLeave 寫入）
+    // 請假組：員工提出的「不可預期/個人事務」(病假/事假/其他)
+    // 休假組：使用「年假/特休/補休」等假別（休息日）
+    const leaveStats = {};
+    const vacationStats = {};
     (dailyStatus || []).forEach((day) => {
         if (day.reason !== 'STATUS_LEAVE_APPROVED' && day.reason !== 'STATUS_VACATION_APPROVED') return;
         const leaveRec = (day.record || []).find((r) => r.adjustmentType === '系統請假記錄');
-        const category = (leaveRec && leaveRec.location) || (t('VALUE_NA') || '其他');
-        stats[category] = (stats[category] || 0) + 1;
+        if (!leaveRec) return;
+        const category = leaveRec.location || (t('VALUE_NA') || '其他');
+        if (leaveRec.type === '休假') {
+            vacationStats[category] = (vacationStats[category] || 0) + 1;
+        } else {
+            // 預設視為請假（含 type 為空或 '請假'）
+            leaveStats[category] = (leaveStats[category] || 0) + 1;
+        }
     });
 
-    const entries = Object.entries(stats).sort((a, b) => b[1] - a[1]);
-    if (entries.length === 0) {
+    const leaveEntries = Object.entries(leaveStats).sort((a, b) => b[1] - a[1]);
+    const vacationEntries = Object.entries(vacationStats).sort((a, b) => b[1] - a[1]);
+
+    if (leaveEntries.length === 0 && vacationEntries.length === 0) {
         leaveCard.innerHTML = titleLeave +
-            `<p class="dashboard-placeholder">${t('VALUE_NA') || '本月無資料'}</p>`;
+            `<p class="dashboard-placeholder">${t('LEAVE_NO_RECORDS') || '本月無紀錄'}</p>`;
         renderTranslations(leaveCard);
         return;
     }
 
     const unit = t('CONSECUTIVE_DAYS_UNIT') || '天';
-    const itemsHtml = entries.map(([cat, days]) => `
-        <li style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(156,163,175,0.2);">
-            <span style="font-size:0.875rem;color:#374151;">${cat}</span>
-            <span style="font-size:0.875rem;font-weight:700;color:#0891b2;">${days} ${unit}</span>
-        </li>`).join('');
-    leaveCard.innerHTML = titleLeave + `<ul style="margin:0;padding:0;list-style:none;">${itemsHtml}</ul>`;
+    const sectionHtml = (groupKey, color, entries) => {
+        if (entries.length === 0) return '';
+        const total = entries.reduce((s, [, n]) => s + n, 0);
+        const itemsHtml = entries.map(([cat, days]) => `
+            <li style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(156,163,175,0.18);font-size:0.875rem;">
+                <span style="color:#4b5563;">${cat}</span>
+                <span style="font-weight:700;color:${color};">${days} ${unit}</span>
+            </li>`).join('');
+        return `
+            <div style="margin-top:0.75rem;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+                    <span data-i18n="${groupKey}" style="font-size:0.8rem;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:0.05em;">${t(groupKey)}</span>
+                    <span style="font-size:0.75rem;color:#9ca3af;">${total} ${unit}</span>
+                </div>
+                <ul style="margin:0;padding:0;list-style:none;">${itemsHtml}</ul>
+            </div>`;
+    };
+
+    leaveCard.innerHTML = titleLeave +
+        sectionHtml('LEAVE_GROUP_LEAVE', '#dc2626', leaveEntries) +
+        sectionHtml('LEAVE_GROUP_VACATION', '#0891b2', vacationEntries);
     renderTranslations(leaveCard);
 }
 
