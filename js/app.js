@@ -120,6 +120,7 @@ function getDOMElements() {
 
     // 管理員頁面中 子選單Tab 按鈕
     tabEmployeeMgmtBtn = document.getElementById('tab-employee-mgmt-btn');
+    tabEmployeeSettingsBtn = document.getElementById('tab-employee-settings-btn');
     tabPunchMgmtBtn = document.getElementById('tab-punch-mgmt-btn');
     tabFormReviewBtn = document.getElementById('tab-form-review-btn');
     tabSchedulingBtn = document.getElementById('tab-scheduling-btn');
@@ -216,6 +217,9 @@ function bindEvents() {
 
     // === 導航 管理員子Tab 切換事件 () ===
     tabEmployeeMgmtBtn.addEventListener('click', () => switchAdminSubTab('employee-mgmt-view'));
+    if (tabEmployeeSettingsBtn) {
+        tabEmployeeSettingsBtn.addEventListener('click', () => switchAdminSubTab('employee-settings-view'));
+    }
     tabPunchMgmtBtn.addEventListener('click', () => switchAdminSubTab('punch-mgmt-view'));
     tabFormReviewBtn.addEventListener('click', () => switchAdminSubTab('form-review-view'));
     tabSchedulingBtn.addEventListener('click', () => switchAdminSubTab('scheduling-view'));
