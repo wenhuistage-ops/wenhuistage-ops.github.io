@@ -4,7 +4,7 @@
   "description": "Cloud Functions for 文輝考勤系統（Firestore 版後端，分支實驗）",
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "lint": "echo 'no lint configured' && exit 0",
