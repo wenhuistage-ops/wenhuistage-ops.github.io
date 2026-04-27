@@ -90,6 +90,48 @@ async function getMonthlyAttendance(month, userId) {
  * 完整異常清單與判斷規則見 docs/rules/異常清單顯示規則.md
  * TODO：對齊 GS Utils.gs 的 checkAttendance / checkAttendanceCalendar
  */
+/**
+ * 'HH:MM' → 分鐘
+ */
+function _hhmmToMin(s) {
+  const m = String(s || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+/**
+ * 去除相鄰同 type 的重複打卡（5 分鐘內視為重複，保留第一筆）
+ *
+ * 處理場景：員工短時間內連點兩次（手抖、確認彈窗誤點），讓
+ * punchInTime / punchOutTime 計算與 _pairShifts 不被誤導。
+ *
+ * 5 分鐘窗口屬保守值：員工不太可能 5 分鐘內合法地產生兩次同型打卡；
+ * 大於 5 分鐘的「重複」（如下班後 30 分鐘又補打卡）保留原處理邏輯。
+ */
+function _dedupeAdjacentSameType(records) {
+  const sorted = [...records].sort((a, b) =>
+    String(a.time).localeCompare(String(b.time))
+  );
+  const out = [];
+  const DEDUP_WINDOW_MIN = 5;
+  for (const r of sorted) {
+    if (out.length === 0) {
+      out.push(r);
+      continue;
+    }
+    const last = out[out.length - 1];
+    if (last.type === r.type) {
+      const lastMin = _hhmmToMin(last.time);
+      const curMin = _hhmmToMin(r.time);
+      if (lastMin != null && curMin != null && curMin - lastMin <= DEDUP_WINDOW_MIN) {
+        continue; // 視為重複，跳過
+      }
+    }
+    out.push(r);
+  }
+  return out;
+}
+
 function summarizeByDay(records) {
   const byDay = new Map();
 
@@ -134,6 +176,9 @@ function summarizeByDay(records) {
   // 對每一日做輕量判斷
   const days = [];
   for (const day of byDay.values()) {
+    // 去除相鄰同 type 的重複打卡（5 分鐘內），避免誤判
+    day.record = _dedupeAdjacentSameType(day.record);
+
     const hasIn = day.record.some((p) => /上班|IN|in/i.test(p.type));
     const hasOut = day.record.some((p) => /下班|OUT|out/i.test(p.type));
 
@@ -156,11 +201,19 @@ function summarizeByDay(records) {
     else if (!hasOut) reason = "STATUS_PUNCH_OUT_MISSING";
 
     // 簡易工時估算（下班時間 - 上班時間，不扣休息）
+    // punchInTime 取「最早」上班、punchOutTime 取「最晚」下班
+    // 配合上方 dedupe 已處理 5 分鐘內重複打卡，這裡 last-out 處理 30 分鐘以內
+    // 的合理重複下班（員工先按下班再回工作），讓淨工時不會被誤打的早期 OUT 截斷。
     let hours = 0;
     let punchInTime = "";
     let punchOutTime = "";
-    if (hasIn) punchInTime = day.record.find((p) => /上班|IN|in/i.test(p.type)).time;
-    if (hasOut) punchOutTime = day.record.find((p) => /下班|OUT|out/i.test(p.type)).time;
+    if (hasIn) {
+      punchInTime = day.record.find((p) => /上班|IN|in/i.test(p.type)).time;
+    }
+    if (hasOut) {
+      const outRecs = day.record.filter((p) => /下班|OUT|out/i.test(p.type));
+      punchOutTime = outRecs[outRecs.length - 1].time;
+    }
     if (punchInTime && punchOutTime) {
       const [inH, inM] = punchInTime.split(":").map(Number);
       const [outH, outM] = punchOutTime.split(":").map(Number);

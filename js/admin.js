@@ -1924,14 +1924,20 @@ async function handleDetailedPayrollExport(userId, year, month) {
         const fIn = _toExcelTime(sh2.inTime);
         const fOut = _toExcelTime(sh2.outTime);
 
-        // H 欄：加班時數（淨工時 - normal 部分；但範本 H 列即「加班時數合計」）
-        // 範本邏輯：H = 該日所有加班類別加總（不含正常 8h）
-        const otThisDay =
-            (s.ot1 || 0) + (s.ot2 || 0) +
-            (s.rest_ot1 || 0) + (s.rest_ot2 || 0) + (s.rest_ot3 || 0) +
-            (s.regular_ot || 0) +
-            (s.public_ot1 || 0) + (s.public_ot2 || 0);
-        const hVal = Math.round((otThisDay) * 100) / 100;
+        // H 欄「加班時數」對齊手動範本：
+        //   - 平日（workday）：只算 OT 段（ot1 + ot2），扣掉正常 8h
+        //   - 假日（rest / public / regular）：當日全部視為加班 = 淨工時
+        // 之前實作對所有 kind 都只算 ot 段，導致例假日員工 net 11.5h 卻只
+        // 顯示「加班時數 2.67」，跟手動表 11.5 對不起來。
+        let hVal;
+        if (s.kind === 'workday') {
+            hVal = (s.ot1 || 0) + (s.ot2 || 0);
+        } else if (s.kind === 'rest' || s.kind === 'public' || s.kind === 'regular') {
+            hVal = s.net || 0;
+        } else {
+            hVal = 0;
+        }
+        hVal = Math.round(hVal * 100) / 100;
 
         // Q 欄：當日扣休息分鐘數（透明度：讓使用者看到午休/晚休扣了多少）
         const breakMin = (day.punchInTime && day.punchOutTime)
