@@ -2074,28 +2074,35 @@ async function handleDetailedPayrollExport(userId, year, month) {
         [],
         ['平日工時段（淨工時）'],
         ['0–8h',  '正常工資 ×1.0'],
-        ['8–10h', '加班 OT1 ×4/3 ≈ 1.34'],
-        ['10h+',  '加班 OT2 ×5/3 ≈ 1.67'],
+        ['8–10h', '加班 OT1 ×1.34'],
+        ['10h+',  '加班 OT2 ×1.67'],
         [],
         ['休息日工時段（全部視為加班）'],
-        ['0–2h',  '×4/3 ≈ 1.34'],
-        ['2–8h',  '×5/3 ≈ 1.67'],
-        ['8–12h', '×8/3 ≈ 2.67  上限 12h'],
+        ['0–2h',  '×1.34'],
+        ['2–8h',  '×1.67'],
+        ['8–12h', '×2.67  上限 12h'],
         [],
         ['國定假日工時段（出勤即至少給 8h）'],
         ['出勤',  '保證 8h 工資'],
-        ['9–10h', '加班 ×4/3'],
-        ['10h+',  '加班 ×5/3'],
+        ['9–10h', '加班 ×1.34'],
+        ['10h+',  '加班 ×1.67'],
         [],
         ['例假日工時段（強制休）'],
         ['出勤',  '1 日工資 = 8h × 時薪'],
         ['補休',  '折現 8h × 時薪'],
         ['超 8h', '×2 倍工資'],
         [],
-        ['淨工時計算'],
+        ['淨工時計算（前端介面預設使用）'],
         ['公式',  '總工時 = 下班 − 上班 (同日內，分鐘級)'],
         ['',      '扣除 = 與「公司休息時段」設定重疊的分鐘'],
         ['',      '淨工時 = 總工時 − 重疊休息分鐘'],
+        [],
+        ['等價工時（僅工資計算用，介面會明確標示 ⚠️）'],
+        ['定義',  '等價工時 = 各段淨工時 × 對應倍率'],
+        ['範例',  '平日加班 2h（×1.34）→ 等價 2.68h'],
+        ['',      '休息日 2H + 6H + 4H → 等價 2×1.34 + 6×1.67 + 4×2.67 = 23.36h'],
+        ['',      '例假日 出勤 8h+ 4h → 等價 8（base）+ 8（補休折現）+ 4×2 = 24h'],
+        ['用途',  '× 一倍時薪 = 該段加班費；前端 KPI / 月曆 / 週圖表預設不顯示'],
         [],
         ['月薪 → 時薪換算'],
         ['公式', '勞基法施行細則第 31 條：時薪 = 月薪 ÷ 30 ÷ 8 = 月薪 ÷ 240'],
@@ -2371,15 +2378,16 @@ async function renderEmployeePunchTable(userId, date) {
                 return `${t('DAY_KIND_REST_DAY')} ${fmt(total)}`;
             }
             case 'public': {
-                const total = Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0);
-                if (total === 0) return '';
-                return `${t('DAY_KIND_PUBLIC_HOLIDAY')} ${fmt(total)}`;
+                // 統一顯示「實際淨工時」（不混入 base 8h 保證概念）
+                const net = Number(s.net || 0);
+                if (net === 0) return '';
+                return `${t('DAY_KIND_PUBLIC_HOLIDAY')} ${fmt(net)}`;
             }
             case 'regular': {
-                // regular_ot 為實際時數，總等價工時要 × 2（base + comp + ot*2）
-                const total = Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) * 2;
-                if (total === 0) return '';
-                return `${t('DAY_KIND_REGULAR_LEAVE')} +${fmt(total)}`;
+                // 統一顯示「實際淨工時」（base + comp 是工資保證，不算工時）
+                const net = Number(s.net || 0);
+                if (net === 0) return '';
+                return `${t('DAY_KIND_REGULAR_LEAVE')} +${fmt(net)}`;
             }
             default:
                 return '';
@@ -3007,22 +3015,25 @@ async function renderEmployeeKpi(userId, date) {
 
     // 上層 4 格 KPI：用 enriched 後的 laborStats 才會扣休息時段
     // 後端 day.hours 是上下班時差（不扣休息）；laborStats.net 才是淨工時
-    // 對齊 Excel G 欄定義：「正常」= 純平日 normal（不含假日保證）
-    //                     「加班」= 所有 OT + 假日 base/補休（非平日上班的補貼性質）
+    //
+    // 設計原則（2026-04-27）：所有 KPI 統一用「實際工時」（淨工時），不混入
+    // 等價時數。前端各處（KPI / 日曆格子 / 週圖表預設）都顯示實際工時，
+    // 等價工時只在「週圖表 → 等價工時 mode」與「Excel 匯出加班費計算」中
+    // 出現，且明確標示。
     let total = 0, normal = 0, overtime = 0, leaveDays = 0;
     for (const day of (dailyStatus || [])) {
         const s = day.laborStats || null;
         if (s) {
             // 淨工時（已扣休息）
-            total += Number(s.net || 0);
-            // 正常：純平日 normal（與 Excel G30「上班時數合計」對齊）
+            const net = Number(s.net || 0);
+            total += net;
+            // 正常：純平日 normal（與 Excel G30「上班時數合計」對齊；
+            // 假日 kind 的 normal=0，所以不會把假日當天算進正常工時）
             normal += Number(s.normal || 0);
-            // 加班：所有 OT + 假日 base/補休/加倍（凡非平日 normal 的工時都算加班/補貼）
-            // regular_ot 為實際時數，× 2 折算等價時數
-            overtime += Number(s.ot1 || 0) + Number(s.ot2 || 0)
-                      + Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0)
-                      + Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0)
-                      + Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) * 2;
+            // 加班 = 淨工時 - 正常 8h 部分（實際時數，所有 kind 通用）
+            // 平日：net - min(net,8) = max(net-8, 0) = ot1+ot2 ✓
+            // 休息日 / 國定 / 例假日：normal=0，net - 0 = net（整天淨工時）✓
+            overtime += Math.max(0, net - Number(s.normal || 0));
         } else {
             // fallback: 沒 enriched 時用 raw（可能 enrich lib 未載入）
             const h = Number(day.hours || 0);

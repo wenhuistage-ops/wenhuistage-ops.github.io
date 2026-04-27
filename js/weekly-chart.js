@@ -91,19 +91,28 @@ function _hoursForMode(rec, mode) {
     const h = Number((rec && rec.hours) || 0);
     // Phase L6：勞基法分段（依賴 enriched dailyStatus 的 laborStats）
     const s = rec && rec.laborStats;
+    const net = s ? Number(s.net || 0) : h;  // 淨工時（已扣休息）
+
+    // 設計原則（2026-04-27）：所有 mode 統一顯示「實際工時」（淨工時 / 各段
+    // 實際時數），唯一例外是 'equivalent' mode 顯示「等價工時」（依倍率折算，
+    // 用於工資計算對應的時數）並在 tip 明確標示。
     switch (mode) {
         case 'overtime': return Math.max(0, h - STANDARD_HOURS);
         case 'normal':   return Math.min(h, STANDARD_HOURS);
         case 'rest':     return _restHours(rec);
-        // L6 新 mode：勞基法分段加總
+        // 平日加班：當日淨工時逾 8h 部分（實際時數，等同 ot1 + ot2）
         case 'plain_ot':
             return s ? Number(s.ot1 || 0) + Number(s.ot2 || 0) : 0;
+        // 休息日 / 國定假日 / 例假日：篩出該類日子當天「實際淨工時」
         case 'rest_total':
-            return s ? Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0) : 0;
+            return (s && s.kind === 'rest') ? net : 0;
         case 'public_total':
-            return s ? Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0) : 0;
+            return (s && s.kind === 'public') ? net : 0;
         case 'regular_total':
-            return s ? Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) * 2 : 0;
+            return (s && s.kind === 'regular') ? net : 0;
+        // 等價工時：依倍率折算後對應工資的時數（≠ 實際工時，僅供工資估算）
+        case 'equivalent':
+            return s ? Number(s.equivalentHours || 0) : net;
         case 'total':
         default:         return h;
     }
@@ -118,6 +127,7 @@ function _modeKey(mode) {
         case 'rest_total':    return 'CHART_MODE_REST_DAY';
         case 'public_total':  return 'CHART_MODE_PUBLIC';
         case 'regular_total': return 'CHART_MODE_REGULAR';
+        case 'equivalent':    return 'CHART_MODE_EQUIVALENT';
         case 'normal':
         default:              return 'CHART_MODE_NORMAL';
     }
@@ -167,34 +177,37 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
     }));
 
     const maxRaw = Math.max(0, ...values.map((v) => v.hours));
-    // 軸上限：總時數 / 正常 至少 10；加班 / 休息 / 勞基法分段至少 4
-    const SMALL_TOP_MODES = new Set(['overtime', 'rest', 'plain_ot', 'rest_total', 'public_total', 'regular_total']);
+    // 軸上限：純加班 / 休息至少 4；其他（含 rest_total / public_total /
+    // regular_total 改為「該日淨工時」可達 12h，equivalent 也可能高）至少 10
+    const SMALL_TOP_MODES = new Set(['overtime', 'rest', 'plain_ot']);
     const minTop = SMALL_TOP_MODES.has(mode) ? 4 : 10;
     const top = Math.max(minTop, Math.ceil(maxRaw + 0.5));
 
-    // mode 切換改用下拉選單（取代原本 8 顆 pill），原因：
-    // 1. 多語系（印尼語 "Hari Libur Wajib" 17 字）下 pill 會跑版
-    // 2. select 用 optgroup 分組「淨工時 / 勞基法分段」語意更清楚
-    // 3. 旁邊 tip 動態顯示「淨工時 / 實際時數 / 等價時數」說明各 mode 數字意義
+    // mode 切換用下拉選單（取代原本 8 顆 pill）+ optgroup 分三組：
+    // 1. 淨工時組：實際工時相關（總/正常/加班/休息）
+    // 2. 勞基法分段組：各類日子的「實際淨工時」（不再有等價折算）
+    // 3. 等價工時組：唯一一個 mode，明確標示為「依倍率折算」
     //
-    // tipKey 含義：
-    //   - 淨工時：員工實際待在公司的時間（已扣休息）
-    //   - 實際時數：勞基法分段內該段的真實時數（同樣已扣休息）
-    //   - 等價時數：依倍率折算後的「對應工資的工時」（如例假日逾 8h × 2 倍）
+    // 設計原則：UI 預設顯示「實際工時」，等價工時必須使用者主動切換進去
+    // 才會看到，並在 tip 明確說明計算規則。
     const NET_MODES = [
-        { id: 'total',          key: 'CHART_MODE_TOTAL',      tipKey: 'CHART_TIP_NET' },
-        { id: 'normal',         key: 'CHART_MODE_NORMAL',     tipKey: 'CHART_TIP_NET' },
-        { id: 'overtime',       key: 'CHART_MODE_OVERTIME',   tipKey: 'CHART_TIP_NET' },
-        { id: 'rest',           key: 'CHART_MODE_REST',       tipKey: 'CHART_TIP_BREAK' },
+        { id: 'total',          key: 'CHART_MODE_TOTAL',         tipKey: 'CHART_TIP_NET' },
+        { id: 'normal',         key: 'CHART_MODE_NORMAL',        tipKey: 'CHART_TIP_NET' },
+        { id: 'overtime',       key: 'CHART_MODE_OVERTIME',      tipKey: 'CHART_TIP_NET' },
+        { id: 'rest',           key: 'CHART_MODE_REST',          tipKey: 'CHART_TIP_BREAK' },
     ];
     const LABOR_MODES = [
-        { id: 'plain_ot',       key: 'CHART_MODE_PLAIN_OT',   tipKey: 'CHART_TIP_ACTUAL' },
-        { id: 'rest_total',     key: 'CHART_MODE_REST_DAY',   tipKey: 'CHART_TIP_ACTUAL' },
-        { id: 'public_total',   key: 'CHART_MODE_PUBLIC',     tipKey: 'CHART_TIP_EQUIV' },
-        { id: 'regular_total',  key: 'CHART_MODE_REGULAR',    tipKey: 'CHART_TIP_EQUIV' },
+        { id: 'plain_ot',       key: 'CHART_MODE_PLAIN_OT',      tipKey: 'CHART_TIP_ACTUAL' },
+        { id: 'rest_total',     key: 'CHART_MODE_REST_DAY',      tipKey: 'CHART_TIP_ACTUAL' },
+        { id: 'public_total',   key: 'CHART_MODE_PUBLIC',        tipKey: 'CHART_TIP_ACTUAL' },
+        { id: 'regular_total',  key: 'CHART_MODE_REGULAR',       tipKey: 'CHART_TIP_ACTUAL' },
     ];
-    const allModes = [...NET_MODES, ...LABOR_MODES];
+    const EQUIV_MODES = [
+        { id: 'equivalent',     key: 'CHART_MODE_EQUIVALENT',    tipKey: 'CHART_TIP_EQUIV_RULE' },
+    ];
+    const allModes = [...NET_MODES, ...LABOR_MODES, ...EQUIV_MODES];
     const currentMode = allModes.find((m) => m.id === mode) || allModes[0];
+    const isEquiv = currentMode.id === 'equivalent';
 
     const buildOption = (m) => `<option value="${m.id}"${m.id === mode ? ' selected' : ''}>${tt(m.key)}</option>`;
     const tabsHtml = `
@@ -209,9 +222,12 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
                 <optgroup label="${tt('CHART_GROUP_LABOR')}">
                     ${LABOR_MODES.map(buildOption).join('')}
                 </optgroup>
+                <optgroup label="${tt('CHART_GROUP_EQUIV')}">
+                    ${EQUIV_MODES.map(buildOption).join('')}
+                </optgroup>
             </select>
-            <span class="text-[11px] text-gray-500 dark:text-gray-400 weekly-chart-mode-tip">
-                ${tt(currentMode.tipKey)}
+            <span class="text-[11px] weekly-chart-mode-tip ${isEquiv ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-500 dark:text-gray-400'}">
+                ${isEquiv ? '⚠️ ' : ''}${tt(currentMode.tipKey)}
             </span>
         </div>
     `;
