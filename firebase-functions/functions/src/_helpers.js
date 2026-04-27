@@ -49,6 +49,29 @@ const COLLECTIONS = {
 // session 有效期（與 GS 保持一致）。可於需要時改由環境變數讀取。
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
 
+// In-process verifySession 快取（同一容器內，TTL 60 秒）
+//
+// 為什麼：每個 Cloud Function call 都呼叫 verifySession，導致 sessions doc + employees doc
+// 共 2 reads。短時間內同一 token 多次 call（admin 切月份、員工連點）會疊加。
+// Cloud Functions 容器在活躍期會重複使用，module-level Map 可在請求間共享。
+//
+// 取捨：
+//   - 員工權限變更（dept 改成/取消管理員、status 改未啟用）最多 60 秒後生效
+//   - 容器冷啟時快取空的，第一次仍要 read
+//   - 失敗結果也快取（避免 token 爆破測試燒 reads）
+const SESSION_CACHE = new Map();
+const SESSION_CACHE_TTL_MS = 60 * 1000;
+const SESSION_CACHE_MAX = 500;
+
+function setSessionCache(token, result) {
+  SESSION_CACHE.set(token, { result, expiry: Date.now() + SESSION_CACHE_TTL_MS });
+  if (SESSION_CACHE.size > SESSION_CACHE_MAX) {
+    // Map 迭代依插入順序，最舊的 key 即第一個
+    const oldest = SESSION_CACHE.keys().next().value;
+    SESSION_CACHE.delete(oldest);
+  }
+}
+
 /**
  * 驗證 session token，回傳員工資料或錯誤
  *
@@ -60,13 +83,21 @@ async function verifySession(sessionToken) {
     return { ok: false, code: "ERR_SESSION_MISSING" };
   }
 
+  // 命中快取直接回（省 2 reads）
+  const cached = SESSION_CACHE.get(sessionToken);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.result;
+  }
+
   const sessionSnap = await db
     .collection(COLLECTIONS.SESSIONS)
     .doc(sessionToken)
     .get();
 
   if (!sessionSnap.exists) {
-    return { ok: false, code: "ERR_SESSION_INVALID" };
+    const result = { ok: false, code: "ERR_SESSION_INVALID" };
+    setSessionCache(sessionToken, result);
+    return result;
   }
 
   const session = sessionSnap.data();
@@ -74,11 +105,15 @@ async function verifySession(sessionToken) {
   // 檢查過期
   const createdAt = session.createdAt?.toMillis?.() ?? session.createdAt ?? 0;
   if (createdAt > 0 && Date.now() - createdAt > SESSION_TTL_MS) {
-    return { ok: false, code: "ERR_SESSION_EXPIRED" };
+    const result = { ok: false, code: "ERR_SESSION_EXPIRED" };
+    setSessionCache(sessionToken, result);
+    return result;
   }
 
   if (!session.userId) {
-    return { ok: false, code: "ERR_SESSION_INVALID" };
+    const result = { ok: false, code: "ERR_SESSION_INVALID" };
+    setSessionCache(sessionToken, result);
+    return result;
   }
 
   const userSnap = await db
@@ -87,10 +122,14 @@ async function verifySession(sessionToken) {
     .get();
 
   if (!userSnap.exists) {
-    return { ok: false, code: "ERR_USER_NOT_FOUND" };
+    const result = { ok: false, code: "ERR_USER_NOT_FOUND" };
+    setSessionCache(sessionToken, result);
+    return result;
   }
 
-  return { ok: true, user: { userId: session.userId, ...userSnap.data() } };
+  const result = { ok: true, user: { userId: session.userId, ...userSnap.data() } };
+  setSessionCache(sessionToken, result);
+  return result;
 }
 
 /**
