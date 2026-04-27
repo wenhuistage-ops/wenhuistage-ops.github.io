@@ -1151,16 +1151,16 @@ function _refreshSalaryPreview() {
         }
     }
 
-    // 自動推算等級
+    // 自動推算等級：只負責填預設值，select 永遠保持可手動覆寫。
+    // （之前 auto 勾選會 disable select，導致月薪 > 28590 時無法手動選回 grade 1。
+    //  系統不該幫使用者鎖死合法/非合法的選擇，由使用者自負責任。）
     if (isMonthly && autoChk?.checked && monthlyVal > 0 && typeof window.inferGradeFromSalary === 'function') {
         const inferred = window.inferGradeFromSalary(monthlyVal);
         if (inferred && gradeSel) {
             gradeSel.value = String(inferred.grade);
-            gradeSel.disabled = true;
         }
-    } else if (gradeSel) {
-        gradeSel.disabled = false;
     }
+    if (gradeSel) gradeSel.disabled = false;
 
     // 扣繳預覽（依當前選擇等級的投保薪資）
     const gradeVal = Number(gradeSel?.value) || 0;
