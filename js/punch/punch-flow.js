@@ -101,9 +101,9 @@ async function doPunch(type) {
                 if (typeof appendTodayPunch === 'function') {
                     appendTodayPunch(type, new Date());
                 }
-                // 順便清 monthDetail cache，讓月曆重抓時能拿到新資料
+                // 2026-04-27 合併：summary/detail 統一寫到 'month' cache，清這一個就夠
                 if (typeof cacheManager !== 'undefined' && typeof cacheManager.invalidate === 'function') {
-                    cacheManager.invalidate('monthDetail');
+                    cacheManager.invalidate('month');
                 }
 
                 const totalTime = apiEnd - punchStartTime;

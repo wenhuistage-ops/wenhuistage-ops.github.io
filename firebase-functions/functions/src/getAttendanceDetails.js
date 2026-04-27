@@ -1,8 +1,9 @@
 /**
  * getAttendanceDetails — 月度打卡詳情
- * 對應 GS：Handlers.gs handleGetAttendanceDetails
  *
- * 目前與 getCalendarSummary 回傳結構一致，待對齊完整欄位（break、overtime 等）
+ * @deprecated 2026-04-27：與 getCalendarSummary 回傳完全相同的 dailyStatus，
+ * 前端已統一改走 getCalendarSummary（避免同一份資料重複呼叫消耗 Firestore reads）。
+ * 此 endpoint 保留作向後相容，無新呼叫端時可移除。
  */
 
 const { onCall } = require("firebase-functions/v2/https");

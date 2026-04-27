@@ -127,63 +127,53 @@ function cacheMonthData(monthkey, data) {
     cacheManager.set('month', monthkey, data);
 }
 
-function cacheDetailMonthData(monthkey, data) {
-    // 🌟 P1-3 改進：使用統一的 CacheManager
-    cacheManager.set('monthDetail', monthkey, data);
-}
-
-async function prefetchMonthDetails(monthkey, targetUserId = null) {
-    const userId = targetUserId || localStorage.getItem("sessionUserId") || window.userId;
-    if (!userId) return;
-    const cacheKey = `${userId}-${monthkey}`;
-
-    if (cacheManager.get('monthDetail', cacheKey)) return;
-    if (monthDetailLoadPromises[cacheKey]) return;
-
-    monthDetailLoadPromises[cacheKey] = callApifetch({
-        action: 'getAttendanceDetails',
-        month: monthkey,
-        userId: userId
-    }).then(res => {
-        if (res.ok) {
-            cacheDetailMonthData(cacheKey, res.records.dailyStatus || []);
-        }
-        return res;
-    }).finally(() => {
-        delete monthDetailLoadPromises[cacheKey];
-    });
-
-    return monthDetailLoadPromises[cacheKey];
-}
-
 async function loadMonthDetailData(monthkey, targetUserId = null) {
     const userId = targetUserId || localStorage.getItem("sessionUserId") || window.userId;
     if (!userId) return [];
-    const cacheKey = `${userId}-${monthkey}`;
 
-    // 🌟 P1-3 改進：使用統一的 CacheManager
-    const cached = cacheManager.get('monthDetail', cacheKey);
-    if (cached) {
-        return cached;
+    // 2026-04-27 合併：getCalendarSummary 與 getAttendanceDetails 後端產生
+    // 完全相同的 dailyStatus；不再呼叫 getAttendanceDetails，改從既有月曆快取取，
+    // 沒有再呼叫 getCalendarSummary 補上。
+    if (targetUserId) {
+        // admin 模式：先看 admin 月曆快取（key = `${monthkey}-${userId}`）
+        const adminKey = `${monthkey}-${targetUserId}`;
+        if (typeof adminMonthDataCache !== 'undefined' && adminMonthDataCache[adminKey]) {
+            return adminMonthDataCache[adminKey];
+        }
+    } else {
+        // 員工自己模式：先看員工月曆快取（key = monthkey）
+        const cached = cacheManager.get('month', monthkey);
+        if (cached) return cached;
     }
-    if (monthDetailLoadPromises[cacheKey]) {
-        const res = await monthDetailLoadPromises[cacheKey];
+
+    // 進行中的同月份載入：等同一個 promise，避免重複發請求
+    const promiseKey = `${userId}-${monthkey}`;
+    if (monthDetailLoadPromises[promiseKey]) {
+        const res = await monthDetailLoadPromises[promiseKey];
         return res.ok ? (res.records.dailyStatus || []) : [];
     }
 
     try {
-        const res = await callApifetch({
-            action: 'getAttendanceDetails',
+        monthDetailLoadPromises[promiseKey] = callApifetch({
+            action: 'getCalendarSummary',
             month: monthkey,
-            userId: userId
+            userId: userId,
         });
+        const res = await monthDetailLoadPromises[promiseKey];
         if (res.ok) {
             const details = res.records.dailyStatus || [];
-            cacheDetailMonthData(cacheKey, details);
+            // 寫回對應的月曆快取，下次切月份就能直接命中
+            if (targetUserId && typeof adminMonthDataCache !== 'undefined') {
+                adminMonthDataCache[`${monthkey}-${targetUserId}`] = details;
+            } else {
+                cacheManager.set('month', monthkey, details);
+            }
             return details;
         }
     } catch (err) {
-        console.error('Failed to load detailed month data:', err);
+        console.error('Failed to load month data:', err);
+    } finally {
+        delete monthDetailLoadPromises[promiseKey];
     }
     return [];
 }
@@ -552,8 +542,8 @@ async function renderDailyRecords(dateKey) {
     const userId = localStorage.getItem("sessionUserId");
 
     try {
-        // 🌟 P1-3 改進：使用統一的 CacheManager
-        const cachedDetails = cacheManager.get('monthDetail', month);
+        // 2026-04-27 合併：直接從 'month' 月曆快取取（loadMonthDetailData 也會走這個快取）
+        const cachedDetails = cacheManager.get('month', month);
         if (cachedDetails) {
             if (dailyRecordsLoading) dailyRecordsLoading.style.display = 'none';
             return renderRecords(cachedDetails);

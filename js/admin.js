@@ -262,26 +262,12 @@ async function renderAdminDailyRecords(dateKey, userId) {
     const monthKey = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
 
     try {
+        // 2026-04-27 合併：loadMonthDetailData 內部統一從 adminMonthDataCache /
+        // 'month' cache 取，cache miss 時 fallback 呼叫 getCalendarSummary。
+        // 不再走獨立的 getAttendanceDetails 路徑（同一份資料的重複 API）。
         const details = await loadMonthDetailData(monthKey, userId);
         adminRecordsLoading.style.display = 'none';
-
-        if (details !== null && details !== undefined) {
-            renderRecords(details);
-        } else {
-            const res = await callApifetch({
-                action: 'getAttendanceDetails',
-                month: monthKey,
-                userId: userId
-            }, 'admin-records-loading');
-
-            adminRecordsLoading.style.display = 'none';
-            if (res.ok) {
-                renderRecords(res.records.dailyStatus);
-            } else {
-                console.error("Admin: Failed to fetch attendance records:", res.msg);
-                showNotification(t("ERROR_FETCH_RECORDS"), "error");
-            }
-        }
+        renderRecords(details || []);
     } catch (err) {
         adminRecordsLoading.style.display = 'none';
         console.error(err);
@@ -1582,8 +1568,9 @@ function setupAdminExport() {
         const monthParam = `${year}-${pad(month + 1)}`;
 
         try {
+            // 2026-04-27 合併：改走 getCalendarSummary（與 getAttendanceDetails 回傳相同 dailyStatus）
             const response = await callApifetch({
-                action: 'getAttendanceDetails',
+                action: 'getCalendarSummary',
                 month: monthParam,
                 userId: userId
             });
