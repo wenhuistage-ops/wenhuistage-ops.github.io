@@ -26,10 +26,10 @@ const API_CONFIG = {
   redirectUrl: "https://wenhuistage-ops.github.io/",
 
   // ==========================================================================
-  // 🔀 後端切換（分支 vs 主線策略，詳見 docs/plans/Firestore切換策略-分支vs主線.md）
+  // 🔀 後端切換（GAS vs Firestore）
   // ==========================================================================
-  // 預設 false（走 GAS）。本分支可改為 true 強制走 Firestore。
-  // 主線合併本分支時請保持 false，避免意外切換。
+  // 正式環境固定走 Firestore（Cloud Functions）。
+  // Runtime override：?backend=firestore|gas 或 localStorage('backend')
   useFirestore: true,
 
   // Firebase 專案配置（僅 useFirestore=true 才使用）

@@ -84,7 +84,7 @@ async function callFirestoreFunction(params, loadingId = "loading") {
       ok: false,
       code: "ERR_FIRESTORE_NOT_CONFIGURED",
       params: { reason: init.reason || "UNKNOWN" },
-      _note: "Firestore client 尚未配置，請見 docs/plans/Firestore切換策略-分支vs主線.md",
+      _note: "Firestore client 尚未配置：請於 js/config.js 填入 firebase 設定並設 useFirestore=true",
     };
   }
 
