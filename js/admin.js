@@ -1162,10 +1162,11 @@ function _refreshSalaryPreview() {
     }
     if (gradeSel) gradeSel.disabled = false;
 
-    // 扣繳預覽（依當前選擇等級的投保薪資）
+    // 扣繳預覽：自訂投保薪資 > 0 時優先使用，否則用分級表
     const gradeVal = Number(gradeSel?.value) || 0;
     const gradeObj = (window.LABOR_INSURANCE_GRADES || []).find((g) => g.grade === gradeVal);
-    const insuredSalary = gradeObj ? gradeObj.salary : 0;
+    const customInsured = Math.max(0, Number(document.getElementById('salary-insured-custom-input')?.value) || 0);
+    const insuredSalary = customInsured > 0 ? customInsured : (gradeObj ? gradeObj.salary : 0);
     const pensionRate = pensionOn?.checked ? (Number(pensionRateInput?.value) || 0) : 0;
 
     const housingDed = Math.max(0, Number(document.getElementById('salary-housing-input')?.value) || 0);
@@ -1231,6 +1232,9 @@ function _fillSalaryProfileForm(employee) {
     const taxRateEl = document.getElementById('salary-tax-rate-input');
     if (taxRateEl) taxRateEl.value = employee.incomeTaxRate || 0;
 
+    const customInsuredEl = document.getElementById('salary-insured-custom-input');
+    if (customInsuredEl) customInsuredEl.value = employee.customInsuredSalary || 0;
+
     _refreshSalaryPreview();
 }
 
@@ -1260,6 +1264,7 @@ async function handleSalaryProfileSubmit(e) {
         laborPensionRate: Number(document.getElementById('salary-pension-rate')?.value) || 0,
         housingExpense: Math.max(0, Number(document.getElementById('salary-housing-input')?.value) || 0),
         incomeTaxRate: Math.max(0, Math.min(30, Number(document.getElementById('salary-tax-rate-input')?.value) || 0)),
+        customInsuredSalary: Math.max(0, Number(document.getElementById('salary-insured-custom-input')?.value) || 0),
     };
     const gradeVal = Number(document.getElementById('salary-grade-select')?.value);
     if (gradeVal >= 1 && gradeVal <= 23) payload.laborInsuranceGrade = gradeVal;
@@ -1284,6 +1289,7 @@ async function handleSalaryProfileSubmit(e) {
                     laborPensionRate: payload.laborPensionRate,
                     housingExpense: payload.housingExpense,
                     incomeTaxRate: payload.incomeTaxRate,
+                    customInsuredSalary: payload.customInsuredSalary,
                 });
             }
             // 員工列表已變更，清快取讓下次 loadEmployeeList 重新拿
@@ -1320,6 +1326,7 @@ function setupSalaryProfileForm() {
         'salary-type-monthly', 'salary-type-hourly',
         'salary-monthly-input', 'salary-hourly-input',
         'salary-grade-select', 'salary-grade-auto',
+        'salary-insured-custom-input',
         'salary-pension-on', 'salary-pension-rate',
         'salary-housing-input', 'salary-tax-rate-input',
     ];
@@ -1833,9 +1840,10 @@ async function handleDetailedPayrollExport(userId, year, month) {
 
     const grossTotal = Math.round(basePay + regularBasePay + regularCompPay + publicBasePay + otTotal);
 
-    // 扣繳（依勞保等級）
+    // 扣繳：customInsuredSalary > 0 時覆寫分級表，用於歷史級距如 29500
     const grade = (window.LABOR_INSURANCE_GRADES || []).find((g) => g.grade === Number(employee.laborInsuranceGrade));
-    const insuredSalary = grade ? grade.salary : 0;
+    const customInsured = Number(employee.customInsuredSalary || 0);
+    const insuredSalary = customInsured > 0 ? customInsured : (grade ? grade.salary : 0);
     const pensionRate = employee.hasLaborPension !== false ? Number(employee.laborPensionRate || 0) : 0;
     const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
         ? window.calcEmployeeDeductions(insuredSalary, pensionRate)

@@ -1001,6 +1001,16 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                         <input type="checkbox" id="salary-grade-auto" class="mr-2 text-indigo-600">
                                         <span data-i18n="LABOR_INSURANCE_AUTO">自動依月薪推算等級</span>
                                     </label>
+                                    <div class="mt-2">
+                                        <label for="salary-insured-custom-input" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                            <span data-i18n="LABOR_INSURED_CUSTOM_SALARY">自訂投保薪資</span>
+                                            <span class="text-[10px]">(NT$)</span>
+                                        </label>
+                                        <input type="number" id="salary-insured-custom-input" name="customInsuredSalary"
+                                            min="0" step="100" value="0" placeholder="0"
+                                            class="w-full p-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                                        <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1" data-i18n="LABOR_INSURED_CUSTOM_HINT">填 0 用上方分級表；&gt;0 覆寫（用於歷史級距如 29500）</p>
+                                    </div>
                                 </div>
 
                                 <!-- 勞退提繳 -->

@@ -339,6 +339,8 @@
   "LABOR_BELOW_MIN_WAGE": "月薪低於 2026 基本工資 28,590 元",
   "LABOR_INSURANCE_GRADE": "勞保投保等級",
   "LABOR_INSURANCE_AUTO": "自動依月薪推算等級",
+  "LABOR_INSURED_CUSTOM_SALARY": "自訂投保薪資",
+  "LABOR_INSURED_CUSTOM_HINT": "填 0 用上方分級表；>0 覆寫（用於歷史級距如 29500）",
   "LABOR_PENSION_PROVIDE": "提繳勞退",
   "LABOR_PENSION_RATE": "自提率",
   "LABOR_DEDUCTION_PREVIEW": "月扣繳預覽",

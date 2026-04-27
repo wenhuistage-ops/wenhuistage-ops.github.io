@@ -10,6 +10,8 @@
  *   laborPensionRate      0–6（員工自願提繳率 %）
  *   housingExpense        數字 ≥ 0（每月住宿費扣款，外籍員工常用，預設 0）
  *   incomeTaxRate         0–30（薪資所得稅扣繳率 %，外籍員工常用 6 或 18）
+ *   customInsuredSalary   數字 ≥ 0（自訂投保薪資，> 0 時覆寫 laborInsuranceGrade
+ *                         對應金額；用於歷史級距如 29500 或特殊安排）
  *
  * 規則：
  * - 必須是管理員 session
@@ -117,6 +119,15 @@ module.exports = onCall(
         return { ok: false, code: "ERR_INVALID_INCOME_TAX_RATE", msg: "incomeTaxRate must be 0-30 (%)" };
       }
       update.incomeTaxRate = r;
+    }
+
+    // customInsuredSalary（自訂投保薪資；0 = 不啟用、> 0 覆寫 grade.salary）
+    if (data.customInsuredSalary !== undefined) {
+      const c = Number(data.customInsuredSalary);
+      if (isNaN(c) || c < 0) {
+        return { ok: false, code: "ERR_INVALID_CUSTOM_INSURED", msg: "customInsuredSalary must be number ≥ 0" };
+      }
+      update.customInsuredSalary = c;
     }
 
     // 至少要有一個薪資相關欄位才寫

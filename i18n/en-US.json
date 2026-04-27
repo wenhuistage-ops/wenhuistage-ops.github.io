@@ -339,6 +339,8 @@
   "LABOR_BELOW_MIN_WAGE": "Monthly salary below 2026 minimum (NT$28,590)",
   "LABOR_INSURANCE_GRADE": "Labor Insurance Grade",
   "LABOR_INSURANCE_AUTO": "Auto-infer grade from salary",
+  "LABOR_INSURED_CUSTOM_SALARY": "Custom Insured Salary",
+  "LABOR_INSURED_CUSTOM_HINT": "0 = use grade table; >0 overrides (for historical levels like 29500)",
   "LABOR_PENSION_PROVIDE": "Contribute Labor Pension",
   "LABOR_PENSION_RATE": "Voluntary Rate",
   "LABOR_DEDUCTION_PREVIEW": "Monthly Deduction Preview",

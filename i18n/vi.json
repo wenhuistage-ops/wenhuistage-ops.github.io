@@ -338,6 +338,8 @@
   "LABOR_BELOW_MIN_WAGE": "Lương tháng dưới mức tối thiểu 2026 (28,590 NT$)",
   "LABOR_INSURANCE_GRADE": "Bậc bảo hiểm lao động",
   "LABOR_INSURANCE_AUTO": "Tự suy ra bậc theo lương",
+  "LABOR_INSURED_CUSTOM_SALARY": "Lương đóng BHXH tùy chỉnh",
+  "LABOR_INSURED_CUSTOM_HINT": "0 = dùng bảng trên; >0 ghi đè (cho bậc cũ như 29500)",
   "LABOR_PENSION_PROVIDE": "Đóng quỹ hưu trí",
   "LABOR_PENSION_RATE": "Tỷ lệ tự đóng",
   "LABOR_DEDUCTION_PREVIEW": "Xem trước trừ tháng",

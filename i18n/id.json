@@ -339,6 +339,8 @@
   "LABOR_BELOW_MIN_WAGE": "Gaji bulanan di bawah minimum 2026 (NT$28,590)",
   "LABOR_INSURANCE_GRADE": "Tingkat Asuransi TK",
   "LABOR_INSURANCE_AUTO": "Hitung tingkat otomatis dari gaji",
+  "LABOR_INSURED_CUSTOM_SALARY": "Gaji Tertanggung Kustom",
+  "LABOR_INSURED_CUSTOM_HINT": "0 = pakai tabel di atas; >0 menggantikan (untuk tingkat lama seperti 29500)",
   "LABOR_PENSION_PROVIDE": "Iuran Pensiun",
   "LABOR_PENSION_RATE": "Tarif Sukarela",
   "LABOR_DEDUCTION_PREVIEW": "Pratinjau Potongan Bulanan",

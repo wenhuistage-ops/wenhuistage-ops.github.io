@@ -339,6 +339,8 @@
   "LABOR_BELOW_MIN_WAGE": "月給が 2026 最低賃金 28,590 元未満",
   "LABOR_INSURANCE_GRADE": "労働保険等級",
   "LABOR_INSURANCE_AUTO": "月給から等級自動推算",
+  "LABOR_INSURED_CUSTOM_SALARY": "標準報酬額（手動）",
+  "LABOR_INSURED_CUSTOM_HINT": "0 = 上記の等級表を使用；>0 で上書き（旧等級 29500 等）",
   "LABOR_PENSION_PROVIDE": "労退提繳",
   "LABOR_PENSION_RATE": "自己提繳率",
   "LABOR_DEDUCTION_PREVIEW": "月控除プレビュー",
