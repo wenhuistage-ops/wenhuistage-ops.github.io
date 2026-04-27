@@ -1849,6 +1849,24 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const totalDed = ded.total + housingDed + incomeTaxDed;
     const netPay = grossTotal - totalDed;
 
+    // 2026-04-27 補：dailyStatusRaw 只含有打卡的日子，國定假日 / 例假日員工
+    // 沒上班就會缺列。逐日掃整月補空 stub（laborStats 全 0，但 kind 標示
+    // 正確的日類型），讓 Excel 列出整月行事曆。
+    const byDate = new Map();
+    (dailyStatusRaw || []).forEach((d) => { if (d && d.date) byDate.set(d.date, d); });
+    const fullDays = [];
+    for (let d = new Date(year, month, 1); d.getMonth() === month; d.setDate(d.getDate() + 1)) {
+        const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        let day = byDate.get(dateKey);
+        if (!day) {
+            day = { date: dateKey, record: [] };
+            if (typeof window.enrichDayWithLaborStats === 'function') {
+                day = window.enrichDayWithLaborStats(day, breakTimes);
+            }
+        }
+        fullDays.push(day);
+    }
+
     // ===== Sheet 1: 個人薪資詳細（對齊用戶範本 A~R 欄結構）=====
     // 'HH:MM' → Excel 時間值 (一日 = 1)
     const _toExcelTime = (hhmm) => {
@@ -1878,7 +1896,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const dayRowStart = personalRows.length + 1;  // 第幾列開始（Excel 1-indexed）
     let dayCount = 0;
 
-    (dailyStatusRaw || []).forEach((day) => {
+    fullDays.forEach((day) => {
         const dateKey = day.date || '';
         const m = dateKey.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
         let weekday = '';
@@ -1940,7 +1958,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
     });
 
     // 合計列（範本 R30）：G=普通工時(normal 合計)、I~P=月度各段時數、Q=扣休息分鐘合計、R='加班總時'、S=數值
-    const totalBreakMin = (dailyStatusRaw || []).reduce((acc, day) => {
+    const totalBreakMin = fullDays.reduce((acc, day) => {
         if (day.punchInTime && day.punchOutTime) {
             return acc + _overlapBreakMinutes(day.punchInTime, day.punchOutTime, breakTimes);
         }
