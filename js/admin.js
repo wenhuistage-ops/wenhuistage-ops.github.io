@@ -1979,9 +1979,19 @@ async function handleDetailedPayrollExport(userId, year, month) {
         }
         return acc;
     }, 0);
+    // G 欄合計 = 每日 H 欄（加班時數）加總，對齊手動表「加班時數加總」概念
+    // 平日 H = ot1+ot2、假日 H = net
+    const sumH = (sum.ot1 || 0) + (sum.ot2 || 0)
+        + (fullDays || []).reduce((acc, day) => {
+            const s = day.laborStats || {};
+            if (s.kind === 'rest' || s.kind === 'public' || s.kind === 'regular') {
+                return acc + Number(s.net || 0);
+            }
+            return acc;
+        }, 0);
     personalRows.push([
         '', '', '', '', '', '',
-        Math.round((sum.normal || 0) * 100) / 100,   // G: 月度 normal 工時合計（普通上班時數，已扣休息）
+        Math.round(sumH * 100) / 100,                // G: 每日 H 欄加總（公式會覆寫）
         '加班時數',
         sum.ot1 || 0, sum.ot2 || 0,
         sum.rest_ot1 || 0, sum.rest_ot2 || 0, sum.rest_ot3 || 0,
@@ -2163,7 +2173,8 @@ async function handleDetailedPayrollExport(userId, year, month) {
             ws1[addr] = { t: 'n', f: formula, v: typeof cur.v === 'number' ? cur.v : 0 };
         };
 
-        // (1) 第 sumRow 列：I~Q 各欄合計 + S 欄加班總時
+        // (1) 第 sumRow 列：G 欄=每日 H 加總、I~Q 各欄合計、S 欄加班總時
+        setF(`G${sumRow}`, `SUM(H2:H${dayEndRow})`);
         ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].forEach((col) => {
             setF(`${col}${sumRow}`, `SUM(${col}2:${col}${dayEndRow})`);
         });
