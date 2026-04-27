@@ -172,27 +172,49 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
     const minTop = SMALL_TOP_MODES.has(mode) ? 4 : 10;
     const top = Math.max(minTop, Math.ceil(maxRaw + 0.5));
 
-    // tabs（Phase L6 新增 4 個勞基法分段 mode）
-    const modes = [
-        { id: 'normal',         key: 'CHART_MODE_NORMAL' },
-        { id: 'overtime',       key: 'CHART_MODE_OVERTIME' },
-        { id: 'rest',           key: 'CHART_MODE_REST' },
-        { id: 'total',          key: 'CHART_MODE_TOTAL' },
-        { id: 'plain_ot',       key: 'CHART_MODE_PLAIN_OT' },
-        { id: 'rest_total',     key: 'CHART_MODE_REST_DAY' },
-        { id: 'public_total',   key: 'CHART_MODE_PUBLIC' },
-        { id: 'regular_total',  key: 'CHART_MODE_REGULAR' },
+    // mode 切換改用下拉選單（取代原本 8 顆 pill），原因：
+    // 1. 多語系（印尼語 "Hari Libur Wajib" 17 字）下 pill 會跑版
+    // 2. select 用 optgroup 分組「淨工時 / 勞基法分段」語意更清楚
+    // 3. 旁邊 tip 動態顯示「淨工時 / 實際時數 / 等價時數」說明各 mode 數字意義
+    //
+    // tipKey 含義：
+    //   - 淨工時：員工實際待在公司的時間（已扣休息）
+    //   - 實際時數：勞基法分段內該段的真實時數（同樣已扣休息）
+    //   - 等價時數：依倍率折算後的「對應工資的工時」（如例假日逾 8h × 2 倍）
+    const NET_MODES = [
+        { id: 'total',          key: 'CHART_MODE_TOTAL',      tipKey: 'CHART_TIP_NET' },
+        { id: 'normal',         key: 'CHART_MODE_NORMAL',     tipKey: 'CHART_TIP_NET' },
+        { id: 'overtime',       key: 'CHART_MODE_OVERTIME',   tipKey: 'CHART_TIP_NET' },
+        { id: 'rest',           key: 'CHART_MODE_REST',       tipKey: 'CHART_TIP_BREAK' },
     ];
-    const tabsHtml = modes.map((m) => {
-        const active = m.id === mode;
-        return `<button type="button" data-mode="${m.id}"
-            class="weekly-chart-mode-btn px-3 py-1 text-xs font-semibold rounded-full transition
-                   ${active
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}">
-            <span data-i18n="${m.key}">${tt(m.key)}</span>
-        </button>`;
-    }).join('');
+    const LABOR_MODES = [
+        { id: 'plain_ot',       key: 'CHART_MODE_PLAIN_OT',   tipKey: 'CHART_TIP_ACTUAL' },
+        { id: 'rest_total',     key: 'CHART_MODE_REST_DAY',   tipKey: 'CHART_TIP_ACTUAL' },
+        { id: 'public_total',   key: 'CHART_MODE_PUBLIC',     tipKey: 'CHART_TIP_EQUIV' },
+        { id: 'regular_total',  key: 'CHART_MODE_REGULAR',    tipKey: 'CHART_TIP_EQUIV' },
+    ];
+    const allModes = [...NET_MODES, ...LABOR_MODES];
+    const currentMode = allModes.find((m) => m.id === mode) || allModes[0];
+
+    const buildOption = (m) => `<option value="${m.id}"${m.id === mode ? ' selected' : ''}>${tt(m.key)}</option>`;
+    const tabsHtml = `
+        <div class="flex items-center gap-2 flex-wrap">
+            <select class="weekly-chart-mode-select px-2 py-1 text-xs font-semibold rounded-md
+                          border border-gray-300 dark:border-gray-600
+                          bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200
+                          focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <optgroup label="${tt('CHART_GROUP_NET')}">
+                    ${NET_MODES.map(buildOption).join('')}
+                </optgroup>
+                <optgroup label="${tt('CHART_GROUP_LABOR')}">
+                    ${LABOR_MODES.map(buildOption).join('')}
+                </optgroup>
+            </select>
+            <span class="text-[11px] text-gray-500 dark:text-gray-400 weekly-chart-mode-tip">
+                ${tt(currentMode.tipKey)}
+            </span>
+        </div>
+    `;
 
     // bars
     const barsHtml = values.map((v) => {
@@ -238,12 +260,13 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
         <div class="weekly-chart-grid grid grid-cols-7 gap-1 sm:gap-2 items-end">${barsHtml}</div>
     `;
 
-    // 模式切換：點 tab 重新渲染
-    container.querySelectorAll('.weekly-chart-mode-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            renderWeeklyChart(container, records, selectedDateKey, btn.dataset.mode);
+    // 模式切換：select change 重新渲染
+    const modeSelect = container.querySelector('.weekly-chart-mode-select');
+    if (modeSelect) {
+        modeSelect.addEventListener('change', () => {
+            renderWeeklyChart(container, records, selectedDateKey, modeSelect.value);
         });
-    });
+    }
 
     // 點 column 也可以切到該日（同週內任一天）
     container.querySelectorAll('.weekly-chart-col').forEach((col) => {
