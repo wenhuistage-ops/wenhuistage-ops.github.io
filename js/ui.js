@@ -40,10 +40,8 @@ async function renderCalendar(date, isrefresh = false) {
         const records = cachedData;
         renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
         recordMonthNavigation(date);
-        // 背景預載詳細資料，提高點擊日期紀錄速度
-        prefetchMonthDetails(monthkey);
-        // 🚀 即使快取命中，也異步預加載相鄰月份
-        preloadAdjacentMonths(date);
+        // 預加載已停用（2026-04-27）：與 getCalendarSummary 重複燒 reads，
+        // detail 與相鄰月份改為 lazy load。詳見 admin.js 同處註解。
     } else {
         // 如果沒有，才發送 API 請求
         // 清空日曆，顯示載入狀態，並確保置中
@@ -67,11 +65,7 @@ async function renderCalendar(date, isrefresh = false) {
                 renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle);
                 recordMonthNavigation(date);
 
-                // 背景預加載詳細資料，提高點擊紀錄速度
-                prefetchMonthDetails(monthkey);
-
-                // 🚀 異步預加載相鄰月份（非阻塞）
-                preloadAdjacentMonths(date);
+                // 預加載已停用（2026-04-27），同上方註解。
             } else {
                 console.error("Failed to fetch attendance records:", res.msg);
                 showNotification(t("ERROR_FETCH_RECORDS"), "error");

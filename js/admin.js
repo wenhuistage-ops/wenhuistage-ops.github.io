@@ -93,11 +93,11 @@ async function renderAdminCalendar(userId, date) {
         console.log(`%c[Cache Load] 完成 - 耗時 ${(cacheEndTime - cacheStartTime).toFixed(2)}ms`, 'color: #00aa00;');
         recordAdminMonthNavigation(date);
 
-        // 🚀 P4-2 優化：預加載和導航記錄並行執行（不阻塞主流程）
-        Promise.all([
-            prefetchMonthDetails(apiMonthParam, userId),
-            preloadAdjacentAdminMonths(date, userId)
-        ]).catch(err => console.warn("預加載出錯:", err));
+        // 預加載已停用（2026-04-27）：
+        // - prefetchMonthDetails 與 getCalendarSummary 抓的是同一份資料（重複 reads）
+        // - preloadAdjacentAdminMonths 自動拉前後月份，每次切月份多燒 3-5x reads
+        // 用戶因此踩到 Firestore 每日 read 配額。Detail / 相鄰月份改為 lazy load。
+        // 後續若要重新優化體驗，請先合併 getCalendarSummary + getAttendanceDetails。
 
     } else {
         // --- 情境 B: 無快取，需請求 API ---
@@ -134,11 +134,7 @@ async function renderAdminCalendar(userId, date) {
                 console.log(`%c[API Load] ✓ 完成 - 耗時 ${(apiEndTime - apiStartTime).toFixed(2)}ms`, 'color: #00aa00;');
                 recordAdminMonthNavigation(date);
 
-                // 🚀 P4-2 優化：預加載和導航記錄並行執行（不阻塞主流程）
-                Promise.all([
-                    prefetchMonthDetails(apiMonthParam, userId),
-                    preloadAdjacentAdminMonths(date, userId)
-                ]).catch(err => console.warn("預加載出錯:", err));
+                // 預加載已停用（2026-04-27），同上方註解。
             } else {
                 // API 回傳錯誤
                 console.error("Failed to fetch admin attendance records:", res.msg);
