@@ -1168,14 +1168,24 @@ function _refreshSalaryPreview() {
     const insuredSalary = gradeObj ? gradeObj.salary : 0;
     const pensionRate = pensionOn?.checked ? (Number(pensionRateInput?.value) || 0) : 0;
 
+    const housingDed = Math.max(0, Number(document.getElementById('salary-housing-input')?.value) || 0);
+    const taxRate = Math.max(0, Math.min(30, Number(document.getElementById('salary-tax-rate-input')?.value) || 0));
+    const previewHousingEl = document.getElementById('salary-preview-housing');
+    const previewTaxEl = document.getElementById('salary-preview-tax');
+
     if (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function') {
         const ded = window.calcEmployeeDeductions(insuredSalary, pensionRate);
+        // 所得稅以「月薪」估，避免每月加班費浮動讓預覽不穩；實際匯出會用該月應發總額算
+        const taxEstimate = Math.round(monthlyVal * (taxRate / 100));
+        const totalWithExtras = ded.total + housingDed + taxEstimate;
         if (previewLaborEl) previewLaborEl.textContent = ded.labor.toLocaleString();
         if (previewHealthEl) previewHealthEl.textContent = ded.health.toLocaleString();
         if (previewPensionEl) previewPensionEl.textContent = ded.pension.toLocaleString();
-        if (previewTotalEl) previewTotalEl.textContent = ded.total.toLocaleString();
+        if (previewHousingEl) previewHousingEl.textContent = housingDed.toLocaleString();
+        if (previewTaxEl) previewTaxEl.textContent = taxEstimate.toLocaleString();
+        if (previewTotalEl) previewTotalEl.textContent = totalWithExtras.toLocaleString();
     } else {
-        [previewLaborEl, previewHealthEl, previewPensionEl, previewTotalEl].forEach((el) => {
+        [previewLaborEl, previewHealthEl, previewPensionEl, previewHousingEl, previewTaxEl, previewTotalEl].forEach((el) => {
             if (el) el.textContent = '--';
         });
     }
@@ -1215,6 +1225,12 @@ function _fillSalaryProfileForm(employee) {
     const pensionRate = document.getElementById('salary-pension-rate');
     if (pensionRate) pensionRate.value = employee.laborPensionRate || 0;
 
+    const housingEl = document.getElementById('salary-housing-input');
+    if (housingEl) housingEl.value = employee.housingExpense || 0;
+
+    const taxRateEl = document.getElementById('salary-tax-rate-input');
+    if (taxRateEl) taxRateEl.value = employee.incomeTaxRate || 0;
+
     _refreshSalaryPreview();
 }
 
@@ -1242,6 +1258,8 @@ async function handleSalaryProfileSubmit(e) {
         hourlyRate: Number(document.getElementById('salary-hourly-input')?.value) || 0,
         hasLaborPension: !!document.getElementById('salary-pension-on')?.checked,
         laborPensionRate: Number(document.getElementById('salary-pension-rate')?.value) || 0,
+        housingExpense: Math.max(0, Number(document.getElementById('salary-housing-input')?.value) || 0),
+        incomeTaxRate: Math.max(0, Math.min(30, Number(document.getElementById('salary-tax-rate-input')?.value) || 0)),
     };
     const gradeVal = Number(document.getElementById('salary-grade-select')?.value);
     if (gradeVal >= 1 && gradeVal <= 23) payload.laborInsuranceGrade = gradeVal;
@@ -1264,6 +1282,8 @@ async function handleSalaryProfileSubmit(e) {
                     laborInsuranceGrade: payload.laborInsuranceGrade ?? currentManagingEmployee.laborInsuranceGrade,
                     hasLaborPension: payload.hasLaborPension,
                     laborPensionRate: payload.laborPensionRate,
+                    housingExpense: payload.housingExpense,
+                    incomeTaxRate: payload.incomeTaxRate,
                 });
             }
             // 員工列表已變更，清快取讓下次 loadEmployeeList 重新拿
@@ -1301,6 +1321,7 @@ function setupSalaryProfileForm() {
         'salary-monthly-input', 'salary-hourly-input',
         'salary-grade-select', 'salary-grade-auto',
         'salary-pension-on', 'salary-pension-rate',
+        'salary-housing-input', 'salary-tax-rate-input',
     ];
     fields.forEach((id) => {
         const el = document.getElementById(id);
@@ -1818,7 +1839,15 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
         ? window.calcEmployeeDeductions(insuredSalary, pensionRate)
         : { labor: 0, health: 0, pension: 0, total: 0 };
-    const netPay = grossTotal - ded.total;
+
+    // 住宿費（每月固定扣款，外籍員工常用）
+    const housingDed = Math.max(0, Number(employee.housingExpense || 0));
+    // 薪資所得稅（依該月應發總額 × 扣繳率）
+    const incomeTaxRate = Math.max(0, Math.min(30, Number(employee.incomeTaxRate || 0)));
+    const incomeTaxDed = Math.round(grossTotal * (incomeTaxRate / 100));
+
+    const totalDed = ded.total + housingDed + incomeTaxDed;
+    const netPay = grossTotal - totalDed;
 
     // ===== Sheet 1: 個人薪資詳細（對齊用戶範本 A~R 欄結構）=====
     // 'HH:MM' → Excel 時間值 (一日 = 1)
@@ -1997,8 +2026,14 @@ async function handleDetailedPayrollExport(userId, year, month) {
     if (pensionRate > 0) {
         personalRows.push(['', `自提勞退 ${pensionRate}%`, '', -ded.pension]);
     }
+    if (housingDed > 0) {
+        personalRows.push(['', '住宿費', '', -housingDed]);
+    }
+    if (incomeTaxRate > 0 && incomeTaxDed > 0) {
+        personalRows.push(['', `所得稅 ${incomeTaxRate}%`, '', -incomeTaxDed]);
+    }
     personalRows.push([]);
-    personalRows.push(['', '合計', '', -ded.total]);
+    personalRows.push(['', '合計', '', -totalDed]);
     personalRows.push([]);
     personalRows.push(['', '小計', '', netPay]);
     personalRows.push(['', '實支額', '', netPay]);

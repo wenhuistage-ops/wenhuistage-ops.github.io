@@ -1021,6 +1021,30 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     </div>
                                 </div>
 
+                                <!-- 住宿費（每月固定扣款） -->
+                                <div>
+                                    <label for="salary-housing-input"
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        <span data-i18n="LABOR_HOUSING_EXPENSE">住宿費</span>
+                                        <span class="text-xs text-gray-500">(NT$ / 月)</span>
+                                    </label>
+                                    <input type="number" id="salary-housing-input" name="housingExpense"
+                                        min="0" step="100" value="0"
+                                        class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                                </div>
+
+                                <!-- 所得稅扣繳率 -->
+                                <div>
+                                    <label for="salary-tax-rate-input"
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        <span data-i18n="LABOR_INCOME_TAX_RATE">所得稅扣繳率</span>
+                                        <span class="text-xs text-gray-500">(% 外籍常用 6)</span>
+                                    </label>
+                                    <input type="number" id="salary-tax-rate-input" name="incomeTaxRate"
+                                        min="0" max="30" step="0.5" value="0"
+                                        class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
+                                </div>
+
                                 <!-- 預覽月扣繳 -->
                                 <div class="p-3 bg-amber-50 dark:bg-amber-900/30 rounded">
                                     <h6 class="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">
@@ -1039,6 +1063,14 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                         <li class="flex justify-between">
                                             <span data-i18n="LABOR_DEDUCTION_PENSION">自提勞退</span>
                                             <span id="salary-preview-pension" class="font-semibold">--</span>
+                                        </li>
+                                        <li class="flex justify-between">
+                                            <span data-i18n="LABOR_HOUSING_EXPENSE">住宿費</span>
+                                            <span id="salary-preview-housing" class="font-semibold">--</span>
+                                        </li>
+                                        <li class="flex justify-between">
+                                            <span data-i18n="LABOR_INCOME_TAX_PREVIEW">所得稅（依月薪估）</span>
+                                            <span id="salary-preview-tax" class="font-semibold">--</span>
                                         </li>
                                         <li class="flex justify-between border-t border-amber-300 dark:border-amber-700 pt-1 mt-1 font-bold">
                                             <span data-i18n="LABOR_DEDUCTION_TOTAL">合計</span>

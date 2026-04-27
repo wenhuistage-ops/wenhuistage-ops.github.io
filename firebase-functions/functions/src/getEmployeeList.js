@@ -27,7 +27,9 @@ module.exports = onCall(
         salary: Number(d.salary || 0),
         leaveInsurance: d.leaveInsurance || "第2級",
         healthInsurance: d.healthInsurance || "第2級",
-        housingExpense: Number(d.housingExpense || 1000),
+        // housingExpense 預設 0（之前是 1000，但部分員工不適用，由管理員顯式設定）
+        housingExpense: Number(d.housingExpense || 0),
+        incomeTaxRate: Number(d.incomeTaxRate || 0),
         status: d.status || "啟用",
         preferredLanguage: d.preferredLanguage || "",
         lastLoginTime: d.lastLoginTime?.toDate?.() || null,

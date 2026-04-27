@@ -8,6 +8,8 @@
  *   laborInsuranceGrade   1–23（依勞保投保薪資分級表）
  *   hasLaborPension       boolean（是否提繳勞退）
  *   laborPensionRate      0–6（員工自願提繳率 %）
+ *   housingExpense        數字 ≥ 0（每月住宿費扣款，外籍員工常用，預設 0）
+ *   incomeTaxRate         0–30（薪資所得稅扣繳率 %，外籍員工常用 6 或 18）
  *
  * 規則：
  * - 必須是管理員 session
@@ -97,6 +99,24 @@ module.exports = onCall(
         return { ok: false, code: "ERR_INVALID_PENSION_RATE", msg: "laborPensionRate must be 0-6" };
       }
       update.laborPensionRate = p;
+    }
+
+    // housingExpense（每月住宿費扣款，≥ 0）
+    if (data.housingExpense !== undefined) {
+      const h = Number(data.housingExpense);
+      if (isNaN(h) || h < 0) {
+        return { ok: false, code: "ERR_INVALID_HOUSING_EXPENSE", msg: "housingExpense must be number ≥ 0" };
+      }
+      update.housingExpense = h;
+    }
+
+    // incomeTaxRate（薪資所得稅扣繳率 % 0-30）
+    if (data.incomeTaxRate !== undefined) {
+      const r = Number(data.incomeTaxRate);
+      if (isNaN(r) || r < 0 || r > 30) {
+        return { ok: false, code: "ERR_INVALID_INCOME_TAX_RATE", msg: "incomeTaxRate must be 0-30 (%)" };
+      }
+      update.incomeTaxRate = r;
     }
 
     // 至少要有一個薪資相關欄位才寫
