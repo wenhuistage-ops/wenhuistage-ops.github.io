@@ -583,8 +583,23 @@ async function handleReviewAction(button, index, action) {
 async function loadEmployeeList() {
     const loadingId = "loading-employees";
 
+    // 2026-04-27：員工列表 10 分鐘快取（資料變更時由 mutation 端 invalidate）。
+    // 30 員工 × 反覆重整 = 大量 reads，加快取省下整批。
+    const cached = cacheManager.get('employeeList', 'all');
+    let data = cached;
+    if (!data) {
+        try {
+            data = await callApifetch({ action: 'getEmployeeList' }, loadingId);
+            if (data && data.ok === true) {
+                cacheManager.set('employeeList', 'all', data);
+            }
+        } catch (e) {
+            console.error("loadEmployeeList 呼叫流程錯誤:", e);
+            return;
+        }
+    }
+
     try {
-        const data = await callApifetch({ action: 'getEmployeeList' }, loadingId);
         if (data && data.ok === true) {
             const employees = data.employeesList;
             allEmployeeList = employees; // 儲存員工列表 (來自 state.js)
@@ -1015,6 +1030,8 @@ async function _setEmployeeStatusField(userId, field, value, checkbox, updates) 
             }
             const emp = (allEmployeeList || []).find((e) => e && e.userId === userId);
             if (emp) Object.assign(emp, updates);
+            // 員工列表已變更，清快取讓下次 loadEmployeeList 重新拿
+            cacheManager.invalidate('employeeList');
             showNotification(t('MSG_EMPLOYEE_STATUS_UPDATED') || '更新成功', 'success');
         } else {
             const code = res?.code || 'UNKNOWN_ERROR';
@@ -1241,6 +1258,8 @@ async function handleSalaryProfileSubmit(e) {
                     laborPensionRate: payload.laborPensionRate,
                 });
             }
+            // 員工列表已變更，清快取讓下次 loadEmployeeList 重新拿
+            cacheManager.invalidate('employeeList');
             // 重 render KPI（會顯示新的估算月薪）
             renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
         } else {

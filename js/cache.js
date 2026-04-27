@@ -206,5 +206,6 @@ cacheManager.register('month', { maxSize: 12 }); // 月份摘要快取
 cacheManager.register('monthDetail', { maxSize: 6 }); // 月份詳細快取
 cacheManager.register('abnormal', { ttl: 5 * 60 * 1000 }); // 異常記錄快取（5分鐘 TTL）
 cacheManager.register('adminMonth', { maxSize: 12 }); // 管理員月份快取
+cacheManager.register('employeeList', { ttl: 10 * 60 * 1000 }); // 員工列表快取（10分鐘 TTL）
 
 console.log('✓ 快取管理器已初始化');
