@@ -133,9 +133,13 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
  */
 async function enrichAbnormalRecordsWithApplicationStatus(records) {
     try {
-        // 查詢所有待審核申請
+        // 員工只該看自己的待審核：帶上 sessionUserId，避免（1）拉全公司
+        // 多餘資料燒 reads（最多 200 筆 vs 員工自己通常 0-3 筆），（2）員工
+        // 取得他人申請 metadata 的資訊洩漏
+        const sessionUserId = localStorage.getItem('sessionUserId');
         const res = await callApifetch({
-            action: 'getReviewRequest'
+            action: 'getReviewRequest',
+            userId: sessionUserId,
         });
 
         if (res.ok && res.reviewRequest) {

@@ -427,7 +427,13 @@ async function fetchAndRenderReviewRequests() {
     listEl.replaceChildren();
 
     try {
-        const res = await callApifetch({ action: 'getReviewRequest' }); // 來自 core.js
+        // 60 秒 cache：admin 切 tab 回來不重抓；approve/reject 後會 invalidate
+        const cacheKey = 'all-pending';
+        let res = cacheManager.get('reviewRequest', cacheKey);
+        if (!res) {
+            res = await callApifetch({ action: 'getReviewRequest' }); // 來自 core.js
+            if (res && res.ok) cacheManager.set('reviewRequest', cacheKey, res);
+        }
         if (res.ok && Array.isArray(res.reviewRequest)) {
             pendingRequests = res.reviewRequest; // 來自 state.js
 
@@ -557,6 +563,8 @@ async function handleReviewAction(button, index, action) {
         if (res.ok) {
             const translationKey = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
             showNotification(t(translationKey), "success");
+            // 列表已變更，清快取讓重抓拿到新狀態
+            cacheManager.invalidate('reviewRequest');
             await new Promise(resolve => setTimeout(resolve, 500));
             // 成功後重新整理列表
             fetchAndRenderReviewRequests();
@@ -2770,10 +2778,15 @@ async function renderEmployeeRequestHistory(userId, audit = '?') {
     });
     renderTranslations(card);
 
-    // 取資料
+    // 取資料（60 秒 cache：切 tab 回來不重抓；approve/reject 後會 invalidate）
     let res;
     try {
-        res = await callApifetch({ action: 'getReviewRequest', userId, audit });
+        const cacheKey = `${userId}-${audit}`;
+        res = cacheManager.get('reviewRequest', cacheKey);
+        if (!res) {
+            res = await callApifetch({ action: 'getReviewRequest', userId, audit });
+            if (res && res.ok) cacheManager.set('reviewRequest', cacheKey, res);
+        }
     } catch (err) {
         console.error('renderEmployeeRequestHistory fetch 失敗：', err);
     }
@@ -2870,6 +2883,8 @@ async function handleEmployeeRequestAction(button, userId, currentAudit) {
         if (res && res.ok) {
             const key = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
             showNotification(t(key) || (action === 'approve' ? '已批准' : '已拒絕'), 'success');
+            // 列表已變更，清快取讓重抓拿到新狀態
+            cacheManager.invalidate('reviewRequest');
             await renderEmployeeRequestHistory(userId, currentAudit);
         } else {
             showNotification(t('REVIEW_FAILED', { msg: (res && res.msg) || '' }) || '審核失敗', 'error');
