@@ -2145,6 +2145,123 @@ async function handleDetailedPayrollExport(userId, year, month) {
         });
     }
 
+    // ===== 公式注入：讓 admin 在 Excel 改月薪 / 時數時自動重算 =====
+    // 設計：每日 I~P 欄（各段時數）保持「輸入」，下方合計、加班時薪、加班費、
+    // 應發項目、應扣總額、實支額全部公式化。月薪 cell = $S$1（既有）。
+    // 投保薪資與固定扣款（住宿、稅率）為當下匯出時的快照常數，admin 想長期改
+    // 應該在系統內改員工資料、重新匯出。
+    {
+        const SAL = '$S$1';                              // 月薪參照（絕對位址）
+        const dayEndRow = dayCount + 1;                  // 最後一天的 Excel row
+        const sumRow = dayCount + 2;                     // 各段合計列
+        const rateRow = dayCount + 3;                    // 加班時薪列
+        const payRow = dayCount + 4;                     // 加班費列
+
+        const setF = (addr, formula) => {
+            const cur = ws1[addr];
+            if (!cur) return;
+            ws1[addr] = { t: 'n', f: formula, v: typeof cur.v === 'number' ? cur.v : 0 };
+        };
+
+        // (1) 第 sumRow 列：I~Q 各欄合計 + S 欄加班總時
+        ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].forEach((col) => {
+            setF(`${col}${sumRow}`, `SUM(${col}2:${col}${dayEndRow})`);
+        });
+        setF(`S${sumRow}`, `SUM(I${sumRow}:P${sumRow})`);
+
+        // (2) 第 rateRow 列：加班時薪 = 月薪/240 × 倍率
+        const RATES = { I: 1.34, J: 1.67, K: 1.34, L: 1.67, M: 2.67, N: 2, O: 1.34, P: 1.67 };
+        Object.entries(RATES).forEach(([col, rate]) => {
+            setF(`${col}${rateRow}`, `${SAL}/240*${rate}`);
+        });
+
+        // (3) 第 payRow 列：各段加班費 = 時數 × 時薪 + S 欄合計
+        ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'].forEach((col) => {
+            setF(`${col}${payRow}`, `${col}${sumRow}*${col}${rateRow}`);
+        });
+        setF(`S${payRow}`, `SUM(I${payRow}:P${payRow})`);
+
+        // (4) 應發項目區（layout 跟著 personalRows push 順序）
+        const applyBaseRow  = payRow + 5;            // 本薪 row（'應發項目'+表頭+本身共 3 行偏移自空 2 行後）
+        const applyOt2Row   = applyBaseRow + 1;       // 例假日 N 天 / ot2
+        const applyRest1Row = applyBaseRow + 2;       // 國定假日 N 天 / rest_ot1
+        const applyRest2Row = applyBaseRow + 3;
+        const applyRest3Row = applyBaseRow + 4;
+        const applyReg1Row  = applyBaseRow + 5;       // 例假日出勤 8h 以內
+        const applyReg2Row  = applyBaseRow + 6;       // 例假日出勤 逾 8h
+        const applyPub0Row  = applyBaseRow + 7;       // 國定假日出勤 8h 以內
+        const applyPub1Row  = applyBaseRow + 8;       // 國定 1.34
+        const applyPub2Row  = applyBaseRow + 9;       // 國定 1.67
+        const applyTotalRow = applyBaseRow + 10;
+
+        // 左側「金額」C 欄
+        setF(`C${applyBaseRow}`, `${SAL}`);
+        if (regularDays > 0) {
+            // 例假日 N 天 = 月薪/240 × 8h × 2（base + comp）× 天數
+            setF(`C${applyOt2Row}`, `${SAL}/240*8*2*${regularDays}`);
+        }
+        if (publicDays > 0) {
+            // 國定假日 N 天 = 月薪/240 × 8h × 天數
+            setF(`C${applyRest1Row}`, `${SAL}/240*8*${publicDays}`);
+        }
+
+        // 右側「時數」G 欄：直接引用 sumRow 對應段
+        const HOUR_REF = [
+            [applyBaseRow,  'I'], [applyOt2Row,   'J'],
+            [applyRest1Row, 'K'], [applyRest2Row, 'L'], [applyRest3Row, 'M'],
+            [applyReg2Row,  'N'],
+            [applyPub1Row,  'O'], [applyPub2Row,  'P'],
+        ];
+        HOUR_REF.forEach(([r, col]) => setF(`G${r}`, `${col}${sumRow}`));
+
+        // 右側「加班費」H 欄：引用 payRow 對應段
+        const PAY_REF = [
+            [applyBaseRow,  'I'], [applyOt2Row,   'J'],
+            [applyRest1Row, 'K'], [applyRest2Row, 'L'], [applyRest3Row, 'M'],
+            [applyReg2Row,  'N'],
+            [applyPub1Row,  'O'], [applyPub2Row,  'P'],
+        ];
+        PAY_REF.forEach(([r, col]) => setF(`H${r}`, `${col}${payRow}`));
+
+        // 例假日出勤 8h 以內 = 月薪/240 × G 欄時數（24h × 時薪）
+        setF(`H${applyReg1Row}`, `${SAL}/240*G${applyReg1Row}`);
+
+        // 應發合計：C 欄 = 三個項目加總；H 欄 = 加班費合計（所有 H 加總）
+        setF(`C${applyTotalRow}`, `SUM(C${applyBaseRow}:C${applyRest1Row})`);
+        setF(`H${applyTotalRow}`, `SUM(H${applyBaseRow}:H${applyPub2Row})`);
+
+        // (5) 應扣金額區
+        const deductTitleRow = applyTotalRow + 2;       // 「應扣金額」+ grossTotal
+        // grossTotal = 應發左側 + 加班費合計
+        setF(`H${deductTitleRow}`, `C${applyTotalRow}+H${applyTotalRow}`);
+
+        // 各扣款行：勞保 / 健保 / (自提) / (住宿) / (所得稅)
+        let curRow = deductTitleRow + 1;
+        // 勞保 = -投保薪資 × 2.4%；健保 = -投保薪資 × 1.55%
+        setF(`D${curRow}`, `-${insuredSalary}*0.024`); curRow++;
+        setF(`D${curRow}`, `-${insuredSalary}*0.0155`); curRow++;
+        if (pensionRate > 0) {
+            setF(`D${curRow}`, `-${insuredSalary}*${pensionRate}/100`); curRow++;
+        }
+        if (housingDed > 0) {
+            setF(`D${curRow}`, `-${housingDed}`); curRow++;
+        }
+        if (incomeTaxRate > 0 && incomeTaxDed > 0) {
+            // 所得稅 = -應發總額 × 稅率
+            setF(`D${curRow}`, `-H${deductTitleRow}*${incomeTaxRate}/100`); curRow++;
+        }
+
+        // 應扣合計（curRow 是空白行的下一行）
+        const deductTotalRow = curRow + 1;
+        setF(`D${deductTotalRow}`, `SUM(D${deductTitleRow + 1}:D${curRow - 1})`);
+
+        // 小計 / 實支額
+        const subtotalRow = deductTotalRow + 2;
+        const finalRow = subtotalRow + 1;
+        setF(`D${subtotalRow}`, `H${deductTitleRow}+D${deductTotalRow}`);
+        setF(`D${finalRow}`, `D${subtotalRow}`);
+    }
+
     // 欄寬（A~S 共 19 欄）
     ws1['!cols'] = [
         { wch: 8 },   // A 日類型標記
