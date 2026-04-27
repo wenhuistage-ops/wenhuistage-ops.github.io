@@ -13,6 +13,51 @@
 // #region 異常紀錄檢查
 // ===================================
 
+/**
+ * 純前端異常偵測（對齊後端 _attendance.js detectAbnormal 邏輯）
+ *
+ * 從月初到「今天」逐日掃描 dailyStatus：
+ *   - 該日無記錄 → STATUS_BOTH_MISSING
+ *   - 有記錄但 reason 非「正常／請假已批／休假已批／補打卡已批」→ 列為異常
+ * 不掃未來日期。
+ */
+function detectAbnormalLocal(dailyStatus, monthKey) {
+    const m = String(monthKey).match(/^(\d{4})-(\d{1,2})$/);
+    if (!m) return [];
+    const year = Number(m[1]);
+    const monthIdx = Number(m[2]) - 1;
+
+    const byDate = new Map((dailyStatus || []).map(d => [d.date, d]));
+    const pad = n => String(n).padStart(2, '0');
+
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+    const start = new Date(year, monthIdx, 1);
+    const end = new Date(year, monthIdx + 1, 1);
+
+    const result = [];
+    let counter = 0;
+    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        if (key > todayKey) break;
+
+        counter++;
+        const day = byDate.get(key);
+        if (!day) {
+            result.push({ date: key, reason: 'STATUS_BOTH_MISSING', id: `abnormal-${counter}` });
+        } else if (
+            day.reason !== 'STATUS_PUNCH_NORMAL' &&
+            day.reason !== 'STATUS_LEAVE_APPROVED' &&
+            day.reason !== 'STATUS_VACATION_APPROVED' &&
+            day.reason !== 'STATUS_REPAIR_APPROVED'
+        ) {
+            result.push({ date: key, reason: day.reason, id: `abnormal-${counter}` });
+        }
+    }
+    return result;
+}
+
 async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
     // 檢查快取是否有效（問題 8.4：性能優化）
     // 🌟 P1-3 改進：使用統一的 CacheManager，自動處理 TTL
@@ -30,39 +75,37 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
 
     console.log("檢查異常記錄 - 當前月份:", currentMonth, "檢查月份數:", monthsToCheck, "用戶ID:", sessionUserId);
 
-    // 🚀 P4-2 優化：並行加載多個月份的異常記錄
+    // 2026-04-27 合併：原本呼叫 getAbnormalRecords 後端，但後端內部就是
+    // getMonthlyAttendance + summarizeByDay + detectAbnormal，與 getCalendarSummary
+    // 拿同一份資料。改為從前端月曆快取（'month'，loadMonthDetailData 會 fallback
+    // 呼叫 getCalendarSummary）取得 dailyStatus 後，純前端計算 abnormal。
     const monthPromises = [];
     for (let i = 0; i < monthsToCheck; i++) {
         const checkDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
         const month = checkDate.getFullYear() + "-" + String(checkDate.getMonth() + 1).padStart(2, "0");
 
         monthPromises.push(
-            callApifetch({
-                action: 'getAbnormalRecords',
-                month: month,
-                userId: sessionUserId
-            }).then(res => ({ res, month })).catch(error => {
-                console.error(`檢查月份 ${month} 時出錯:`, error);
-                return { res: null, month };
-            })
+            loadMonthDetailData(month)
+                .then(dailyStatus => ({ dailyStatus: dailyStatus || [], month }))
+                .catch(error => {
+                    console.error(`檢查月份 ${month} 時出錯:`, error);
+                    return { dailyStatus: [], month };
+                })
         );
     }
 
-    // 等待所有月份的 API 調用完成（並行而非串行）
     const results = await Promise.all(monthPromises);
     let allAbnormalRecords = [];
 
-    for (const { res, month } of results) {
-        if (res && res.ok && res.records) {
-            // 為每個記錄添加月份標記
-            const recordsWithMonth = res.records.map(record => ({
-                ...record,
-                month: month,
-                displayDate: `${month}-${record.date.split('-')[2]}`
-            }));
-            allAbnormalRecords = allAbnormalRecords.concat(recordsWithMonth);
-            console.log(`月份 ${month} 找到 ${res.records.length} 條異常記錄`);
-        }
+    for (const { dailyStatus, month } of results) {
+        const abnormal = detectAbnormalLocal(dailyStatus, month);
+        const recordsWithMonth = abnormal.map(record => ({
+            ...record,
+            month,
+            displayDate: record.date,
+        }));
+        allAbnormalRecords = allAbnormalRecords.concat(recordsWithMonth);
+        console.log(`月份 ${month} 找到 ${abnormal.length} 條異常記錄`);
     }
 
     // 按日期排序（最新的在前面）

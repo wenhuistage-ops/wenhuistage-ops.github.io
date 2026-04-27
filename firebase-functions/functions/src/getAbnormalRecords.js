@@ -1,6 +1,10 @@
 /**
  * getAbnormalRecords — 異常打卡記錄
- * 對應 GS：Handlers.gs handleGetAbnormalRecords
+ *
+ * @deprecated 2026-04-27：後端內部呼叫 getMonthlyAttendance + detectAbnormal，
+ * 與 getCalendarSummary 拿同一份資料。前端已改為從月曆快取的 dailyStatus
+ * 純前端計算（js/punch/abnormal-records.js detectAbnormalLocal），避免重複
+ * 消耗 Firestore reads。此 endpoint 保留作向後相容，無新呼叫端時可移除。
  */
 
 const { onCall } = require("firebase-functions/v2/https");
