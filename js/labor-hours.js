@@ -5,7 +5,8 @@
  *   - 平日：normal / ot1 (1.34×) / ot2 (1.67×)
  *   - 休息日：rest_ot1 / rest_ot2 / rest_ot3 (2.67×)
  *   - 國定假日：public_base (保證 8h) / public_ot1 / public_ot2
- *   - 例假日：regular_base / regular_comp (補休折現) / regular_ot (×2)
+ *   - 例假日：regular_base / regular_comp (補休折現) / regular_ot (實際時數，
+ *           × 2 倍由 equivalentHours 與工資計算端處理)
  *
  * 規則對齊：docs/rules/薪資與加班計算規則整理.md
  *
@@ -115,32 +116,35 @@ function enrichDayWithLaborStats(day, breakTimes) {
         return { ...day, laborStats: stats };
     }
 
+    // 倍率：勞動部試算範例慣用小數 1.34 / 1.67 / 2.67（取小數兩位，對員工
+    // 略有利約 0.5%），與台灣業界主流薪資單一致。
     if (kind === 'workday') {
         stats.normal = Math.min(net, STANDARD_HOURS);
         stats.ot1 = Math.min(Math.max(net - STANDARD_HOURS, 0), 2);
         stats.ot2 = Math.max(net - STANDARD_HOURS - 2, 0);
-        stats.equivalentHours = stats.normal * 1.0 + stats.ot1 * (4 / 3) + stats.ot2 * (5 / 3);
+        stats.equivalentHours = stats.normal * 1.0 + stats.ot1 * 1.34 + stats.ot2 * 1.67;
     } else if (kind === 'rest') {
         // 休息日：全部時數視為加班，3 段倍率
         stats.rest_ot1 = Math.min(net, 2);
         stats.rest_ot2 = Math.min(Math.max(net - 2, 0), 6);
         stats.rest_ot3 = Math.min(Math.max(net - 8, 0), 4); // 最多 12 小時
-        stats.equivalentHours = stats.rest_ot1 * (4 / 3) + stats.rest_ot2 * (5 / 3) + stats.rest_ot3 * (8 / 3);
+        stats.equivalentHours = stats.rest_ot1 * 1.34 + stats.rest_ot2 * 1.67 + stats.rest_ot3 * 2.67;
     } else if (kind === 'public') {
         // 國定假日：出勤即至少給 8h（保證），超過分段
         if (net > 0) {
             stats.public_base = STANDARD_HOURS; // 8h 保證
             stats.public_ot1 = Math.min(Math.max(net - STANDARD_HOURS, 0), 2);
             stats.public_ot2 = Math.max(net - STANDARD_HOURS - 2, 0);
-            stats.equivalentHours = stats.public_base + stats.public_ot1 * (4 / 3) + stats.public_ot2 * (5 / 3);
+            stats.equivalentHours = stats.public_base + stats.public_ot1 * 1.34 + stats.public_ot2 * 1.67;
         }
     } else if (kind === 'regular') {
-        // 例假日：出勤即 1 日工資 + 補休折現
+        // 例假日：出勤即 1 日工資 + 補休折現；regular_ot 存「實際時數」與其他段
+        // 一致，× 2 倍由 equivalentHours 與工資計算端處理。
         if (net > 0) {
             stats.regular_base = STANDARD_HOURS;     // 8h
             stats.regular_comp = STANDARD_HOURS;     // 補休折現 8h
-            stats.regular_ot = Math.max(net - STANDARD_HOURS, 0) * 2; // 超 8h × 2 倍
-            stats.equivalentHours = stats.regular_base + stats.regular_comp + stats.regular_ot;
+            stats.regular_ot = Math.max(net - STANDARD_HOURS, 0); // 超 8h 實際時數
+            stats.equivalentHours = stats.regular_base + stats.regular_comp + stats.regular_ot * 2;
         }
     }
 

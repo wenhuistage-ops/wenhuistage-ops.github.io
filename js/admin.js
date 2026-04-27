@@ -1793,16 +1793,17 @@ async function handleDetailedPayrollExport(userId, year, month) {
         ? window.aggregateMonthLaborStats(dailyStatusRaw || [])
         : { equivalentHours: 0 };
 
-    // 加班時薪（依範本：時薪 × 倍率，四捨五入到 .25 元 → 不需要，範本顯示如 167.5）
+    // 加班時薪：用勞動部試算範例的小數倍率 1.34 / 1.67 / 2.67
+    // （與 labor-hours.js 一致；台灣業界薪資單慣例）
     const otRates = {
-        plain1:    Math.round(hourlyRate * (4/3) * 100) / 100,    // 平日 ×1.34
-        plain2:    Math.round(hourlyRate * (5/3) * 100) / 100,    // 平日 ×1.67
-        rest1:     Math.round(hourlyRate * (4/3) * 100) / 100,    // 休息日 ×1.34
-        rest2:     Math.round(hourlyRate * (5/3) * 100) / 100,    // 休息日 ×1.67
-        rest3:     Math.round(hourlyRate * (8/3) * 100) / 100,    // 休息日 ×2.67
-        regular:   Math.round(hourlyRate * 2     * 100) / 100,    // 例假日 ×2
-        public1:   Math.round(hourlyRate * (4/3) * 100) / 100,    // 國定 ×1.34
-        public2:   Math.round(hourlyRate * (5/3) * 100) / 100,    // 國定 ×1.67
+        plain1:    Math.round(hourlyRate * 1.34 * 100) / 100,    // 平日 ×1.34
+        plain2:    Math.round(hourlyRate * 1.67 * 100) / 100,    // 平日 ×1.67
+        rest1:     Math.round(hourlyRate * 1.34 * 100) / 100,    // 休息日 ×1.34
+        rest2:     Math.round(hourlyRate * 1.67 * 100) / 100,    // 休息日 ×1.67
+        rest3:     Math.round(hourlyRate * 2.67 * 100) / 100,    // 休息日 ×2.67
+        regular:   Math.round(hourlyRate * 2    * 100) / 100,    // 例假日 ×2
+        public1:   Math.round(hourlyRate * 1.34 * 100) / 100,    // 國定 ×1.34
+        public2:   Math.round(hourlyRate * 1.67 * 100) / 100,    // 國定 ×1.67
     };
 
     // 工資計算（依各段倍率 × 時薪）
@@ -1813,7 +1814,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         rest_ot1:      r(sum.rest_ot1      * otRates.rest1),
         rest_ot2:      r(sum.rest_ot2      * otRates.rest2),
         rest_ot3:      r(sum.rest_ot3      * otRates.rest3),
-        regular_ot:    r(sum.regular_ot    * hourlyRate),  // regular_ot 已 ×2 (lib 內處理)
+        regular_ot:    r(sum.regular_ot    * hourlyRate * 2),  // 例假日逾 8h × 2 倍時薪
         public_ot1:    r(sum.public_ot1    * otRates.public1),
         public_ot2:    r(sum.public_ot2    * otRates.public2),
     };
@@ -2010,7 +2011,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
     personalRows.push(['', salaryType === 'monthly' ? '本薪（月薪）' : '本薪（時薪 × 正常工時）',
         basePay, '平日加班', '', '1又1/3', sum.ot1 || 0, pay.ot1]);
     if (regularDays > 0) {
-        personalRows.push(['', `例假日 ${regularDays} 天`, regularBasePay,
+        // 例假日勞基法第 39 條：base 出勤工資 + comp 補休折現（兩者各 8h × 時薪）
+        // 早期版本只顯示 base，補休折現隱藏在右側「例假日出勤 8 小時以內」格，
+        // 容易誤會。合併顯示 base + comp，名稱明示「含補休折現」。
+        personalRows.push(['', `例假日 ${regularDays} 天（含補休折現）`,
+            regularBasePay + regularCompPay,
             '', '', '1又2/3', sum.ot2 || 0, pay.ot2]);
     } else {
         personalRows.push(['', '', '', '', '', '1又2/3', sum.ot2 || 0, pay.ot2]);
@@ -2023,7 +2028,8 @@ async function handleDetailedPayrollExport(userId, year, month) {
     }
     personalRows.push(['', '', '', '', '', '1又2/3', sum.rest_ot2 || 0, pay.rest_ot2]);
     personalRows.push(['', '', '', '', '逾8小時', '2又2/3', sum.rest_ot3 || 0, pay.rest_ot3]);
-    personalRows.push(['', '', '', '例假日出勤', '8小時以內', '1', regularDays * 8 || '', regularCompPay || '']);
+    // 例假日 8 小時內金額已合併到上方左側「例假日 N 天（含補休折現）」，這格留空避免重複
+    personalRows.push(['', '', '', '例假日出勤', '8小時以內', '1', regularDays * 8 || '', '']);
     personalRows.push(['', '', '', '', '逾8小時', '2', sum.regular_ot || 0, pay.regular_ot]);
     personalRows.push(['', '', '', '國定假日出勤', '8小時以內', '1', publicDays * 8 || '', '']);
     personalRows.push(['', '', '', '', '逾8小時', '1又1/3', sum.public_ot1 || 0, pay.public_ot1]);
@@ -2370,7 +2376,8 @@ async function renderEmployeePunchTable(userId, date) {
                 return `${t('DAY_KIND_PUBLIC_HOLIDAY')} ${fmt(total)}`;
             }
             case 'regular': {
-                const total = Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0);
+                // regular_ot 為實際時數，總等價工時要 × 2（base + comp + ot*2）
+                const total = Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) * 2;
                 if (total === 0) return '';
                 return `${t('DAY_KIND_REGULAR_LEAVE')} +${fmt(total)}`;
             }
@@ -3011,10 +3018,11 @@ async function renderEmployeeKpi(userId, date) {
             // 正常：純平日 normal（與 Excel G30「上班時數合計」對齊）
             normal += Number(s.normal || 0);
             // 加班：所有 OT + 假日 base/補休/加倍（凡非平日 normal 的工時都算加班/補貼）
+            // regular_ot 為實際時數，× 2 折算等價時數
             overtime += Number(s.ot1 || 0) + Number(s.ot2 || 0)
                       + Number(s.rest_ot1 || 0) + Number(s.rest_ot2 || 0) + Number(s.rest_ot3 || 0)
                       + Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0)
-                      + Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0);
+                      + Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) * 2;
         } else {
             // fallback: 沒 enriched 時用 raw（可能 enrich lib 未載入）
             const h = Number(day.hours || 0);

@@ -26,7 +26,7 @@
  *   plain_ot       = laborStats.ot1 + ot2                 （平日加班）
  *   rest_total     = rest_ot1 + rest_ot2 + rest_ot3        （休息日總工時）
  *   public_total   = public_base + public_ot1 + public_ot2 （國定假日總工時）
- *   regular_total  = regular_base + regular_comp + regular_ot （例假日工資 + 補休 + 加倍）
+ *   regular_total  = regular_base + regular_comp + regular_ot * 2 （例假日工資 + 補休 + 逾 8h × 2 倍）
  */
 
 // STANDARD_HOURS 由先載入的 labor-hours.js 宣告於全域，這裡直接使用。
@@ -103,7 +103,7 @@ function _hoursForMode(rec, mode) {
         case 'public_total':
             return s ? Number(s.public_base || 0) + Number(s.public_ot1 || 0) + Number(s.public_ot2 || 0) : 0;
         case 'regular_total':
-            return s ? Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) : 0;
+            return s ? Number(s.regular_base || 0) + Number(s.regular_comp || 0) + Number(s.regular_ot || 0) * 2 : 0;
         case 'total':
         default:         return h;
     }
