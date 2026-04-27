@@ -50,3 +50,6 @@ exports.setEmployeeSalaryProfile = require("./src/setEmployeeSalaryProfile");
 
 // ===== 員工帳號狀態切換（管理員專用） =====
 exports.setEmployeeStatus = require("./src/setEmployeeStatus");
+
+// ===== 排程任務（無前端 action 對應） =====
+exports.cleanExpiredSessions = require("./src/cleanExpiredSessions");
