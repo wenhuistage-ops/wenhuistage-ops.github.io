@@ -4,7 +4,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifyAdmin, validateCoordinates } = require("./_helpers");
+const { admin, db, COLLECTIONS, verifyAdmin, validateCoordinates, invalidateLocationsCache } = require("./_helpers");
 
 module.exports = onCall(
   { region: "asia-southeast1", cors: true },
@@ -27,6 +27,9 @@ module.exports = onCall(
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: auth.user.userId,
     });
+
+    // 同容器 cache 立即清掉；其他容器最多 5 分鐘 TTL 後生效
+    invalidateLocationsCache();
 
     return { ok: true, code: "新增地點成功", id: ref.id };
   }

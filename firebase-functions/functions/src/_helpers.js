@@ -178,11 +178,24 @@ function getDistanceMeters(lat1, lng1, lat2, lng2) {
 }
 
 /**
- * 讀取所有地點（未含快取，v1 簡化；之後可加 in-memory cache）
+ * 讀取所有地點（in-process cache，TTL 5 分鐘）
+ *
+ * 為什麼快取：每次打卡 + getLocations API 都會跑這個全 collection scan，
+ * 但地點資料極少變動。容器活躍期共享 cache 可大幅省 reads。
+ *
+ * 取捨：addLocation 後其他 Cloud Function 容器最多 5 分鐘才看到新地點；
+ * 地點變更頻率極低（年級），可接受。
  */
+const LOCATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+let _locationsCache = null; // { value, expiry }
+
 async function getAllLocations() {
+  if (_locationsCache && _locationsCache.expiry > Date.now()) {
+    return _locationsCache.value;
+  }
+
   const snap = await db.collection(COLLECTIONS.LOCATIONS).get();
-  return snap.docs
+  const value = snap.docs
     .map((doc) => ({
       name: String(doc.data().name || ""),
       lat: Number(doc.data().lat || 0),
@@ -198,6 +211,18 @@ async function getAllLocations() {
         loc.lng >= -180 &&
         loc.lng <= 180
     );
+
+  _locationsCache = { value, expiry: Date.now() + LOCATIONS_CACHE_TTL_MS };
+  return value;
+}
+
+/**
+ * 主動清除地點快取（addLocation 等 mutation 端使用）
+ *
+ * 注意：只清同一容器的 cache，跨容器仍要等 TTL 過期。
+ */
+function invalidateLocationsCache() {
+  _locationsCache = null;
 }
 
 /**
@@ -280,19 +305,37 @@ async function consumeOneTimeToken(oneTimeToken) {
 }
 
 /**
- * 取得管理員清單（dept === '管理員'）
+ * 取得管理員清單（dept === '管理員'）— in-process cache，TTL 5 分鐘
+ *
+ * 為什麼快取：每次打卡 / 申請會 fire-and-forget notifyAdmins → getAdminList，
+ * 短時間連續打卡會重複跑同一 query。
+ *
+ * 取捨：dept 變更後最多 5 分鐘才在通知端生效，可接受。
+ *
  * @returns {Promise<Array<{userId, name, dept}>>}
  */
+const ADMIN_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
+let _adminListCache = null; // { value, expiry }
+
 async function getAdminList() {
+  if (_adminListCache && _adminListCache.expiry > Date.now()) {
+    return _adminListCache.value;
+  }
   const snap = await db
     .collection(COLLECTIONS.EMPLOYEES)
     .where("dept", "==", "管理員")
     .get();
-  return snap.docs.map((doc) => ({
+  const value = snap.docs.map((doc) => ({
     userId: doc.id,
     name: doc.data().name || "",
     dept: doc.data().dept || "",
   }));
+  _adminListCache = { value, expiry: Date.now() + ADMIN_LIST_CACHE_TTL_MS };
+  return value;
+}
+
+function invalidateAdminListCache() {
+  _adminListCache = null;
 }
 
 /**
@@ -394,10 +437,12 @@ module.exports = {
   validateCoordinates,
   getDistanceMeters,
   getAllLocations,
+  invalidateLocationsCache,
   upsertEmployee,
   createOneTimeToken,
   consumeOneTimeToken,
   getAdminList,
+  invalidateAdminListCache,
   sendLinePush,
   notifyAdmins,
   toTaipei,

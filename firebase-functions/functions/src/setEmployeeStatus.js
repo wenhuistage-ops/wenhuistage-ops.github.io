@@ -20,7 +20,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifyAdmin } = require("./_helpers");
+const { admin, db, COLLECTIONS, verifyAdmin, invalidateAdminListCache } = require("./_helpers");
 
 module.exports = onCall(
   {
@@ -71,6 +71,11 @@ module.exports = onCall(
     }
 
     await empRef.set(update, { merge: true });
+
+    // 改 dept 會影響 getAdminList 結果，清同容器 cache（其他容器待 5 分鐘 TTL）
+    if (field === "isAdmin") {
+      invalidateAdminListCache();
+    }
 
     return { ok: true, field, value, applied: update };
   }
