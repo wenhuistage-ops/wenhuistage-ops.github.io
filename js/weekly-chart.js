@@ -29,7 +29,7 @@
  *   regular_total  = regular_base + regular_comp + regular_ot （例假日工資 + 補休 + 加倍）
  */
 
-const STANDARD_HOURS = 8;
+// STANDARD_HOURS 由先載入的 labor-hours.js 宣告於全域，這裡直接使用。
 
 function _toDate(key) {
     // 'YYYY-MM-DD' → 當地 Date
