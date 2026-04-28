@@ -63,6 +63,31 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
+# remote URL 有嵌 username 會繞過 credential helper（github 已停用密碼登入）
+REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+if echo "$REMOTE_URL" | grep -qE "https://[^@]+@github\.com"; then
+    warn "remote URL 嵌了 username，會跳過 gh credential helper"
+    info "自動修正：移除 username"
+    CLEAN_URL=$(echo "$REMOTE_URL" | sed -E 's#https://[^@]+@github\.com#https://github.com#')
+    git remote set-url origin "$CLEAN_URL"
+    ok "remote → $CLEAN_URL"
+fi
+
+# credential.helper 沒設 → push 會問密碼但 GitHub 已停用密碼登入
+HELPER=$(git config --get credential.helper)
+GLOBAL_HELPER=$(git config --global --get credential.helper)
+if [ -z "$HELPER" ] && [ -z "$GLOBAL_HELPER" ]; then
+    if command -v gh > /dev/null && gh auth status > /dev/null 2>&1; then
+        warn "credential.helper 未設定且 GitHub 已停用密碼登入"
+        info "自動修正：用 gh CLI 接管 git credential"
+        git config --global credential.helper "!gh auth git-credential"
+        ok "credential.helper → !gh auth git-credential"
+    else
+        fail "credential.helper 未設定，且未偵測到 gh CLI（需先 brew install gh && gh auth login）"
+        exit 1
+    fi
+fi
+
 # ----- 偵測本次要推的 commits 與後端是否有變更 -----
 git fetch origin main --quiet 2>/dev/null || true
 NEW_COMMITS=$(git log origin/main..HEAD --pretty=oneline 2>/dev/null)
