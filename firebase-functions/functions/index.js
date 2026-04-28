@@ -53,3 +53,4 @@ exports.setEmployeeStatus = require("./src/setEmployeeStatus");
 
 // ===== 排程任務（無前端 action 對應） =====
 exports.cleanExpiredSessions = require("./src/cleanExpiredSessions");
+exports.checkYesterdayPunch = require("./src/checkYesterdayPunch");
