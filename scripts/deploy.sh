@@ -73,14 +73,24 @@ if echo "$REMOTE_URL" | grep -qE "https://[^@]+@github\.com"; then
     ok "remote → $CLEAN_URL"
 fi
 
-# credential.helper 沒設 / 設錯 → push 會問密碼但 GitHub 已停用密碼登入
-HELPER=$(git config --get credential.helper)
-GLOBAL_HELPER=$(git config --global --get credential.helper)
-EFFECTIVE_HELPER="${HELPER:-$GLOBAL_HELPER}"
+# credential.helper 沒設 / 設錯 / 被 local 空值覆寫 → 都會卡 push
 EXPECTED_HELPER='!gh auth git-credential'
+LOCAL_HELPER_RAW=$(git config --local --get-all credential.helper 2>/dev/null || true)
+GLOBAL_HELPER=$(git config --global --get-all credential.helper 2>/dev/null || true)
+
+# local 層若有任何「空值」設定會覆寫 global → 直接 unset 整個 local helper
+if [ -n "$LOCAL_HELPER_RAW" ] && echo "$LOCAL_HELPER_RAW" | grep -qE '^\s*$'; then
+    warn "本地 .git/config 有空 credential.helper，會覆寫 global 設定"
+    info "自動修正：移除本地空 helper"
+    git config --local --unset-all credential.helper 2>/dev/null || true
+    ok "已移除本地空 helper"
+fi
+
+# 重新讀 effective helper（local 沒 → 走 global）
+EFFECTIVE_HELPER=$(git config --get credential.helper 2>/dev/null || true)
 
 # 視為「無效」的條件：完全沒設，或不是預期的 gh credential 形式
-if [ -z "$EFFECTIVE_HELPER" ] || ! echo "$EFFECTIVE_HELPER" | grep -qE '^!?\s*gh auth git-credential\s*$'; then
+if [ -z "$EFFECTIVE_HELPER" ] || ! echo "$EFFECTIVE_HELPER" | grep -qE 'gh auth git-credential'; then
     if command -v gh > /dev/null && gh auth status > /dev/null 2>&1; then
         if [ -n "$EFFECTIVE_HELPER" ]; then
             warn "credential.helper 設定有誤：「$EFFECTIVE_HELPER」"
