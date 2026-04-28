@@ -2234,8 +2234,8 @@ async function handleDetailedPayrollExport(userId, year, month) {
         ];
         PAY_REF.forEach(([r, col]) => setF(`H${r}`, `${col}${payRow}`));
 
-        // 例假日出勤 8h 以內 = 月薪/240 × G 欄時數（24h × 時薪）
-        setF(`H${applyReg1Row}`, `${SAL}/240*G${applyReg1Row}`);
+        // 例假日出勤 8h 以內 H 欄不設金額：base+comp 已合併到左側 C 欄
+        // 「例假日 N 天（含補休折現）」（避免在右側再算一次 3000 變成重複）。
 
         // 應發合計：C 欄 = 三個項目加總；H 欄 = 加班費合計（所有 H 加總）
         setF(`C${applyTotalRow}`, `SUM(C${applyBaseRow}:C${applyRest1Row})`);
