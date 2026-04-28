@@ -15,6 +15,7 @@ const {
   notifyAdmins,
   LINE_CHANNEL_ACCESS_TOKEN,
 } = require("./_helpers");
+const { invalidateMonthlyCacheForDate } = require("./_attendance");
 
 module.exports = onCall(
   {
@@ -57,6 +58,7 @@ module.exports = onCall(
       applicationTime: admin.firestore.Timestamp.fromDate(applicationTime),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    invalidateMonthlyCacheForDate(punchDate, user.userId);
 
     // 異步通知管理員（fire-and-forget，不 await）
     const notifMsg =

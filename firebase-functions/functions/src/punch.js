@@ -29,6 +29,7 @@ const {
   getDistanceMeters,
   getAllLocations,
 } = require("./_helpers");
+const { invalidateMonthlyCacheForDate } = require("./_attendance");
 
 module.exports = onCall(
   {
@@ -117,6 +118,8 @@ module.exports = onCall(
       adjustmentType: "", // 補打卡類型，空白代表正常打卡
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    // 同容器月度 cache 立即清掉，跨容器仰賴 5 分鐘 TTL
+    invalidateMonthlyCacheForDate(now, user.userId);
     timings.append = Date.now() - t5;
 
     const totalTime = Date.now() - t0;

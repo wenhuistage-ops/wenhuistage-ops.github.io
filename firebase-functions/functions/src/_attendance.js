@@ -39,12 +39,72 @@ function parseMonth(monthStr) {
 }
 
 /**
+ * In-process 月度打卡 cache（同容器活躍期共享，TTL 5 分鐘）
+ *
+ * 為什麼：每次 getCalendarSummary / getCompleteAttendanceRecords /
+ * getAttendanceDetails / getAbnormalRecords 都打 getMonthlyAttendance，
+ * 一個員工一個月 ~50-60 docs = ~60 reads。多人同時看 / 反覆切月份會快速累積。
+ *
+ * 取捨：
+ *   - 員工新打卡後最多 5 分鐘才在月曆 / 異常檢查端看到 → mutation 端
+ *     主動 invalidate（同容器立即生效，跨容器仰賴 TTL 過期）
+ *   - 容器冷啟動時 cache 空，第一次仍要讀 ~60 次
+ *   - LRU-style：超過 200 筆刪最舊
+ */
+const MONTHLY_CACHE = new Map();
+const MONTHLY_CACHE_TTL_MS = 5 * 60 * 1000;
+const MONTHLY_CACHE_MAX = 200;
+
+function _monthlyCacheKey(month, userId) {
+  return `${userId || "all"}|${month}`;
+}
+
+function _setMonthlyCache(key, value) {
+  MONTHLY_CACHE.set(key, { value, expiry: Date.now() + MONTHLY_CACHE_TTL_MS });
+  if (MONTHLY_CACHE.size > MONTHLY_CACHE_MAX) {
+    const oldest = MONTHLY_CACHE.keys().next().value;
+    MONTHLY_CACHE.delete(oldest);
+  }
+}
+
+/**
+ * 主動清除月度快取（mutation 端使用）
+ *
+ * @param {string|Date} dateOrMonth  YYYY-MM 或 Date 或 timestamp（會推算所屬月份）
+ * @param {string} userId  該員工 ID（必填）
+ */
+function invalidateMonthlyCacheForDate(dateOrMonth, userId) {
+  if (!userId) return;
+  let month;
+  if (typeof dateOrMonth === "string" && /^\d{4}-\d{2}$/.test(dateOrMonth)) {
+    month = dateOrMonth;
+  } else {
+    const d = dateOrMonth instanceof Date ? dateOrMonth : new Date(dateOrMonth);
+    if (isNaN(d.getTime())) return;
+    // 用台灣時區計算月份 key
+    const t = new Date(d.getTime() + TAIPEI_OFFSET_MS);
+    month = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+  // 員工自己的 key + admin 查全公司的 key（'all'）兩個都要清
+  MONTHLY_CACHE.delete(_monthlyCacheKey(month, userId));
+  MONTHLY_CACHE.delete(_monthlyCacheKey(month, null));
+}
+
+/**
  * 取得指定月份的打卡記錄（可選 userId 過濾）
+ * 命中 cache 直接回，省下 ~60 reads / 月。
+ *
  * @returns {Array<Object>}
  */
 async function getMonthlyAttendance(month, userId) {
   const range = parseMonth(month);
   if (!range) return [];
+
+  const cacheKey = _monthlyCacheKey(month, userId);
+  const cached = MONTHLY_CACHE.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.value;
+  }
 
   let query = db
     .collection(COLLECTIONS.ATTENDANCE)
@@ -57,12 +117,15 @@ async function getMonthlyAttendance(month, userId) {
   }
 
   const snap = await query.get();
-  return snap.docs.map((doc) => ({
+  const result = snap.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     // Timestamp → Date（方便後續處理）
     date: doc.data().timestamp?.toDate?.() || doc.data().timestamp,
   }));
+
+  _setMonthlyCache(cacheKey, result);
+  return result;
 }
 
 /**
@@ -289,6 +352,7 @@ function detectAbnormal(records, month) {
 module.exports = {
   parseMonth,
   getMonthlyAttendance,
+  invalidateMonthlyCacheForDate,
   summarizeByDay,
   detectAbnormal,
 };

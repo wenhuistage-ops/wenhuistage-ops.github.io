@@ -5,6 +5,7 @@
 
 const { onCall } = require("firebase-functions/v2/https");
 const { admin, db, COLLECTIONS, verifyAdmin } = require("./_helpers");
+const { invalidateMonthlyCacheForDate } = require("./_attendance");
 
 module.exports = onCall(
   { region: "asia-southeast1", cors: true },
@@ -34,6 +35,7 @@ module.exports = onCall(
       adjustmentType: "",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    invalidateMonthlyCacheForDate(now, user.userId);
 
     return { ok: true, code: "PUNCH_SUCCESS_ADMIN", params: { type } };
   }
