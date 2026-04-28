@@ -73,15 +73,23 @@ if echo "$REMOTE_URL" | grep -qE "https://[^@]+@github\.com"; then
     ok "remote → $CLEAN_URL"
 fi
 
-# credential.helper 沒設 → push 會問密碼但 GitHub 已停用密碼登入
+# credential.helper 沒設 / 設錯 → push 會問密碼但 GitHub 已停用密碼登入
 HELPER=$(git config --get credential.helper)
 GLOBAL_HELPER=$(git config --global --get credential.helper)
-if [ -z "$HELPER" ] && [ -z "$GLOBAL_HELPER" ]; then
+EFFECTIVE_HELPER="${HELPER:-$GLOBAL_HELPER}"
+EXPECTED_HELPER='!gh auth git-credential'
+
+# 視為「無效」的條件：完全沒設，或不是預期的 gh credential 形式
+if [ -z "$EFFECTIVE_HELPER" ] || ! echo "$EFFECTIVE_HELPER" | grep -qE '^!?\s*gh auth git-credential\s*$'; then
     if command -v gh > /dev/null && gh auth status > /dev/null 2>&1; then
-        warn "credential.helper 未設定且 GitHub 已停用密碼登入"
+        if [ -n "$EFFECTIVE_HELPER" ]; then
+            warn "credential.helper 設定有誤：「$EFFECTIVE_HELPER」"
+        else
+            warn "credential.helper 未設定且 GitHub 已停用密碼登入"
+        fi
         info "自動修正：用 gh CLI 接管 git credential"
-        git config --global credential.helper "!gh auth git-credential"
-        ok "credential.helper → !gh auth git-credential"
+        git config --global credential.helper "$EXPECTED_HELPER"
+        ok "credential.helper → $EXPECTED_HELPER"
     else
         fail "credential.helper 未設定，且未偵測到 gh CLI（需先 brew install gh && gh auth login）"
         exit 1
