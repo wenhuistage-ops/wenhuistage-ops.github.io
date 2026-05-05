@@ -39,6 +39,9 @@ const DEFAULT_LINE_REDIRECT_URL = "https://wenhuistage-ops.github.io/";
 const COLLECTIONS = {
   EMPLOYEES: "employees",
   ATTENDANCE: "attendance",
+  // 月度聚合 doc，每員工每月一筆 dailyStatus 物化視圖
+  // 參考 docs/plans/Firestore-讀取最佳化-月度聚合計畫.md
+  ATTENDANCE_MONTHLY: "attendanceMonthly",
   LOCATIONS: "locations",
   SESSIONS: "sessions",
   ONE_TIME_TOKENS: "oneTimeTokens",

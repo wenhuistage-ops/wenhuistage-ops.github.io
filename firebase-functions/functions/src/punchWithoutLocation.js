@@ -5,7 +5,7 @@
 
 const { onCall } = require("firebase-functions/v2/https");
 const { admin, db, COLLECTIONS, verifyAdmin } = require("./_helpers");
-const { invalidateMonthlyCacheForDate } = require("./_attendance");
+const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
   { region: "asia-southeast1", cors: true },
@@ -36,6 +36,16 @@ module.exports = onCall(
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     invalidateMonthlyCacheForDate(now, user.userId);
+
+    // Phase 1 shadow write：同步聚合 attendanceMonthly
+    try {
+      await applyEventToMonthly(user.userId, now);
+    } catch (err) {
+      console.error(
+        `applyEventToMonthly 失敗 user=${user.userId} (punchWithoutLocation):`,
+        err?.message
+      );
+    }
 
     return { ok: true, code: "PUNCH_SUCCESS_ADMIN", params: { type } };
   }

@@ -5,7 +5,7 @@
 
 const { onCall } = require("firebase-functions/v2/https");
 const { admin, db, COLLECTIONS, verifyAdmin } = require("./_helpers");
-const { invalidateMonthlyCacheForDate } = require("./_attendance");
+const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
   { region: "asia-southeast1", cors: true },
@@ -29,6 +29,18 @@ module.exports = onCall(
     });
     const punchDate = data.timestamp?.toDate?.() || data.timestamp;
     if (punchDate) invalidateMonthlyCacheForDate(punchDate, data.userId);
+
+    // Phase 1 shadow write：拒絕會改變該日 reason（譬如把 LEAVE_PENDING 移除）
+    if (punchDate && data.userId) {
+      try {
+        await applyEventToMonthly(data.userId, punchDate);
+      } catch (err) {
+        console.error(
+          `applyEventToMonthly 失敗 user=${data.userId} (rejectReview):`,
+          err?.message
+        );
+      }
+    }
 
     return { ok: true, msg: "審核成功" };
   }

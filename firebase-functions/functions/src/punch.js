@@ -29,7 +29,7 @@ const {
   getDistanceMeters,
   getAllLocations,
 } = require("./_helpers");
-const { invalidateMonthlyCacheForDate } = require("./_attendance");
+const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
   {
@@ -122,6 +122,20 @@ module.exports = onCall(
     invalidateMonthlyCacheForDate(now, user.userId);
     timings.append = Date.now() - t5;
 
+    // Phase 1 shadow write：同步聚合月度 doc（attendanceMonthly）
+    // 失敗只 log，不影響打卡主流程；Phase 4 對帳腳本兜底
+    const t6 = Date.now();
+    try {
+      await applyEventToMonthly(user.userId, now);
+      timings.aggregate = Date.now() - t6;
+    } catch (err) {
+      timings.aggregate = Date.now() - t6;
+      console.error(
+        `applyEventToMonthly 失敗 user=${user.userId} docId=${docRef.id}:`,
+        err?.message
+      );
+    }
+
     const totalTime = Date.now() - t0;
     console.log(`✅ 打卡完成 - 後端耗時: ${totalTime}ms (docId=${docRef.id})`);
 
@@ -136,6 +150,7 @@ module.exports = onCall(
         locations: String(timings.locations),
         distance: String(timings.distance),
         append: String(timings.append),
+        aggregate: String(timings.aggregate || 0),
       },
     };
   }

@@ -15,7 +15,7 @@ const {
   notifyAdmins,
   LINE_CHANNEL_ACCESS_TOKEN,
 } = require("./_helpers");
-const { invalidateMonthlyCacheForDate } = require("./_attendance");
+const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
   {
@@ -59,6 +59,16 @@ module.exports = onCall(
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     invalidateMonthlyCacheForDate(punchDate, user.userId);
+
+    // Phase 1 shadow write：同步聚合 attendanceMonthly（請假日所在月）
+    try {
+      await applyEventToMonthly(user.userId, punchDate);
+    } catch (err) {
+      console.error(
+        `applyEventToMonthly 失敗 user=${user.userId} (submitLeave):`,
+        err?.message
+      );
+    }
 
     // 異步通知管理員（fire-and-forget，不 await）
     const notifMsg =

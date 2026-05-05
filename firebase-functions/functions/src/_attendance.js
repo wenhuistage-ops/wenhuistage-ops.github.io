@@ -8,6 +8,7 @@
  * 在原 GS Utils.gs 有完整實作；此處保留 TODO 待對齊。
  */
 
+const admin = require("firebase-admin");
 const { db, COLLECTIONS } = require("./_helpers");
 
 // 系統使用台灣時區（Asia/Taipei = UTC+8），但 Cloud Functions runtime 預設 UTC，
@@ -349,10 +350,137 @@ function detectAbnormal(records, month) {
   return result;
 }
 
+/**
+ * 把 Date 推算成 Asia/Taipei 時區的 month / dateKey / 該日 UTC 起訖
+ * @returns { month: 'YYYY-MM', dateKey: 'YYYY-MM-DD', dayStart, dayEnd }
+ */
+function _taipeiDayBounds(date) {
+  const t = toTaipei(date);
+  const year = t.getUTCFullYear();
+  const monthIdx = t.getUTCMonth(); // 0-indexed
+  const dayNum = t.getUTCDate();
+  const month = `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
+  const dateKey = `${month}-${String(dayNum).padStart(2, "0")}`;
+  // Taipei 該日 00:00 = UTC 該日 00:00 - 8h
+  const dayStart = new Date(Date.UTC(year, monthIdx, dayNum, 0, 0, 0) - TAIPEI_OFFSET_MS);
+  const dayEnd = new Date(Date.UTC(year, monthIdx, dayNum + 1, 0, 0, 0) - TAIPEI_OFFSET_MS);
+  return { month, dateKey, dayStart, dayEnd };
+}
+
+/**
+ * 把單一事件（打卡 / 申請 / approve / reject）反映到 attendanceMonthly 物化視圖。
+ *
+ * 演算法：「day-level recompute」——只重算受影響那一天的 dailyStatus，再 merge 進
+ * 原本的月度 doc。每次呼叫 ~3-5 reads（該日的 raw records）+ 1 read（聚合 doc）+ 1 write。
+ *
+ * Race-safe：用 transaction 包住「讀該日 raw records → 讀現有聚合 → 寫回」，
+ * 兩個並行 punch 透過 Firestore 自動 retry 機制處理。
+ *
+ * 設計細節參考 docs/plans/Firestore-讀取最佳化-月度聚合計畫.md §3.3
+ *
+ * @param {string} userId
+ * @param {Date | Timestamp | string} eventDate 事件發生的時間（用來推算月份與日期）
+ * @returns {Promise<void>}
+ */
+async function applyEventToMonthly(userId, eventDate) {
+  if (!userId || !eventDate) return;
+  const d = eventDate instanceof Date ? eventDate : new Date(eventDate?.toDate?.() || eventDate);
+  if (isNaN(d.getTime())) return;
+
+  const { month, dateKey, dayStart, dayEnd } = _taipeiDayBounds(d);
+  const monthRef = db
+    .collection(COLLECTIONS.ATTENDANCE_MONTHLY)
+    .doc(`${userId}_${month}`);
+  const dayQuery = db
+    .collection(COLLECTIONS.ATTENDANCE)
+    .where("userId", "==", userId)
+    .where("timestamp", ">=", dayStart)
+    .where("timestamp", "<", dayEnd);
+
+  await db.runTransaction(async (tx) => {
+    // 1. 讀該日所有 raw records（含本次新增的，因 punch.js 已先 .add）
+    const daySnap = await tx.get(dayQuery);
+    const records = daySnap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        date: data.timestamp?.toDate?.() || data.timestamp,
+      };
+    });
+
+    // 2. 讀現有聚合 doc（可能不存在）
+    const existing = await tx.get(monthRef);
+    const oldDailyStatus = existing.exists
+      ? existing.data().dailyStatus || []
+      : [];
+
+    // 3. 用 summarizeByDay 算出該日的最新 day（0 或 1 個）
+    const dayResults = summarizeByDay(records);
+    const dayData = dayResults.find((x) => x.date === dateKey) || null;
+
+    // 4. 替換或移除該日後重新排序
+    let dailyStatus = oldDailyStatus.filter((x) => x.date !== dateKey);
+    if (dayData) dailyStatus.push(dayData);
+    dailyStatus.sort((a, b) => a.date.localeCompare(b.date));
+
+    // 5. 寫回（用 set 完整覆寫，因為 dailyStatus 是陣列無法 partial merge）
+    tx.set(monthRef, {
+      userId,
+      month,
+      dailyStatus,
+      recordCount: dailyStatus.reduce(
+        (sum, day) => sum + ((day.record || []).length),
+        0
+      ),
+      lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
+      schemaVersion: 1,
+    });
+  });
+
+  // 同容器月度 cache 也清掉，跨容器仰賴 5 分鐘 TTL
+  invalidateMonthlyCacheForDate(d, userId);
+}
+
+/**
+ * 從 raw attendance 重建單一員工單月的聚合 doc（一次性 backfill 用）
+ *
+ * 與 applyEventToMonthly 不同：這個跑「全月 recompute」（讀 ~60 docs），
+ * 適合 Phase 1.5 一次性 backfill 腳本，或 Phase 2 fallback 時走的全月重建路徑。
+ *
+ * 注意：本函式不使用 transaction（呼叫端應確保沒有並行 punch，例如離線跑腳本時）。
+ * 在 Phase 2 fallback 內呼叫請另外用 transaction 包，避免覆寫並行 punch 寫入。
+ *
+ * @param {string} userId
+ * @param {string} month 'YYYY-MM'
+ * @returns {Promise<{ recordCount: number, dailyStatus: Array }>}
+ */
+async function rebuildMonthlyAggregate(userId, month) {
+  const records = await getMonthlyAttendance(month, userId);
+  const dailyStatus = summarizeByDay(records);
+  const monthRef = db
+    .collection(COLLECTIONS.ATTENDANCE_MONTHLY)
+    .doc(`${userId}_${month}`);
+
+  await monthRef.set({
+    userId,
+    month,
+    dailyStatus,
+    recordCount: records.length,
+    lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
+    rebuiltAt: admin.firestore.FieldValue.serverTimestamp(),
+    schemaVersion: 1,
+  });
+
+  return { recordCount: records.length, dailyStatus };
+}
+
 module.exports = {
   parseMonth,
   getMonthlyAttendance,
   invalidateMonthlyCacheForDate,
   summarizeByDay,
   detectAbnormal,
+  applyEventToMonthly,
+  rebuildMonthlyAggregate,
 };
