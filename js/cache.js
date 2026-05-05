@@ -148,6 +148,17 @@ class CacheManager {
   }
 
   /**
+   * invalidate(cacheName) — clear() 的別名
+   *
+   * 多處 caller（admin.js / punch-flow.js）使用 cacheManager.invalidate(name)
+   * 但本實作只有 clear()，造成 TypeError。新增 alias 修正歷史 typo，避免每處
+   * caller 都要改名。語意與 clear 完全相同：清空指定 cache 內所有 entry。
+   */
+  invalidate(cacheName) {
+    this.clear(cacheName);
+  }
+
+  /**
    * 清空所有快取
    */
   clearAll() {
