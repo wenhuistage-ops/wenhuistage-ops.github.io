@@ -443,6 +443,90 @@ async function applyEventToMonthly(userId, eventDate) {
 }
 
 /**
+ * 取得月度 dailyStatus（Phase 2 主入口，被 getCalendarSummary / getAttendanceDetails 共用）
+ *
+ * 流程：
+ *   1. 快速路徑：讀 attendanceMonthly 物化視圖（1 read）。命中 → 直接回傳 dailyStatus
+ *   2. Lazy fallback（Phase 1.5 backfill 涵蓋後極少觸發）：
+ *      a. 讀 raw attendance + summarizeByDay 重算（~50 reads）
+ *      b. transaction 內 recheck：若期間有並行 punch 已建立聚合 doc，
+ *         合併後寫回（existing 優先，因為它較新）
+ *
+ * 期望命中率 > 99%（Phase 1.5 backfill 已涵蓋所有歷史月份），
+ * fallback 是兜底安全網。
+ *
+ * @param {string} userId
+ * @param {string} month 'YYYY-MM'
+ * @returns {Promise<Array>} dailyStatus 陣列
+ */
+async function getMonthlyDailyStatus(userId, month) {
+  if (!userId || !month) return [];
+
+  const monthRef = db
+    .collection(COLLECTIONS.ATTENDANCE_MONTHLY)
+    .doc(`${userId}_${month}`);
+
+  // ===== 快速路徑：聚合 doc 已存在 =====
+  const snap = await monthRef.get();
+  if (snap.exists) {
+    const data = snap.data();
+    return Array.isArray(data?.dailyStatus) ? data.dailyStatus : [];
+  }
+
+  // ===== Lazy fallback：從 raw attendance 重算 =====
+  const records = await getMonthlyAttendance(month, userId);
+  const dailyStatus = summarizeByDay(records);
+
+  // 用 transaction 寫入，避免被並行 punch 蓋掉
+  await db.runTransaction(async (tx) => {
+    const recheck = await tx.get(monthRef);
+
+    if (!recheck.exists) {
+      // 沒有競態，正常寫入完整 backfill
+      tx.set(monthRef, {
+        userId,
+        month,
+        dailyStatus,
+        recordCount: records.length,
+        rebuiltAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
+        schemaVersion: 1,
+      });
+      return;
+    }
+
+    // 競態發生：在 raw read 期間有 applyEventToMonthly 寫入，
+    // 把我們的 backfill 與 existing merge（existing 優先，因它較新）
+    const existing = recheck.data() || {};
+    const existingDays = Array.isArray(existing.dailyStatus) ? existing.dailyStatus : [];
+    const byDate = new Map();
+    dailyStatus.forEach((d) => byDate.set(d.date, d)); // ours
+    existingDays.forEach((d) => byDate.set(d.date, d)); // existing 覆蓋
+    const merged = Array.from(byDate.values()).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+
+    tx.set(monthRef, {
+      userId,
+      month,
+      dailyStatus: merged,
+      recordCount: merged.reduce(
+        (sum, d) => sum + ((d.record || []).length),
+        0
+      ),
+      rebuiltAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
+      schemaVersion: 1,
+    });
+  });
+
+  // 重讀拿最終版本（可能是 ours 也可能是 merged）
+  const final = await monthRef.get();
+  const finalData = final.data();
+  return Array.isArray(finalData?.dailyStatus) ? finalData.dailyStatus : dailyStatus;
+}
+
+/**
  * 從 raw attendance 重建單一員工單月的聚合 doc（一次性 backfill 用）
  *
  * 與 applyEventToMonthly 不同：這個跑「全月 recompute」（讀 ~60 docs），
@@ -483,4 +567,5 @@ module.exports = {
   detectAbnormal,
   applyEventToMonthly,
   rebuildMonthlyAggregate,
+  getMonthlyDailyStatus,
 };

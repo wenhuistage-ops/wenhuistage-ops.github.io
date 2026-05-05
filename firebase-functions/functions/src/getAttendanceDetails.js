@@ -4,11 +4,13 @@
  * @deprecated 2026-04-27：與 getCalendarSummary 回傳完全相同的 dailyStatus，
  * 前端已統一改走 getCalendarSummary（避免同一份資料重複呼叫消耗 Firestore reads）。
  * 此 endpoint 保留作向後相容，無新呼叫端時可移除。
+ *
+ * Phase 2（2026-05-05）：與 getCalendarSummary 同步切換到 attendanceMonthly 聚合層。
  */
 
 const { onCall } = require("firebase-functions/v2/https");
 const { verifySession } = require("./_helpers");
-const { getMonthlyAttendance, summarizeByDay } = require("./_attendance");
+const { getMonthlyDailyStatus } = require("./_attendance");
 
 module.exports = onCall(
   { region: "asia-southeast1", cors: true },
@@ -25,8 +27,7 @@ module.exports = onCall(
     const effectiveUserId =
       session.user.dept === "管理員" && requested ? requested : session.user.userId;
 
-    const records = await getMonthlyAttendance(month, effectiveUserId);
-    const dailyStatus = summarizeByDay(records);
+    const dailyStatus = await getMonthlyDailyStatus(effectiveUserId, month);
 
     return { ok: true, records: { dailyStatus } };
   }
