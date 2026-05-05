@@ -391,14 +391,55 @@ async function applyEventToMonthly(userId, eventDate) {
   const monthRef = db
     .collection(COLLECTIONS.ATTENDANCE_MONTHLY)
     .doc(`${userId}_${month}`);
+
+  // 該日 query（incremental update 用）
   const dayQuery = db
     .collection(COLLECTIONS.ATTENDANCE)
     .where("userId", "==", userId)
     .where("timestamp", ">=", dayStart)
     .where("timestamp", "<", dayEnd);
 
+  // 該月 query（首次建立聚合用，避免「只寫一天」造成歷史日資料看似消失）
+  const monthRange = parseMonth(month);
+
   await db.runTransaction(async (tx) => {
-    // 1. 讀該日所有 raw records（含本次新增的，因 punch.js 已先 .add）
+    const existing = await tx.get(monthRef);
+
+    if (!existing.exists) {
+      // ===== 首次建立：讀整月 raw 重建 dailyStatus =====
+      // 否則只寫「事件當日」一天，其他歷史日會在後續讀月曆時看似消失。
+      // 成本：~50 reads + 1 write（每員工每月只發生一次）
+      const monthSnap = await tx.get(
+        db
+          .collection(COLLECTIONS.ATTENDANCE)
+          .where("userId", "==", userId)
+          .where("timestamp", ">=", monthRange.start)
+          .where("timestamp", "<", monthRange.end)
+      );
+      const monthRecords = monthSnap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.timestamp?.toDate?.() || data.timestamp,
+        };
+      });
+      const dailyStatus = summarizeByDay(monthRecords);
+
+      tx.set(monthRef, {
+        userId,
+        month,
+        dailyStatus,
+        recordCount: monthRecords.length,
+        lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
+        rebuiltAt: admin.firestore.FieldValue.serverTimestamp(),
+        schemaVersion: 1,
+      });
+      return;
+    }
+
+    // ===== 增量更新：只重算該日，併入現有 dailyStatus =====
+    // 成本：~3-5 reads + 1 write（每次 punch / approve / reject）
     const daySnap = await tx.get(dayQuery);
     const records = daySnap.docs.map((doc) => {
       const data = doc.data();
@@ -409,22 +450,14 @@ async function applyEventToMonthly(userId, eventDate) {
       };
     });
 
-    // 2. 讀現有聚合 doc（可能不存在）
-    const existing = await tx.get(monthRef);
-    const oldDailyStatus = existing.exists
-      ? existing.data().dailyStatus || []
-      : [];
-
-    // 3. 用 summarizeByDay 算出該日的最新 day（0 或 1 個）
+    const oldDailyStatus = existing.data().dailyStatus || [];
     const dayResults = summarizeByDay(records);
     const dayData = dayResults.find((x) => x.date === dateKey) || null;
 
-    // 4. 替換或移除該日後重新排序
     let dailyStatus = oldDailyStatus.filter((x) => x.date !== dateKey);
     if (dayData) dailyStatus.push(dayData);
     dailyStatus.sort((a, b) => a.date.localeCompare(b.date));
 
-    // 5. 寫回（用 set 完整覆寫，因為 dailyStatus 是陣列無法 partial merge）
     tx.set(monthRef, {
       userId,
       month,
