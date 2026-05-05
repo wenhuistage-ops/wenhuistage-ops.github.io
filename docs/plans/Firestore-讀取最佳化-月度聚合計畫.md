@@ -218,6 +218,133 @@ return { ok: true, records: { dailyStatus } };
 
 ---
 
+### 3.5 粒度選擇的完整權衡（per 員工 vs per 員工 per 月 vs per 員工 per 日）
+
+聚合 doc 的「時間切分粒度」是核心設計決策。三種選擇的權衡：
+
+| 粒度 | 範例 doc id | 1 員工 5 年累積大小 | 月曆讀取 | 每次打卡寫入 |
+|------|------------|-------------------|---------|-------------|
+| 🔴 per 員工（無時間切分） | `attendanceByUser/U123` | ~900KB（逼近 1MB 上限） | 1 read，但下載 900KB | read+write 整顆 900KB |
+| 🟢 **per 員工 per 月**（採用） | `attendanceMonthly/U123_2026-05` | 30KB（恆定） | 1 read，下載 30KB | read+write 30KB |
+| 🟡 per 員工 per 日 | `attendanceDaily/U123_2026-05-05` | 500B/doc × 1825 docs | 30 reads / 月曆 | read+write 500B |
+
+#### 為什麼 per 員工（無時間切分）不可行
+
+**🔴 1. Firestore 1MB 硬上限**
+
+Firestore 規則：單 doc 最大 1,048,576 bytes。超過寫入失敗。
+
+```
+1 天打卡 ≈ 500 bytes
+1 月  ≈ 15-30KB
+1 年  ≈ 180KB
+3 年  ≈ 540KB
+5 年  ≈ 900KB ⚠️ 危險區
+6 年  ≈ 1.08MB ❌ 寫入失敗
+```
+
+外籍員工有些做 3-5 年以上，這是**時間炸彈**——某天打卡突然失敗，可能 silent fail 造成資料遺失。
+
+**🔴 2. 寫入放大（每次打卡讀寫整顆 doc）**
+
+Firestore transaction 是 read-modify-write。5 年資歷員工每次打卡：
+
+```
+read attendanceByUser/U123 → 載入 900KB 進記憶體
+push 一筆新紀錄
+write 整個 900KB 回去
+```
+
+對比 per-月只要動 30KB，**30× 的寫入頻寬差距**。
+
+**🔴 3. 歷史月份永遠在被改寫**
+
+per-員工 設計下，員工今天打的卡會把 2024 年的資料一起改寫。per-月 設計下舊月份天然成為 read-only——這個叫 **time-based sharding**（時間分片），是 NoSQL 的標準模式：寫入熱點集中在當月，舊月份永不爭用。
+
+**🟡 4. 員工自查月曆下載多餘資料**
+
+員工要看 5 月月曆，per-員工 必須下載 900KB 全部歷史，JS 過濾出 30KB。30× 的網路頻寬浪費 + 隱私問題。
+
+#### 為什麼 per 日 也不選
+
+per-日 雖然安全（每 doc 500B 永遠不爆），但讀月曆要 30 reads，跟 per-月的 1 read 差 30 倍，失去聚合層的核心價值。
+
+#### 結論
+
+per-員工 per-月 是「**夠細到不會撞 1MB、夠粗到月曆只要 1 read**」的甜蜜點。
+
+---
+
+### 3.6 為什麼保留原 `attendance` collection
+
+P0 上線後 `attendance` 不再被 UI 讀取，會有人問「乾脆刪掉節省成本？」答案是 **強烈建議保留**。
+
+#### 角色定位（事件來源 + 物化視圖 = Event Sourcing）
+
+| Collection | 角色 | 寫入 | 讀取 |
+|-----------|------|------|------|
+| `attendance` | **Source of truth**（事件來源） | 每次打卡 / 申請仍寫入 | 平常不讀，僅用於對帳 / 修復 / 法規 |
+| `attendanceMonthly` | **Materialized view**（物化視圖） | 每次打卡同步聚合 | 所有 UI / 匯出走這裡 |
+
+`attendanceMonthly` 本質是 cache，所有內容衍生自 `attendance`。
+
+#### 為什麼一定要留
+
+**1. 聚合 bug 的修復路徑（最關鍵）**
+
+| 有 `attendance` 的世界 | 沒 `attendance` 的世界 |
+|----------------------|----------------------|
+| 對帳腳本發現 5 月某員工少 2 筆 → 從 raw 重建該月聚合 | 永久遺失，無從追溯 |
+| Schema 演進加 `overtimeMinutes` 欄位 → 從 raw 重算所有歷史 | 只能往前算新資料，舊月永遠沒這個欄位 |
+| 「為什麼 5/3 顯示 3 次打卡？」→ query raw 看時間戳記 | 只看得到聚合結果，bug 會 silent fail |
+
+**2. 法規 / 勞檢需要原始紀錄**
+
+勞基法第 30 條第 5 項要求保存出勤紀錄 **5 年**，內容須能逐筆稽核（時間、地點、備註）。聚合的 dailyStatus 不夠，勞檢要看原始事件。
+
+**3. 偵錯能力**
+
+員工申訴「我 5/3 有打卡，怎麼月曆顯示沒打？」
+- 有 `attendance`：query 原始事件看時間戳記、GPS、是否有寫入 timestamp
+- 沒 `attendance`：只能信聚合結果，但聚合 bug 會 silent fail
+
+#### 儲存成本估算（幾乎為 0）
+
+```
+1 筆打卡 ≈ 500 bytes
+30 員工 × 4 次/天 × 365 天 × 5 年 = 219,000 筆
+總儲存 ≈ 110 MB
+Firestore 單價 $0.18/GB/月 → ≈ $0.02/月
+```
+
+**5 年累積花費 < $1 USD**，相對於資料遺失的修復成本完全不成比例。
+
+#### `attendance` 上線後的讀取頻率（不影響 reads 配額）
+
+| 情境 | 頻率 |
+|------|------|
+| Phase 2 lazy backfill | 每員工每月一次（之後永遠 cache hit） |
+| Phase 4 對帳腳本（每天凌晨） | 1 次/天，讀昨天約 80 docs |
+| 偵錯查單筆 | 罕見 |
+| 勞檢法規查詢 | 一年 0-2 次 |
+| 全歷史匯出 | 一年 1-2 次 |
+
+正常營運下幾乎不讀，對 reads 配額幾乎無影響。
+
+#### 5-10 年後的選項：冷熱分離（不在本計畫範圍）
+
+如果未來真的覺得 `attendance` 太大：
+
+```
+近 1 年：留 Firestore（熱資料，對帳 + 偵錯）
+1 年以上：dump 成 JSON.gz 上 GCS（便宜 100×）
+3 年以上：歸檔到 GCS Coldline（更便宜）
+```
+
+不必現在處理。
+
+---
+
 ## 四、實作步驟
 
 ### Phase 1：聚合 doc 寫入（單向，shadow write）
