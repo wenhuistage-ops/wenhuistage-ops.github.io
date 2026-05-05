@@ -39,7 +39,16 @@
 
 "use strict";
 
-const admin = require("firebase-admin");
+// 由於 scripts/ 沒有自己的 node_modules，從 ../functions/ 借用 firebase-admin
+// （createRequire 把 require 解析根錨定到 functions/package.json，所以從任何
+//  目錄跑 `node scripts/backfill-attendance-monthly.js` 都能找到 module）
+const path = require("node:path");
+const { createRequire } = require("node:module");
+const requireFromFunctions = createRequire(
+  path.join(__dirname, "..", "functions", "package.json")
+);
+const admin = requireFromFunctions("firebase-admin");
+const { getFirestore } = requireFromFunctions("firebase-admin/firestore");
 
 // ===================================
 // CLI 參數解析
@@ -68,10 +77,9 @@ if (flags.month && !/^\d{4}-\d{2}$/.test(flags.month)) {
 // ===================================
 const projectId = flags.project || process.env.GCLOUD_PROJECT || "wenhui-check-in-system";
 admin.initializeApp({ projectId });
-const FIRESTORE_DATABASE_ID = "default"; // 與 _helpers.js 一致
-const db = admin.firestore.getFirestore
-  ? admin.firestore.getFirestore(admin.app(), FIRESTORE_DATABASE_ID)
-  : require("firebase-admin/firestore").getFirestore(admin.app(), FIRESTORE_DATABASE_ID);
+// 與 _helpers.js 一致：明確使用 'default' 資料庫（在 asia-east1）
+const FIRESTORE_DATABASE_ID = "default";
+const db = getFirestore(admin.app(), FIRESTORE_DATABASE_ID);
 
 // ===================================
 // 載入 _attendance.js 的 summarizeByDay
