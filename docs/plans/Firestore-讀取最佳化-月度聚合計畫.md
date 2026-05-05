@@ -154,33 +154,46 @@ await db.runTransaction(async (tx) => {
 
 ### 3.2 過渡期 fallback：聚合 doc 不存在時退回 raw
 
-`getCalendarSummary.js` 改成：
+`getCalendarSummary.js` 改成（**race-safe 版本**）：
 
 ```js
 const monthRef = db.collection('attendanceMonthly').doc(`${userId}_${month}`);
 const snap = await monthRef.get();
-
 if (snap.exists) {
   return { ok: true, records: { dailyStatus: snap.data().dailyStatus } };
 }
 
 // Fallback：沒聚合 doc 就走舊路徑（讀 attendance + summarizeByDay）
-//          並順便 backfill 一份聚合 doc
 const records = await getMonthlyAttendance(month, effectiveUserId);
 const dailyStatus = summarizeByDay(records);
-await monthRef.set({
-  userId: effectiveUserId,
-  month,
-  dailyStatus,
-  recordCount: records.length,
-  rebuiltAt: admin.firestore.FieldValue.serverTimestamp(),
-  schemaVersion: 1,
-}, { merge: true });
 
-return { ok: true, records: { dailyStatus } };
+// 用 transaction 寫入，避免在 raw read 過程中被並行 punch 蓋掉
+await db.runTransaction(async (tx) => {
+  const recheck = await tx.get(monthRef);
+  if (recheck.exists) {
+    // 已被 applyEventToMonthly 在 raw read 期間建立 → 不覆寫，沿用對方寫的版本
+    // （理論上這個版本只含「該次新打卡」一筆 → Phase 4 對帳腳本會兜底補完）
+    return;
+  }
+  tx.set(monthRef, {
+    userId: effectiveUserId,
+    month,
+    dailyStatus,
+    recordCount: records.length,
+    rebuiltAt: admin.firestore.FieldValue.serverTimestamp(),
+    schemaVersion: 1,
+  });
+});
+
+// 重讀拿到最終版本（可能是自己寫的，也可能是並行 punch 寫的）
+const final = await monthRef.get();
+return { ok: true, records: { dailyStatus: final.data()?.dailyStatus || dailyStatus } };
 ```
 
-這個 fallback 也是「lazy backfill」——任何沒有聚合 doc 的月份，第一次讀的時候自動建立。**不需要另外跑 backfill 腳本**。
+> ⚠️ **競態警告**：在 `monthRef.get()` 與 transaction 之間，可能有並行 punch 透過 `applyEventToMonthly` 建立同一個 doc。`merge: true` 不合併陣列，所以必須在 transaction 內 recheck 並放棄覆寫。  
+> **真正穩健的方案**：先跑 §3.7 一次性 backfill 腳本，把競態窗口降到 0（見 §四 Phase 1.5）。
+
+這個 fallback 是「lazy backfill」的兜底——一次性 backfill 沒涵蓋的月份，第一次讀的時候自動建立。
 
 ---
 
@@ -345,6 +358,59 @@ Firestore 單價 $0.18/GB/月 → ≈ $0.02/月
 
 ---
 
+### 3.7 一次性 backfill 腳本（Phase 1.5 用）
+
+**目的**：在 Phase 2 deploy 前把所有歷史月份補完，把 §3.2 的競態窗口降到 0。
+
+**位置**：`firebase-functions/scripts/backfill-attendance-monthly.js`（新增 scripts 目錄）
+
+**執行方式**：本機跑 `node scripts/backfill-attendance-monthly.js [--dry-run] [--month=YYYY-MM]`，使用 Application Default Credentials 連線正式 Firestore。
+
+**演算法**：
+
+```js
+1. 列出所有 employees doc（取 userId 集合）
+2. 對每個 userId：
+   a. 從 attendance collection query 該員工最早與最晚的 timestamp
+   b. 推算所有有資料的月份（從最早月到當前月）
+   c. 對每個月：
+      - 檢查 attendanceMonthly/{userId}_{month} 是否存在
+        - 已存在且非 dry-run → 跳過（idempotent）
+      - 否則：getMonthlyAttendance + summarizeByDay → 寫入 attendanceMonthly
+3. 統計：總員工數、處理月份數、寫入 / 跳過 / 失敗各幾筆
+```
+
+**正確性**：
+- 在 Phase 2 deploy 前跑（讀取仍走 raw 路徑），整個過程沒有並行 punch 改動聚合 doc
+- 因此完全不需要 transaction，單純 `set()` 即可
+- 重複執行安全（檢查存在性後跳過）
+
+**reads 成本**（保守估算）：
+
+| 變數 | 數值 |
+|------|------|
+| 員工數 | 15 |
+| 歷史月份 | 3（系統 2026-04 才上線） |
+| 平均每員工每月 raw docs | 60 |
+| **總 reads** | **15 × 3 × 60 = 2,700** |
+
+對比現況每天 50K reads，這 2,700 是「**現況 1 小時的零頭**」。一次性付完，永遠不再支出。
+
+**輸出範例**：
+```
+[backfill] 開始（mode=live）
+[backfill] 找到 15 員工
+[backfill] U001 范明雄 → 2026-04 ~ 2026-05（2 月）
+  [skip] 2026-04（已存在）
+  [write] 2026-05（讀 53 docs，寫入 1 doc）
+[backfill] U002 阮氏蘭英 → 2026-03 ~ 2026-05（3 月）
+  ...
+[backfill] 完成 — 員工 15 / 月份 42 / 寫入 38 / 跳過 4 / 失敗 0
+[backfill] reads ≈ 2,280
+```
+
+---
+
 ## 四、實作步驟
 
 ### Phase 1：聚合 doc 寫入（單向，shadow write）
@@ -363,11 +429,24 @@ Firestore 單價 $0.18/GB/月 → ≈ $0.02/月
 
 ---
 
-### Phase 2：讀取端切換 + lazy backfill
-- [ ] **2.1** `getCalendarSummary.js` 改用 §3.2 的 fallback 邏輯：先讀 `attendanceMonthly`，沒有再退回舊路徑並 backfill
+### Phase 1.5：一次性歷史 backfill（**必跑，不可省略**）
+
+**目標：在 Phase 2 deploy 前把所有歷史月份補完，把 §3.2 競態窗口降到 0。**
+
+- [ ] **1.5.1** 新增 `firebase-functions/scripts/backfill-attendance-monthly.js`（依 §3.7 演算法）
+- [ ] **1.5.2** 先用 `--dry-run --month=2026-04`（單月試跑），確認讀寫數字符合預期
+- [ ] **1.5.3** `node scripts/backfill-attendance-monthly.js`（正式跑），預期 reads ~2,700
+- [ ] **1.5.4** Firestore Console 抽查 5 個 `attendanceMonthly/*` doc，與舊路徑 `summarizeByDay(getMonthlyAttendance)` 結果 deep-equal
+
+**Phase 1.5 結束點**：所有歷史月份都有聚合 doc，Phase 2 lazy backfill 幾乎不會觸發。
+
+---
+
+### Phase 2：讀取端切換 + lazy backfill 兜底
+- [ ] **2.1** `getCalendarSummary.js` 改用 §3.2 的 fallback 邏輯：先讀 `attendanceMonthly`，沒有再退回舊路徑並 transaction 寫入
 - [ ] **2.2** `getCompleteAttendanceRecords.js` 同上（雖前端已不呼叫，仍維護向後相容）
 - [ ] **2.3** Deploy → 監測 1 週 reads 數字
-- [ ] **2.4** 確認 `attendanceMonthly` 已自動 backfill 過去 N 個月（或寫一次性腳本主動 backfill）
+- [ ] **2.4** 確認 `attendanceMonthly` 命中率 > 99%（lazy backfill 應該幾乎不觸發，因為 Phase 1.5 已涵蓋）
 
 **Phase 2 結束點**：reads 應該掉到 1/30 ~ 1/50。
 
@@ -391,13 +470,18 @@ Firestore 單價 $0.18/GB/月 → ≈ $0.02/月
 
 | 風險 | 機率 | 影響 | 緩解 |
 |------|------|------|------|
-| transaction 寫入失敗 → punch 卡住 | 低 | 高 | Phase 1 用 fire-and-forget，失敗只 log |
-| 聚合 doc 與 raw 不一致 | 中 | 中 | Phase 4 對帳腳本 + lazy backfill 補救 |
+| Phase 1 shadow write 失敗 → punch 卡住 | 低 | 中 | 用 try/catch，失敗只 log 不阻擋 punch 主流程 |
+| 聚合 doc 與 raw 不一致 | 中 | 中 | Phase 4 對帳腳本 + lazy backfill 兜底 |
 | dailyStatus 陣列變超大 | 極低 | 低 | 30 天每天 ~5 records = 150 entries，遠低於 doc 1MB 上限 |
-| 補打卡 / 請假 reject 後沒清乾淨 | 中 | 中 | reject 端點明確調用「移除」操作；對帳腳本兜底 |
-| 一次性 backfill 失敗 | 低 | 低 | lazy 設計自動處理；不存在「全部失敗」場景 |
+| 補打卡 / 請假 reject 後沒清乾淨 | 中 | 中 | reject 端點呼叫 `applyEventToMonthly` 重算當日（去重邏輯處理） |
+| ~~lazy backfill 競態（並行 punch 蓋掉 backfill）~~ | ~~中~~ | ~~中~~ | ✅ Phase 1.5 一次性 backfill + §3.2 transaction 雙重保護 |
+| 一次性 backfill 腳本中途失敗 | 低 | 低 | 腳本 idempotent，重跑會跳過已建立的 doc |
 
-**回滾策略**：每個 Phase 都可獨立回滾——Phase 1 拔掉 fire-and-forget call、Phase 2 拔掉聚合 read 改回舊路徑、聚合 doc 留著當 dead data 不影響系統。
+**回滾策略**：每個 Phase 都可獨立回滾——
+- Phase 1 → 拔掉 mutation 端點的 `applyEventToMonthly` call
+- Phase 1.5 → 已寫入的 `attendanceMonthly` doc 留著當 dead data，不影響系統
+- Phase 2 → 拔掉聚合 read 改回舊路徑
+- Phase 3 → 還原 deprecated 的舊 endpoint 與 `MONTHLY_CACHE`
 
 ---
 
@@ -430,6 +514,7 @@ Firestore 單價 $0.18/GB/月 → ≈ $0.02/月
 - [ ] `firebase-functions/functions/src/rejectReview.js`
 - [ ] `firebase-functions/functions/src/getCalendarSummary.js`
 - [ ] `firebase-functions/functions/src/getCompleteAttendanceRecords.js`
+- [ ] `firebase-functions/scripts/backfill-attendance-monthly.js`（**新增**，Phase 1.5 用）
 - [ ] `firebase-functions/firestore.indexes.json`（不需新 index，aggregateMonthly 是 doc-by-id 取）
 - [ ] `docs/architecture/資料架構.md`（Phase 2 完成後更新文件）
 - [ ] `docs/ChangeLog.md`（每 Phase 上線記一筆）
