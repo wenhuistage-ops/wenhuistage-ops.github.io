@@ -336,7 +336,7 @@
   "LABOR_HOURLY_RATE": "Hourly Rate",
   "LABOR_HOURLY_PREVIEW": "Equivalent Hourly",
   "LABOR_HOURLY_MIN_HINT": "2026 minimum hourly wage: NT$190",
-  "LABOR_BELOW_MIN_WAGE": "Monthly salary below 2026 minimum (NT$28,590)",
+  "LABOR_BELOW_MIN_WAGE": "Monthly salary below 2026 minimum (NT$29,500)",
   "LABOR_INSURANCE_GRADE": "Labor Insurance Grade",
   "LABOR_INSURANCE_AUTO": "Auto-infer grade from salary",
   "LABOR_INSURED_CUSTOM_SALARY": "Custom Insured Salary",

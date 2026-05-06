@@ -336,7 +336,7 @@
   "LABOR_HOURLY_RATE": "Tarif Per Jam",
   "LABOR_HOURLY_PREVIEW": "Konversi Per Jam",
   "LABOR_HOURLY_MIN_HINT": "Tarif minimum 2026: NT$190/jam",
-  "LABOR_BELOW_MIN_WAGE": "Gaji bulanan di bawah minimum 2026 (NT$28,590)",
+  "LABOR_BELOW_MIN_WAGE": "Gaji bulanan di bawah minimum 2026 (NT$29,500)",
   "LABOR_INSURANCE_GRADE": "Tingkat Asuransi TK",
   "LABOR_INSURANCE_AUTO": "Hitung tingkat otomatis dari gaji",
   "LABOR_INSURED_CUSTOM_SALARY": "Gaji Tertanggung Kustom",

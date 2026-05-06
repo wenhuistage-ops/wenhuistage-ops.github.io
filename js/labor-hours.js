@@ -201,8 +201,11 @@ function monthlyToHourly(monthlySalary) {
 
 const LABOR_RATES_YEAR = 2026;
 
+// 2026/01/01 起適用（勞動部 114.11.21 勞動保 2 字第 1140091863 號令發布）
+// 來源 PDF：勞工保險普通事故保險費分擔金額表(自115年1月1日起適用)
+// 共 11 級，第 1 級為基本工資 29,500 元，最高級 45,800 元
 const LABOR_INSURANCE_GRADES = [
-    { grade: 1, salary: 28590 },   // 基本工資
+    { grade: 1, salary: 29500 },   // 基本工資（2026/01/01 起 29,500）
     { grade: 2, salary: 30300 },
     { grade: 3, salary: 31800 },
     { grade: 4, salary: 33300 },
@@ -212,19 +215,7 @@ const LABOR_INSURANCE_GRADES = [
     { grade: 8, salary: 40100 },
     { grade: 9, salary: 42000 },
     { grade: 10, salary: 43900 },
-    { grade: 11, salary: 45800 },
-    { grade: 12, salary: 48200 },
-    { grade: 13, salary: 50600 },
-    { grade: 14, salary: 53000 },
-    { grade: 15, salary: 55400 },
-    { grade: 16, salary: 57800 },
-    { grade: 17, salary: 60800 },
-    { grade: 18, salary: 63800 },
-    { grade: 19, salary: 66800 },
-    { grade: 20, salary: 69800 },
-    { grade: 21, salary: 72800 },
-    { grade: 22, salary: 76500 },
-    { grade: 23, salary: 80200 }, // 最高級
+    { grade: 11, salary: 45800 },  // 最高級
 ];
 
 /**
@@ -241,13 +232,19 @@ function inferGradeFromSalary(monthlySalary) {
 }
 
 // ============================================================
-// 員工自付費率（2026 年）
+// 員工自付費率（2026 年起適用）
+// 來源：勞動部 114/1/1 起公告之費率（114/1/1 普通事故由 12% 調為 12.5%）
 // ============================================================
 
 const EMPLOYEE_CONTRIBUTION_RATES = {
-    laborInsurance: 0.024,   // 勞保普通事故 12% × 員工 20% = 2.4%
-    healthInsurance: 0.0155, // 健保 5.17% × 員工 30% ≈ 1.55%
-    // 勞退自提率由員工自選 0~6%
+    // 本國勞工：勞保普通事故 11.5% + 就業保險 1% = 12.5%，員工自付 20% → 2.5%
+    laborInsuranceTaiwanese: 0.025,
+    // 外籍勞工：不適用就業保險法（就保法 §5 限定 ROC 國籍），只有勞保普通
+    //          事故 11.5%，員工自付 20% → 2.3%
+    laborInsuranceForeign: 0.023,
+    // 健保 5.17%，員工自付 30% ≈ 1.55%（本國 / 外籍同）
+    healthInsurance: 0.0155,
+    // 勞退自提率由員工自選 0~6%（外籍移工通常無勞退）
 };
 
 /**
@@ -255,12 +252,18 @@ const EMPLOYEE_CONTRIBUTION_RATES = {
  *
  * @param {number} insuredSalary    勞保月投保薪資（=該員工的等級薪資）
  * @param {number} pensionRate      勞退自提率 % (0~6)
+ * @param {object} opts
+ *   @param {string} opts.nationality 'taiwanese' | 'foreign'（預設 taiwanese）
  * @returns {{ labor, health, pension, total }} 各項扣繳金額
  */
-function calcEmployeeDeductions(insuredSalary, pensionRate = 0) {
+function calcEmployeeDeductions(insuredSalary, pensionRate = 0, opts = {}) {
     const s = Number(insuredSalary) || 0;
     const p = Math.max(0, Math.min(6, Number(pensionRate) || 0));
-    const labor = Math.round(s * EMPLOYEE_CONTRIBUTION_RATES.laborInsurance);
+    const nationality = opts.nationality === 'foreign' ? 'foreign' : 'taiwanese';
+    const laborRate = nationality === 'foreign'
+        ? EMPLOYEE_CONTRIBUTION_RATES.laborInsuranceForeign
+        : EMPLOYEE_CONTRIBUTION_RATES.laborInsuranceTaiwanese;
+    const labor = Math.round(s * laborRate);
     const health = Math.round(s * EMPLOYEE_CONTRIBUTION_RATES.healthInsurance);
     const pension = Math.round(s * (p / 100));
     return { labor, health, pension, total: labor + health + pension };

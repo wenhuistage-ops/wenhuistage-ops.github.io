@@ -1189,7 +1189,8 @@ if (typeof window !== 'undefined') {
 // #region Phase L7：員工薪資與勞保設定
 // ===================================
 
-const MIN_MONTHLY_WAGE_2026 = 28590;
+// 2026/01/01 起：基本月薪 29,500、基本時薪 190
+const MIN_MONTHLY_WAGE_2026 = 29500;
 const MIN_HOURLY_WAGE_2026 = 190;
 
 /**
@@ -1282,7 +1283,7 @@ function _refreshSalaryPreview() {
     }
 
     // 自動推算等級：只負責填預設值，select 永遠保持可手動覆寫。
-    // （之前 auto 勾選會 disable select，導致月薪 > 28590 時無法手動選回 grade 1。
+    // （之前 auto 勾選會 disable select，導致月薪 > 29500 時無法手動選回 grade 1。
     //  系統不該幫使用者鎖死合法/非合法的選擇，由使用者自負責任。）
     if (isMonthly && autoChk?.checked && monthlyVal > 0 && typeof window.inferGradeFromSalary === 'function') {
         const inferred = window.inferGradeFromSalary(monthlyVal);
@@ -1305,7 +1306,10 @@ function _refreshSalaryPreview() {
     const previewTaxEl = document.getElementById('salary-preview-tax');
 
     if (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function') {
-        const ded = window.calcEmployeeDeductions(insuredSalary, pensionRate);
+        // 國籍從 form radio 取（外籍勞保費率較低 11.5% vs 本國 12.5%）
+        const nationality = document.getElementById('nationality-foreign')?.checked
+            ? 'foreign' : 'taiwanese';
+        const ded = window.calcEmployeeDeductions(insuredSalary, pensionRate, { nationality });
         // 所得稅以「月薪」估，避免每月加班費浮動讓預覽不穩；實際匯出會用該月應發總額算
         const taxEstimate = Math.round(monthlyVal * (taxRate / 100));
         const totalWithExtras = ded.total + housingDed + taxEstimate;
@@ -2005,8 +2009,10 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const customInsured = Number(employee.customInsuredSalary || 0);
     const insuredSalary = customInsured > 0 ? customInsured : (grade ? grade.salary : 0);
     const pensionRate = employee.hasLaborPension !== false ? Number(employee.laborPensionRate || 0) : 0;
+    // 國籍：外籍員工勞保費率 11.5%（無就保），本國 12.5%（含就保 1%）
+    const empNationality = employee.nationality === 'foreign' ? 'foreign' : 'taiwanese';
     const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
-        ? window.calcEmployeeDeductions(insuredSalary, pensionRate)
+        ? window.calcEmployeeDeductions(insuredSalary, pensionRate, { nationality: empNationality })
         : { labor: 0, health: 0, pension: 0, total: 0 };
 
     // 住宿費（每月固定扣款，外籍員工常用）
@@ -3408,8 +3414,9 @@ async function renderEmployeeKpi(userId, date) {
         .find((g) => g.grade === Number(emp.laborInsuranceGrade));
     const insuredSalary = grade ? grade.salary : 0;
     const pensionRate = emp.hasLaborPension ? Number(emp.laborPensionRate || 0) : 0;
+    const empNationality2 = emp.nationality === 'foreign' ? 'foreign' : 'taiwanese';
     const ded = (insuredSalary > 0 && typeof window.calcEmployeeDeductions === 'function')
-        ? window.calcEmployeeDeductions(insuredSalary, pensionRate)
+        ? window.calcEmployeeDeductions(insuredSalary, pensionRate, { nationality: empNationality2 })
         : { labor: 0, health: 0, pension: 0, total: 0 };
     const net = gross - ded.total;
 

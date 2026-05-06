@@ -3,7 +3,7 @@
  *
  * 寫入：employees/{userId} 的下列欄位（merge）：
  *   salaryType            'monthly' | 'hourly'
- *   monthlySalary         數字（NT$，monthly 模式必填，須 ≥ 28590 = 2026 基本工資）
+ *   monthlySalary         數字（NT$，monthly 模式必填，須 ≥ 29500 = 2026 基本工資）
  *   hourlyRate            數字（NT$，hourly 模式必填）
  *   laborInsuranceGrade   1–23（依勞保投保薪資分級表）
  *   hasLaborPension       boolean（是否提繳勞退）
@@ -22,8 +22,8 @@
 const { onCall } = require("firebase-functions/v2/https");
 const { admin, db, verifyAdmin } = require("./_helpers");
 
-// 2026 年基本月薪（與 js/labor-hours.js 同步；每年元旦前手動更新）
-const MIN_MONTHLY_WAGE = 28590;
+// 2026/01/01 起基本月薪 29,500（與 js/labor-hours.js 同步；每年元旦前手動更新）
+const MIN_MONTHLY_WAGE = 29500;
 
 module.exports = onCall(
   {
