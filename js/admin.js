@@ -610,9 +610,18 @@ async function loadEmployeeList() {
     try {
         if (data && data.ok === true) {
             const employees = data.employeesList;
-            allEmployeeList = employees; // 儲存員工列表 (來自 state.js)
+            // allEmployeeList 仍存全部員工資料（給其他模組依 userId 反查名字等用，
+            // 例如顯示歷史打卡紀錄裡離職員工的姓名）
+            allEmployeeList = employees;
 
             // Phase 1：合併員工選擇器，只填充唯一的 mgmt select
+            // 2026-05-06：選單只顯示「啟用」狀態的正式員工
+            // 過濾掉：'停用'、'未啟用'、'已離職'
+            // → admin 想 reactivate 已離職員工時，目前需直接改 Firestore Console
+            //   或之後可在此處加 toggle「顯示所有員工」
+            const activeEmployees = employees.filter((e) => (e.status || '啟用') === '啟用');
+            const hiddenCount = employees.length - activeEmployees.length;
+
             // ✅ XSS防護：使用 DOM API 代替 innerHTML
             adminSelectEmployeeMgmt.replaceChildren();
             const mgmtOption0 = document.createElement('option');
@@ -620,12 +629,16 @@ async function loadEmployeeList() {
             mgmtOption0.textContent = t('OPT_SELECT_EMPLOYEE') || '-- 請選擇一位員工 --';
             adminSelectEmployeeMgmt.appendChild(mgmtOption0);
 
-            employees.forEach(employee => {
+            activeEmployees.forEach(employee => {
                 const option = document.createElement('option');
                 option.value = employee.userId;
                 option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)`;
                 adminSelectEmployeeMgmt.appendChild(option);
             });
+
+            if (hiddenCount > 0) {
+                console.log(`員工選單：顯示 ${activeEmployees.length} 位啟用員工（已隱藏 ${hiddenCount} 位停用 / 未啟用 / 已離職）`);
+            }
         } else {
             const errorMessage = data?.message || data?.code || t("FAILED_TO_LOAD_EMPLOYEES");
             console.error("載入員工列表時 API 回傳失敗:", data, errorMessage);
