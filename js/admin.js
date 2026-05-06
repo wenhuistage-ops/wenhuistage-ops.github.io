@@ -833,6 +833,41 @@ function initAdminEvents() {
                 });
                 settingsContainer.appendChild(activeToggle);
 
+                // 員工離職按鈕（軟刪除：status='已離職'，attendance 紀錄保留）
+                // 已離職員工：顯示「重新啟用」提示；其他：顯示「標記為離職」紅色按鈕
+                const resignWrapper = document.createElement('div');
+                resignWrapper.className = 'mt-3 pt-3 border-t border-gray-200 dark:border-gray-700';
+                if (employee.status === '已離職') {
+                    const resignedAt = employee.resignedAt
+                        ? new Date(employee.resignedAt).toLocaleDateString('zh-TW')
+                        : '';
+                    resignWrapper.innerHTML = DOMPurify.sanitize(
+                        `<p class="text-sm text-gray-600 dark:text-gray-400">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            此員工已標記為「已離職」${resignedAt ? `（${resignedAt}）` : ''}。
+                            如需重新啟用，請開啟上方「帳號啟用狀態」。
+                        </p>`
+                    );
+                } else {
+                    const resignBtn = document.createElement('button');
+                    resignBtn.type = 'button';
+                    resignBtn.id = 'btn-resign-employee';
+                    resignBtn.className =
+                        'w-full px-4 py-2 text-sm font-medium text-red-700 dark:text-red-300 ' +
+                        'bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 ' +
+                        'border border-red-300 dark:border-red-700 rounded-lg transition';
+                    resignBtn.innerHTML = '<i class="fas fa-user-slash mr-2"></i>標記為離職';
+                    resignBtn.addEventListener('click', () =>
+                        handleResignEmployee(currentManagingEmployee.userId, employee.name || '')
+                    );
+                    resignWrapper.appendChild(resignBtn);
+                    const hint = document.createElement('p');
+                    hint.className = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
+                    hint.textContent = '離職後員工無法打卡與被通知，但 attendance 紀錄保留（勞基法 5 年）';
+                    resignWrapper.appendChild(hint);
+                }
+                settingsContainer.appendChild(resignWrapper);
+
                 // 更新全域參考（以兼容舊代碼）
                 toggleAdmin = document.getElementById('toggle-admin');
                 toggleActive = document.getElementById('toggle-active');
@@ -1074,9 +1109,64 @@ async function toggleAccountStatus(userId, value, checkbox) {
     });
 }
 
+/**
+ * 標記員工離職（軟刪除）
+ *   - status='已離職'，attendance 紀錄保留
+ *   - 雙重確認，操作不可一鍵還原（要重新啟用須改 active=true）
+ */
+async function handleResignEmployee(userId, employeeName) {
+    if (!userId) return;
+    const name = employeeName || userId.slice(0, 8);
+    const confirmMsg =
+        `確定將「${name}」標記為離職？\n\n` +
+        `離職後：\n` +
+        `• 員工無法登入打卡\n` +
+        `• 不會收到 LINE 漏打卡提醒\n` +
+        `• 出勤紀錄保留（勞基法要求 5 年）\n` +
+        `• 可由管理員重新啟用`;
+    const ok = typeof showConfirmDialog === 'function'
+        ? await showConfirmDialog(confirmMsg)
+        : window.confirm(confirmMsg);
+    if (!ok) return;
+
+    try {
+        const res = await callApifetch({
+            action: 'setEmployeeStatus',
+            userId,
+            field: 'resign',
+            value: true,
+        });
+        if (res && res.ok) {
+            // 同步本地 state
+            if (currentManagingEmployee && currentManagingEmployee.userId === userId) {
+                currentManagingEmployee.status = '已離職';
+                currentManagingEmployee.resignedAt = new Date();
+            }
+            const emp = (allEmployeeList || []).find((e) => e && e.userId === userId);
+            if (emp) {
+                emp.status = '已離職';
+                emp.resignedAt = new Date();
+            }
+            cacheManager.invalidate('employeeList');
+            showNotification(`已將 ${name} 標記為離職`, 'success');
+            // 觸發員工選擇器的 change 事件 → 重新 render 詳情卡（按鈕會變成「已離職」提示）
+            if (adminSelectEmployeeMgmt) {
+                adminSelectEmployeeMgmt.dispatchEvent(new Event('change'));
+            }
+        } else {
+            const code = res?.code || 'UNKNOWN_ERROR';
+            showNotification(t(code) || res?.msg || '離職標記失敗', 'error');
+        }
+    } catch (err) {
+        console.error('handleResignEmployee 失敗：', err);
+        showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+    }
+}
+
 if (typeof window !== 'undefined') {
     window.toggleAdminStatus = toggleAdminStatus;
     window.toggleAccountStatus = toggleAccountStatus;
+    window.handleResignEmployee = handleResignEmployee;
 }
 
 // #endregion

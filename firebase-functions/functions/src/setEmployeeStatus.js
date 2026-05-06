@@ -40,11 +40,23 @@ module.exports = onCall(
     if (!userId) {
       return { ok: false, code: "ERR_MISSING_USER_ID", msg: "userId required" };
     }
-    if (!["isAdmin", "active"].includes(field)) {
-      return { ok: false, code: "ERR_INVALID_FIELD", msg: "field must be 'isAdmin' or 'active'" };
+    if (!["isAdmin", "active", "resign"].includes(field)) {
+      return {
+        ok: false,
+        code: "ERR_INVALID_FIELD",
+        msg: "field must be 'isAdmin', 'active', or 'resign'",
+      };
     }
     if (typeof value !== "boolean") {
       return { ok: false, code: "ERR_INVALID_VALUE", msg: "value must be boolean" };
+    }
+    // resign 是單向操作：只能設成 true（員工離職）；要回復請改用 field='active' value=true
+    if (field === "resign" && value !== true) {
+      return {
+        ok: false,
+        code: "ERR_INVALID_VALUE",
+        msg: "resign can only be set to true; to reactivate use field='active' value=true",
+      };
     }
 
     // 不能修改自己（避免自我鎖死）
@@ -68,6 +80,13 @@ module.exports = onCall(
       update.dept = value ? "管理員" : "一般員工";
     } else if (field === "active") {
       update.status = value ? "啟用" : "停用";
+      // 重新啟用時清掉 resignedAt（若有），避免狀態與時戳不一致
+      if (value === true) {
+        update.resignedAt = admin.firestore.FieldValue.delete();
+      }
+    } else if (field === "resign") {
+      update.status = "已離職";
+      update.resignedAt = admin.firestore.FieldValue.serverTimestamp();
     }
 
     await empRef.set(update, { merge: true });

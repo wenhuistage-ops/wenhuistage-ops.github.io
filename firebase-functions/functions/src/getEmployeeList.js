@@ -32,6 +32,7 @@ module.exports = onCall(
         incomeTaxRate: Number(d.incomeTaxRate || 0),
         customInsuredSalary: Number(d.customInsuredSalary || 0),
         status: d.status || "啟用",
+        resignedAt: d.resignedAt?.toDate?.() || null,
         preferredLanguage: d.preferredLanguage || "",
         lastLoginTime: d.lastLoginTime?.toDate?.() || null,
         isAdmin: dept === "管理員" || /admin/i.test(dept),
