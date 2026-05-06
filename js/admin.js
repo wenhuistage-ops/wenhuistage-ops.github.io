@@ -1106,6 +1106,33 @@ function _setSalaryTypeUI(type) {
 }
 
 /**
+ * 國籍切換時更新勞退提繳的 UI 鎖定狀態
+ *   - 外籍：強制 hasLaborPension=false、disable checkbox 與自提率
+ *   - 台灣：解除 disable
+ */
+function _applyNationalityUI(nationality) {
+    const isForeign = nationality === 'foreign';
+    const pensionOn = document.getElementById('salary-pension-on');
+    const pensionRate = document.getElementById('salary-pension-rate');
+    if (pensionOn) {
+        if (isForeign) {
+            pensionOn.checked = false;
+            pensionOn.disabled = true;
+        } else {
+            pensionOn.disabled = false;
+        }
+    }
+    if (pensionRate) {
+        if (isForeign) {
+            pensionRate.value = 0;
+            pensionRate.disabled = true;
+        } else {
+            pensionRate.disabled = false;
+        }
+    }
+}
+
+/**
  * 用 LABOR_INSURANCE_GRADES 填等級下拉
  */
 function _populateGradeOptions() {
@@ -1202,6 +1229,13 @@ function _fillSalaryProfileForm(employee) {
     if (!employee) return;
     _populateGradeOptions();
 
+    // 國籍：預設台灣，外籍會自動鎖定勞退
+    const nationality = employee.nationality || 'taiwanese';
+    const natTw = document.getElementById('nationality-taiwanese');
+    const natFg = document.getElementById('nationality-foreign');
+    if (natTw) natTw.checked = (nationality === 'taiwanese');
+    if (natFg) natFg.checked = (nationality === 'foreign');
+
     const type = employee.salaryType || 'monthly';
     const monthlyInput = document.getElementById('salary-type-monthly');
     const hourlyInput = document.getElementById('salary-type-hourly');
@@ -1221,10 +1255,18 @@ function _fillSalaryProfileForm(employee) {
     if (autoChk) autoChk.checked = false; // 預設不自動
 
     const pensionOn = document.getElementById('salary-pension-on');
-    if (pensionOn) pensionOn.checked = employee.hasLaborPension !== false;
+    if (pensionOn) {
+        // 外籍員工：強制關閉勞退；台灣員工：依現有 hasLaborPension（預設 true）
+        pensionOn.checked = (nationality === 'foreign')
+            ? false
+            : (employee.hasLaborPension !== false);
+    }
 
     const pensionRate = document.getElementById('salary-pension-rate');
     if (pensionRate) pensionRate.value = employee.laborPensionRate || 0;
+
+    // 套用國籍對應的 UI 鎖定狀態
+    _applyNationalityUI(nationality);
 
     const housingEl = document.getElementById('salary-housing-input');
     if (housingEl) housingEl.value = employee.housingExpense || 0;
@@ -1254,14 +1296,24 @@ async function handleSalaryProfileSubmit(e) {
         return false;
     }
 
+    const isForeign = !!document.getElementById('nationality-foreign')?.checked;
+    const nationality = isForeign ? 'foreign' : 'taiwanese';
+    // 外籍員工強制 hasLaborPension=false（即使前端 UI checkbox 因 disabled 沒去 uncheck）
+    const hasLaborPension = isForeign
+        ? false
+        : !!document.getElementById('salary-pension-on')?.checked;
+
     const payload = {
         action: 'setEmployeeSalaryProfile',
         userId: adminSelectedUserId,
+        nationality,
         salaryType: isMonthly ? 'monthly' : 'hourly',
         monthlySalary: monthly,
         hourlyRate: Number(document.getElementById('salary-hourly-input')?.value) || 0,
-        hasLaborPension: !!document.getElementById('salary-pension-on')?.checked,
-        laborPensionRate: Number(document.getElementById('salary-pension-rate')?.value) || 0,
+        hasLaborPension,
+        laborPensionRate: hasLaborPension
+            ? Number(document.getElementById('salary-pension-rate')?.value) || 0
+            : 0,
         housingExpense: Math.max(0, Number(document.getElementById('salary-housing-input')?.value) || 0),
         incomeTaxRate: Math.max(0, Math.min(30, Number(document.getElementById('salary-tax-rate-input')?.value) || 0)),
         customInsuredSalary: Math.max(0, Number(document.getElementById('salary-insured-custom-input')?.value) || 0),
@@ -1323,6 +1375,7 @@ function setupSalaryProfileForm() {
     _populateGradeOptions();
 
     const fields = [
+        'nationality-taiwanese', 'nationality-foreign',
         'salary-type-monthly', 'salary-type-hourly',
         'salary-monthly-input', 'salary-hourly-input',
         'salary-grade-select', 'salary-grade-auto',
@@ -1339,6 +1392,10 @@ function setupSalaryProfileForm() {
         el.addEventListener(evt, () => {
             if (id === 'salary-type-monthly' || id === 'salary-type-hourly') {
                 _setSalaryTypeUI(document.getElementById('salary-type-monthly')?.checked ? 'monthly' : 'hourly');
+            }
+            if (id === 'nationality-taiwanese' || id === 'nationality-foreign') {
+                const nat = document.getElementById('nationality-foreign')?.checked ? 'foreign' : 'taiwanese';
+                _applyNationalityUI(nat);
             }
             _refreshSalaryPreview();
         });

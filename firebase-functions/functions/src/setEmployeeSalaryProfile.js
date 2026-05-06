@@ -46,6 +46,24 @@ module.exports = onCall(
       updatedBy: auth.user?.userId || "",
     };
 
+    // nationality（影響勞退提繳資格：foreign 不需勞退）
+    if (data.nationality !== undefined) {
+      const n = String(data.nationality);
+      if (!["taiwanese", "foreign"].includes(n)) {
+        return {
+          ok: false,
+          code: "ERR_INVALID_NATIONALITY",
+          msg: "nationality must be 'taiwanese' or 'foreign'",
+        };
+      }
+      update.nationality = n;
+      // 外籍員工強制 hasLaborPension=false（避免前端漏帶或誤傳 true）
+      if (n === "foreign") {
+        update.hasLaborPension = false;
+        update.laborPensionRate = 0;
+      }
+    }
+
     // salaryType
     if (data.salaryType !== undefined) {
       const t = String(data.salaryType);

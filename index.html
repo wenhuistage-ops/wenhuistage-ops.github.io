@@ -936,6 +936,26 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             </h5>
 
                             <form id="form-salary-profile" onsubmit="return handleSalaryProfileSubmit(event)" class="space-y-4">
+                                <!-- 國籍 radio（影響勞退提繳資格） -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        data-i18n="LABOR_NATIONALITY">國籍</label>
+                                    <div class="flex gap-4">
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="radio" name="nationality" value="taiwanese" id="nationality-taiwanese"
+                                                class="mr-2 text-indigo-600" checked>
+                                            <span data-i18n="LABOR_NATIONALITY_TAIWANESE">台灣</span>
+                                        </label>
+                                        <label class="inline-flex items-center cursor-pointer">
+                                            <input type="radio" name="nationality" value="foreign" id="nationality-foreign"
+                                                class="mr-2 text-indigo-600">
+                                            <span data-i18n="LABOR_NATIONALITY_FOREIGN">外籍</span>
+                                        </label>
+                                    </div>
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                                        data-i18n="LABOR_NATIONALITY_HINT">外籍員工不需提繳勞退，選外籍會自動鎖定該選項</p>
+                                </div>
+
                                 <!-- 薪資制度 radio -->
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
@@ -961,7 +981,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                         <span data-i18n="LABOR_MONTHLY_SALARY">月薪</span> (NT$)
                                     </label>
                                     <input type="number" id="salary-monthly-input" name="monthlySalary"
-                                        min="0" step="100" placeholder="28590"
+                                        min="0" step="10" placeholder="28590"
                                         class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
                                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                         <span data-i18n="LABOR_HOURLY_PREVIEW">換算時薪</span>：

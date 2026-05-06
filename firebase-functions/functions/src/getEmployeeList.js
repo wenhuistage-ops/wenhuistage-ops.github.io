@@ -37,12 +37,14 @@ module.exports = onCall(
         isAdmin: dept === "管理員" || /admin/i.test(dept),
         lineUserId: doc.id,
         // Phase L7：薪資與勞保（僅 admin 取得，呼叫端是 verifyAdmin 已過）
+        nationality: d.nationality === "foreign" ? "foreign" : "taiwanese", // 預設台灣
         salaryType: d.salaryType || "monthly",
         monthlySalary: Number(d.monthlySalary || 0),
         hourlyRate: Number(d.hourlyRate || 0),
         laborInsuranceGrade: d.laborInsuranceGrade != null ? Number(d.laborInsuranceGrade) : null,
-        hasLaborPension: d.hasLaborPension !== false, // 預設 true
-        laborPensionRate: Number(d.laborPensionRate || 0),
+        // 外籍員工不論欄位值如何，一律回傳 false（一致性保險）
+        hasLaborPension: d.nationality === "foreign" ? false : (d.hasLaborPension !== false),
+        laborPensionRate: d.nationality === "foreign" ? 0 : Number(d.laborPensionRate || 0),
       };
     });
 
