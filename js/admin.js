@@ -312,11 +312,16 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     // 根據 r.type 的值來選擇正確的翻譯鍵值
                     const typeKey = r.type === '上班' ? 'PUNCH_IN' : 'PUNCH_OUT';
 
+                    // 系統虛擬卡（dailyVirtualPunch 寫入）對使用者顯示時翻譯
+                    const locationDisplay = r.location === '系統虛擬卡'
+                        ? (typeof t === 'function' ? t('LOCATION_VIRTUAL_PUNCH') : r.location)
+                        : r.location;
+
                     // 產生單一打卡記錄的 HTML
                     // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                     const recordHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${r.location}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${locationDisplay}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
                     `;
                     li.innerHTML = DOMPurify.sanitize(recordHtml);

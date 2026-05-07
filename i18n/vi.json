@@ -185,6 +185,7 @@
   "RECORD_HOURS_PREFIX": "Số giờ làm việc trong ngày: ",
   "MONTH_TOTAL_HOURS_PREFIX": "Tổng giờ tháng này: ",
   "UNIT_HOURS": "giờ",
+  "LOCATION_VIRTUAL_PUNCH": "Thẻ ảo hệ thống",
   "PUNCH_IN": "Chấm công vào",
   "PUNCH_OUT": "Chấm công ra",
   "LEAVE_TITLE": "Leave:",

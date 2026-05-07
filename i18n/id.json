@@ -201,6 +201,7 @@
   "RECORD_HOURS_PREFIX": "Jam kerja hari ini: ",
   "MONTH_TOTAL_HOURS_PREFIX": "Total jam bulan ini: ",
   "UNIT_HOURS": "jam",
+  "LOCATION_VIRTUAL_PUNCH": "Punch virtual sistem",
   "LABEL_SELECT_EMPLOYEE": "Pilih Karyawan:",
   "OPT_SELECT_EMPLOYEE": "-- Silakan pilih karyawan --",
   "LABEL_EMPLOYEE_NAME": "Nama Karyawan:",

@@ -189,6 +189,7 @@
   "RECORD_HOURS_PREFIX": "當日工作時數：",
   "MONTH_TOTAL_HOURS_PREFIX": "本月累計時數：",
   "UNIT_HOURS": "小時",
+  "LOCATION_VIRTUAL_PUNCH": "系統虛擬卡",
   "STATUS_PUNCH_OUT_MISSING": "未打下班卡",
   "STATUS_PUNCH_IN_MISSING": "未打上班卡",
   "STATUS_BOTH_MISSING": "本日未打卡",

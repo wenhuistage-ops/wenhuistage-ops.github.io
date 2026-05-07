@@ -625,11 +625,17 @@ async function renderDailyRecords(dateKey) {
                         // 根據 r.type 的值來選擇正確的翻譯鍵值
                         const typeKey = r.type === '上班' ? 'PUNCH_IN' : 'PUNCH_OUT';
 
+                        // 系統虛擬卡是 dailyVirtualPunch 寫入的特殊 locationName 標記，
+                        // 對使用者顯示時需翻譯（i18n 鍵 LOCATION_VIRTUAL_PUNCH）
+                        const locationDisplay = r.location === '系統虛擬卡'
+                            ? (typeof t === 'function' ? t('LOCATION_VIRTUAL_PUNCH') : r.location)
+                            : r.location;
+
                         // 產生單一打卡記錄的 HTML
                         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                         const punchHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">${r.location}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${locationDisplay}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
                     `;
                         li.innerHTML = DOMPurify.sanitize(punchHtml);
