@@ -2300,10 +2300,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
         ['月薪 → 時薪換算'],
         ['公式', '勞基法施行細則第 31 條：時薪 = 月薪 ÷ 30 ÷ 8 = 月薪 ÷ 240'],
         [],
-        ['員工自付費率（2026 年）'],
-        ['勞保普通事故', '投保薪資 × 12% × 員工 20% = 2.4%'],
-        ['健保',         '投保薪資 × 5.17% × 員工 30% ≈ 1.55%'],
-        ['自提勞退',     '投保薪資 × 員工自選提繳率 0~6%'],
+        ['員工自付費率（2026 年起）'],
+        ['勞保（本國）', '投保薪資 × 12.5%（普通 11.5% + 就保 1%）× 員工 20% = 2.5%'],
+        ['勞保（外籍）', '投保薪資 × 11.5%（無就保）× 員工 20% = 2.3%'],
+        ['健保',         '投保薪資 × 5.17% × 員工 30% = 1.551%（不分國籍）'],
+        ['自提勞退',     '投保薪資 × 員工自選提繳率 0~6%（外籍移工通常無）'],
     ];
 
     // 寫 Excel
@@ -2416,10 +2417,14 @@ async function handleDetailedPayrollExport(userId, year, month) {
         setF(`H${deductTitleRow}`, `C${applyTotalRow}+H${applyTotalRow}`);
 
         // 各扣款行：勞保 / 健保 / (自提) / (住宿) / (所得稅)
+        // 2026/01/01 起費率（與 js/labor-hours.js EMPLOYEE_CONTRIBUTION_RATES 同步）：
+        //   勞保 本國 11.5%+1% × 員工 20% = 2.5%
+        //        外籍 11.5%      × 員工 20% = 2.3%（無就保）
+        //   健保 5.17% × 員工 30% = 1.551%（不分國籍；用 0.0155 會少 1 元）
         let curRow = deductTitleRow + 1;
-        // 勞保 = -投保薪資 × 2.4%；健保 = -投保薪資 × 1.55%
-        setF(`D${curRow}`, `-${insuredSalary}*0.024`); curRow++;
-        setF(`D${curRow}`, `-${insuredSalary}*0.0155`); curRow++;
+        const laborRateExcel = empNationality === 'foreign' ? 0.023 : 0.025;
+        setF(`D${curRow}`, `-${insuredSalary}*${laborRateExcel}`); curRow++;
+        setF(`D${curRow}`, `-ROUND(${insuredSalary}*0.0517*0.3,0)`); curRow++;
         if (pensionRate > 0) {
             setF(`D${curRow}`, `-${insuredSalary}*${pensionRate}/100`); curRow++;
         }
