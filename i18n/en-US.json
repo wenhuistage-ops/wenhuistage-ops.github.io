@@ -198,6 +198,7 @@
   "PUNCH_IN": "Punch In",
   "PUNCH_OUT": "Punch Out",
   "STATUS_PUNCH_NORMAL": "Punch Normal",
+  "RECORD_HOURS_PREFIX": "Hours worked today: ",
   "LABEL_SELECT_EMPLOYEE": "Select Employee:",
   "OPT_SELECT_EMPLOYEE": "-- Please select an employee --",
   "LABEL_EMPLOYEE_NAME": "Employee Name:",

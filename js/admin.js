@@ -2059,14 +2059,16 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const rocYear = year - 1911;
     const monthLabel = `${rocYear}年`;
 
-    // 表頭 R1（Q 欄：每日扣休息分鐘；R 欄：違法工時警告；S 欄：月薪標籤；T 欄：月薪數值）
+    // 表頭 R1（Q 欄：每日扣休息分鐘；R 欄：突發事件工時；S 欄：月薪標籤；T 欄：月薪數值）
+    // 「突發事件工時」涵蓋兩類：每日 > 12h（§32 §36）或例假日出勤（§36）
+    // 不直接稱「違法」——可能是 §40 天災 / 事變 / 突發事件之合法停假，由業主判斷
     const personalRows = [
         ['', employeeName, monthLabel, '上班', '下班', '上班', '下班',
          '加班時數', '平日2H以內', '平日3~4H以上',
          '休息日2H以內', '休息日3~8H', '休息日9H以上',
          '例假日8H以上', '國定假日9~10H', '國定假日11~12H以上',
          '扣休息(分)',  // Q1
-         '違法工時(h)',  // R1: > 12h 或例假日出勤的違法時數警告
+         '突發事件工時(h)',  // R1: > 12h 或例假日出勤需審查的工時
          '月薪', monthlySalary],   // S1, T1: 月薪標籤 + 數值
     ];
 
@@ -2147,8 +2149,9 @@ async function handleDetailedPayrollExport(userId, year, month) {
             s.public_ot1 || '',
             s.public_ot2 || '',
             breakMin || '',  // Q 欄
-            // R 欄：違法工時警告（> 12h 或例假日出勤）
-            // 帶 ⚠️ 圖示讓 admin 一眼能看到，後面接小時數方便排查
+            // R 欄：突發事件工時警告（> 12h 或例假日出勤）
+            // 帶 ⚠️ 圖示提醒業主審查，依勞基法 §40 由業主判斷是否為合法之
+            // 天災／事變／突發事件停假
             s.illegalHours > 0 ? `⚠️ ${s.illegalHours}h` : '',
         ]);
         dayCount++;
@@ -2174,7 +2177,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         }
         return acc;
     }, 0);
-    // 月度違法工時加總（含 ⚠️ 警告）
+    // 月度突發事件工時加總（含 ⚠️ 警告，業主自行依 §40 判斷是否合法）
     const totalIllegalHours = (fullDays || []).reduce((acc, day) => {
         return acc + (day.laborStats?.illegalHours || 0);
     }, 0);
@@ -2226,13 +2229,13 @@ async function handleDetailedPayrollExport(userId, year, month) {
     // 空白列
     personalRows.push([]);
 
-    // 違法工時警告區（單獨一列醒目顯示，給業主審查用）
+    // 突發事件工時警告區（單獨一列醒目顯示，業主審查 §40 合法事由）
     if (totalIllegalHours > 0) {
         personalRows.push([
-            '⚠️ 警告',
-            `本月違法工時 ${Math.round(totalIllegalHours * 100) / 100} 小時，分布於 ${illegalDayCount} 天`,
+            '⚠️ 提醒',
+            `本月突發事件工時 ${Math.round(totalIllegalHours * 100) / 100} 小時，分布於 ${illegalDayCount} 天`,
             '勞基法 §32 §36：每日含加班最多 12 小時、例假日不得出勤',
-            '請業主自行判斷是員工誤打卡或實際超時加班',
+            '請業主依 §40 判斷是否為天災/事變/突發事件之合法停假，或員工誤打卡',
         ]);
     }
     personalRows.push([]);
@@ -2366,11 +2369,12 @@ async function handleDetailedPayrollExport(userId, year, month) {
 
     // ===== 公式注入：讓 admin 在 Excel 改月薪 / 時數時自動重算 =====
     // 設計：每日 I~P 欄（各段時數）保持「輸入」，下方合計、加班時薪、加班費、
-    // 應發項目、應扣總額、實支額全部公式化。月薪 cell = $S$1（既有）。
+    // 應發項目、應扣總額、實支額全部公式化。
+    // 月薪 cell = $T$1（R 欄因加入「突發事件工時」推 S→T；S 欄為「月薪」label）。
     // 投保薪資與固定扣款（住宿、稅率）為當下匯出時的快照常數，admin 想長期改
     // 應該在系統內改員工資料、重新匯出。
     {
-        const SAL = '$S$1';                              // 月薪參照（絕對位址）
+        const SAL = '$T$1';                              // 月薪參照（絕對位址）
         const dayEndRow = dayCount + 1;                  // 最後一天的 Excel row
         const sumRow = dayCount + 2;                     // 各段合計列
         const rateRow = dayCount + 3;                    // 加班時薪列
@@ -2382,12 +2386,13 @@ async function handleDetailedPayrollExport(userId, year, month) {
             ws1[addr] = { t: 'n', f: formula, v: typeof cur.v === 'number' ? cur.v : 0 };
         };
 
-        // (1) 第 sumRow 列：G 欄=每日 H 加總、I~Q 各欄合計、S 欄加班總時
+        // (1) 第 sumRow 列：G 欄=每日 H 加總、I~Q 各欄合計、T 欄加班總時
+        // （之前在 S 欄是 bug——S 欄是「加班總時」label，T 才是值）
         setF(`G${sumRow}`, `SUM(H2:H${dayEndRow})`);
         ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].forEach((col) => {
             setF(`${col}${sumRow}`, `SUM(${col}2:${col}${dayEndRow})`);
         });
-        setF(`S${sumRow}`, `SUM(I${sumRow}:P${sumRow})`);
+        setF(`T${sumRow}`, `SUM(I${sumRow}:P${sumRow})`);
 
         // (2) 第 rateRow 列：加班時薪 = 月薪/240 × 倍率
         const RATES = { I: 1.34, J: 1.67, K: 1.34, L: 1.67, M: 2.67, N: 2, O: 1.34, P: 1.67 };
@@ -2395,11 +2400,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
             setF(`${col}${rateRow}`, `${SAL}/240*${rate}`);
         });
 
-        // (3) 第 payRow 列：各段加班費 = 時數 × 時薪 + S 欄合計
+        // (3) 第 payRow 列：各段加班費 = 時數 × 時薪 + T 欄合計
         ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'].forEach((col) => {
             setF(`${col}${payRow}`, `${col}${sumRow}*${col}${rateRow}`);
         });
-        setF(`S${payRow}`, `SUM(I${payRow}:P${payRow})`);
+        setF(`T${payRow}`, `SUM(I${payRow}:P${payRow})`);
 
         // (4) 應發項目區（layout 跟著 personalRows push 順序）
         const applyBaseRow  = payRow + 5;            // 本薪 row（'應發項目'+表頭+本身共 3 行偏移自空 2 行後）

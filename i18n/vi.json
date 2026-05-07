@@ -181,6 +181,8 @@
   "STATUS_VACATION_PENDING": "Nghỉ mát (Đang chờ duyệt)",
   "STATUS_LEAVE_APPROVED": "Nghỉ phép đã duyệt",
   "STATUS_VACATION_APPROVED": "Nghỉ mát đã duyệt",
+  "STATUS_PUNCH_NORMAL": "Chấm công bình thường",
+  "RECORD_HOURS_PREFIX": "Số giờ làm việc trong ngày: ",
   "PUNCH_IN": "Chấm công vào",
   "PUNCH_OUT": "Chấm công ra",
   "LEAVE_TITLE": "Leave:",
