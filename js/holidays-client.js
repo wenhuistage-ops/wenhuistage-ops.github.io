@@ -117,6 +117,14 @@ function getHolidayName(dateKey) {
  *   regular = 例假日（週日，強制休息）
  *   rest    = 休息日（週六，可加班但有特別費率）
  *   workday = 一般工作日
+ *
+ * ⚠️ 已知限制：「補班週六」會被誤判為 rest
+ *   政府 2025 下半年起改「補假不補班」新制 → 2026 全年無補班日 → 不會踩
+ *   若未來政策變回補班，需加 isHoliday=false 但 caption 為空的判斷分支：
+ *     const rec = _index[year]?.[dateKey];
+ *     if (rec && rec.isHoliday === false && (dow === 0 || dow === 6)) {
+ *       return { kind: 'workday', name: '補班日', color: 'gray' };
+ *     }
  */
 function getDayKind(dateKey) {
     const name = getHolidayName(dateKey);
