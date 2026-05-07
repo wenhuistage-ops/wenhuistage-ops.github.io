@@ -2101,16 +2101,24 @@ async function handleDetailedPayrollExport(userId, year, month) {
         const fIn = _toExcelTime(sh2.inTime);
         const fOut = _toExcelTime(sh2.outTime);
 
-        // H 欄「加班時數」對齊手動範本：
-        //   - 平日（workday）：只算 OT 段（ot1 + ot2），扣掉正常 8h
-        //   - 假日（rest / public / regular）：當日全部視為加班 = 淨工時
-        // 之前實作對所有 kind 都只算 ot 段，導致例假日員工 net 11.5h 卻只
-        // 顯示「加班時數 2.67」，跟手動表 11.5 對不起來。
+        // H 欄「加班時數」= 對應分段欄位（I-P）的合計，**含法律上限**
+        //   - 平日（workday）：ot1 + ot2（最多 4h，因勞基法 §32 上限）
+        //   - 休息日（rest）：rest_ot1 + rest_ot2 + rest_ot3（最多 12h，勞基法 §36）
+        //   - 國定假日（public）：public_base 8h + public_ot1 + public_ot2
+        //   - 例假日（regular）：regular_base 8h + regular_comp 8h + regular_ot
+        //
+        // 關鍵：H 與 I-P 必須對齊（H = SUM(I:P)），否則出現「H 19.38 但
+        // K+L+M 只到 12」的矛盾，admin 會誤以為要付 19.38 小時加班費。
+        // 真實工時看「淨工時」欄位，H 欄是「**支付加班時數**」概念。
         let hVal;
         if (s.kind === 'workday') {
             hVal = (s.ot1 || 0) + (s.ot2 || 0);
-        } else if (s.kind === 'rest' || s.kind === 'public' || s.kind === 'regular') {
-            hVal = s.net || 0;
+        } else if (s.kind === 'rest') {
+            hVal = (s.rest_ot1 || 0) + (s.rest_ot2 || 0) + (s.rest_ot3 || 0);
+        } else if (s.kind === 'public') {
+            hVal = (s.public_base || 0) + (s.public_ot1 || 0) + (s.public_ot2 || 0);
+        } else if (s.kind === 'regular') {
+            hVal = (s.regular_base || 0) + (s.regular_comp || 0) + (s.regular_ot || 0);
         } else {
             hVal = 0;
         }
@@ -2148,16 +2156,25 @@ async function handleDetailedPayrollExport(userId, year, month) {
         }
         return acc;
     }, 0);
-    // G 欄合計 = 每日 H 欄（加班時數）加總，對齊手動表「加班時數加總」概念
-    // 平日 H = ot1+ot2、假日 H = net
-    const sumH = (sum.ot1 || 0) + (sum.ot2 || 0)
-        + (fullDays || []).reduce((acc, day) => {
-            const s = day.laborStats || {};
-            if (s.kind === 'rest' || s.kind === 'public' || s.kind === 'regular') {
-                return acc + Number(s.net || 0);
-            }
-            return acc;
-        }, 0);
+    // G 欄合計 = 每日 H 欄（加班時數）加總，與 H 欄計算邏輯一致：
+    //   - workday：ot1 + ot2
+    //   - rest   ：rest_ot1 + rest_ot2 + rest_ot3（最多 12h，含法律上限）
+    //   - public ：public_base 8h + public_ot1 + public_ot2
+    //   - regular：regular_base 8h + regular_comp 8h + regular_ot
+    // 之前用 net 會在「補卡誤填造成超長工時」時超出法律上限，與 K-P 加總不一致。
+    const sumH = (fullDays || []).reduce((acc, day) => {
+        const s = day.laborStats || {};
+        if (s.kind === 'workday') {
+            return acc + (s.ot1 || 0) + (s.ot2 || 0);
+        } else if (s.kind === 'rest') {
+            return acc + (s.rest_ot1 || 0) + (s.rest_ot2 || 0) + (s.rest_ot3 || 0);
+        } else if (s.kind === 'public') {
+            return acc + (s.public_base || 0) + (s.public_ot1 || 0) + (s.public_ot2 || 0);
+        } else if (s.kind === 'regular') {
+            return acc + (s.regular_base || 0) + (s.regular_comp || 0) + (s.regular_ot || 0);
+        }
+        return acc;
+    }, 0);
     personalRows.push([
         '', '', '', '', '', '',
         Math.round(sumH * 100) / 100,                // G: 每日 H 欄加總（公式會覆寫）
