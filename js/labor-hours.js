@@ -108,6 +108,9 @@ function enrichDayWithLaborStats(day, breakTimes) {
         regular_base: 0, regular_comp: 0, regular_ot: 0,
         // 衍生：「等價時數」（各段 × 倍率合計），用於估算工資
         equivalentHours: 0,
+        // 違法工時：勞基法 §32 §36 規定每日最多 12h（含加班），超過 12h 為違法
+        // 系統仍按實際工時計薪，此欄位用於警告管理員「人為錯誤 or 真的超時」
+        illegalHours: 0,
     };
 
     if (net <= 0 && kind !== 'public' && kind !== 'regular') {
@@ -125,9 +128,11 @@ function enrichDayWithLaborStats(day, breakTimes) {
         stats.equivalentHours = stats.normal * 1.0 + stats.ot1 * 1.34 + stats.ot2 * 1.67;
     } else if (kind === 'rest') {
         // 休息日：全部時數視為加班，3 段倍率
+        // ⚠️ 不 cap 在 12h——員工真的超時上班還是要付薪資。
+        //    超過 12h 的部分會列入 illegalHours 警告管理員（員工亂打 or 真的超時）。
         stats.rest_ot1 = Math.min(net, 2);
         stats.rest_ot2 = Math.min(Math.max(net - 2, 0), 6);
-        stats.rest_ot3 = Math.min(Math.max(net - 8, 0), 4); // 最多 12 小時
+        stats.rest_ot3 = Math.max(net - 8, 0); // 不再 cap，全部按 2.67 倍計算
         stats.equivalentHours = stats.rest_ot1 * 1.34 + stats.rest_ot2 * 1.67 + stats.rest_ot3 * 2.67;
     } else if (kind === 'public') {
         // 國定假日：出勤即至少給 8h（保證），超過分段
@@ -146,6 +151,15 @@ function enrichDayWithLaborStats(day, breakTimes) {
             stats.regular_ot = Math.max(net - STANDARD_HOURS, 0); // 超 8h 實際時數
             stats.equivalentHours = stats.regular_base + stats.regular_comp + stats.regular_ot * 2;
         }
+    }
+
+    // 違法工時警告（勞基法 §32：每日含加班最多 12h）
+    // 不影響薪資計算，純粹給管理員看的紅旗。例假日因法律本就禁止出勤，
+    // 任何 net > 0 都標違法（但若你實務上常排班例假日，可改為 max(net-12,0)）
+    if (kind === 'regular') {
+        stats.illegalHours = net; // 例假日出勤本身違法
+    } else {
+        stats.illegalHours = Math.max(net - 12, 0); // 其他日：> 12h 違法
     }
 
     // 四捨五入到小數第 2 位
@@ -170,13 +184,18 @@ function aggregateMonthLaborStats(enrichedDays) {
         public_base: 0, public_ot1: 0, public_ot2: 0,
         regular_base: 0, regular_comp: 0, regular_ot: 0,
         equivalentHours: 0,
+        illegalHours: 0,        // 月度違法工時加總
+        illegalDays: 0,         // 違法日數（不重複計算）
     };
     (enrichedDays || []).forEach((day) => {
         const s = day && day.laborStats;
         if (!s) return;
         Object.keys(sum).forEach((k) => {
+            // illegalDays 不從 stats 累加；單獨計算
+            if (k === 'illegalDays') return;
             sum[k] += Number(s[k] || 0);
         });
+        if (Number(s.illegalHours || 0) > 0) sum.illegalDays += 1;
     });
     Object.keys(sum).forEach((k) => { sum[k] = Math.round(sum[k] * 100) / 100; });
     return sum;

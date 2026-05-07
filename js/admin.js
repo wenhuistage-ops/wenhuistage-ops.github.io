@@ -2059,14 +2059,15 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const rocYear = year - 1911;
     const monthLabel = `${rocYear}年`;
 
-    // 表頭 R1（Q 欄：每日扣休息分鐘；R 欄：月薪標籤；S 欄：月薪數值）
+    // 表頭 R1（Q 欄：每日扣休息分鐘；R 欄：違法工時警告；S 欄：月薪標籤；T 欄：月薪數值）
     const personalRows = [
         ['', employeeName, monthLabel, '上班', '下班', '上班', '下班',
          '加班時數', '平日2H以內', '平日3~4H以上',
          '休息日2H以內', '休息日3~8H', '休息日9H以上',
          '例假日8H以上', '國定假日9~10H', '國定假日11~12H以上',
          '扣休息(分)',  // Q1
-         '月薪', monthlySalary],   // R1, S1: 月薪標籤 + 數值
+         '違法工時(h)',  // R1: > 12h 或例假日出勤的違法時數警告
+         '月薪', monthlySalary],   // S1, T1: 月薪標籤 + 數值
     ];
 
     // 加班時薪參考（範本放在 Q4~R12）— 我先放每日資料下方統一處理
@@ -2145,6 +2146,9 @@ async function handleDetailedPayrollExport(userId, year, month) {
             s.public_ot1 || '',
             s.public_ot2 || '',
             breakMin || '',  // Q 欄
+            // R 欄：違法工時警告（> 12h 或例假日出勤）
+            // 帶 ⚠️ 圖示讓 admin 一眼能看到，後面接小時數方便排查
+            s.illegalHours > 0 ? `⚠️ ${s.illegalHours}h` : '',
         ]);
         dayCount++;
     });
@@ -2175,6 +2179,14 @@ async function handleDetailedPayrollExport(userId, year, month) {
         }
         return acc;
     }, 0);
+    // 月度違法工時加總（含 ⚠️ 警告）
+    const totalIllegalHours = (fullDays || []).reduce((acc, day) => {
+        return acc + (day.laborStats?.illegalHours || 0);
+    }, 0);
+    const illegalDayCount = (fullDays || []).filter(
+        (day) => (day.laborStats?.illegalHours || 0) > 0
+    ).length;
+
     personalRows.push([
         '', '', '', '', '', '',
         Math.round(sumH * 100) / 100,                // G: 每日 H 欄加總（公式會覆寫）
@@ -2184,9 +2196,13 @@ async function handleDetailedPayrollExport(userId, year, month) {
         sum.regular_ot || 0,
         sum.public_ot1 || 0, sum.public_ot2 || 0,
         totalBreakMin,  // Q
-        '加班總時',
+        // R: 違法工時月度合計（提示審查業主）
+        totalIllegalHours > 0
+            ? `⚠️ ${Math.round(totalIllegalHours * 100) / 100}h / ${illegalDayCount}天`
+            : '',
+        '加班總時',  // S
         Math.round((sum.ot1 + sum.ot2 + sum.rest_ot1 + sum.rest_ot2 + sum.rest_ot3 +
-                    sum.regular_ot + sum.public_ot1 + sum.public_ot2) * 100) / 100,
+                    sum.regular_ot + sum.public_ot1 + sum.public_ot2) * 100) / 100,  // T
     ]);
 
     // 加班時薪列（範本 R31）：H='加班時薪'、I~P 各段時薪
@@ -2199,7 +2215,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         otRates.public1, otRates.public2,
     ]);
 
-    // 加班費列（範本 R32）：H='加班費'、I~P 各段工資、R='合計'、S=加班費合計
+    // 加班費列（範本 R32）：H='加班費'、I~P 各段工資、Q=空、R=空、S='合計'、T=加班費合計
     personalRows.push([
         '', '', '', '', '', '', '',
         '加班費',
@@ -2207,12 +2223,23 @@ async function handleDetailedPayrollExport(userId, year, month) {
         pay.rest_ot1, pay.rest_ot2, pay.rest_ot3,
         pay.regular_ot,
         pay.public_ot1, pay.public_ot2,
-        '',
-        '合計', Math.round(otTotal * 100) / 100,
+        '',  // Q
+        '',  // R（違法工時欄此列保留空）
+        '合計', Math.round(otTotal * 100) / 100,  // S, T
     ]);
 
     // 空白列
     personalRows.push([]);
+
+    // 違法工時警告區（單獨一列醒目顯示，給業主審查用）
+    if (totalIllegalHours > 0) {
+        personalRows.push([
+            '⚠️ 警告',
+            `本月違法工時 ${Math.round(totalIllegalHours * 100) / 100} 小時，分布於 ${illegalDayCount} 天`,
+            '勞基法 §32 §36：每日含加班最多 12 小時、例假日不得出勤',
+            '請業主自行判斷是員工誤打卡或實際超時加班',
+        ]);
+    }
     personalRows.push([]);
 
     // 應發項目區（範本 R35~R47）
@@ -3413,9 +3440,25 @@ async function renderEmployeeKpi(userId, date) {
         setVal('kpi-l-regular-ot', fmt(sum.regular_ot));
         // 等價時數
         setVal('kpi-l-equiv', fmt(sum.equivalentHours));
+
+        // 違法工時警告（> 0 才顯示，否則隱藏整塊）
+        const warnEl = document.getElementById('kpi-illegal-warning');
+        if (warnEl) {
+            const illegalH = Number(sum.illegalHours || 0);
+            const illegalD = Number(sum.illegalDays || 0);
+            if (illegalH > 0) {
+                setVal('kpi-illegal-hours', illegalH.toFixed(1));
+                setVal('kpi-illegal-days', String(illegalD));
+                warnEl.style.display = 'block';
+            } else {
+                warnEl.style.display = 'none';
+            }
+        }
     } else {
         console.warn('aggregateMonthLaborStats 未載入，跳過勞基法詳細');
         LABOR_IDS.forEach((id) => setVal(id, '--'));
+        const warnEl = document.getElementById('kpi-illegal-warning');
+        if (warnEl) warnEl.style.display = 'none';
     }
 
     // Phase L7：薪資估算（員工有薪資設定才顯示）
