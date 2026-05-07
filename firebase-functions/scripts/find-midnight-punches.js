@@ -68,6 +68,7 @@ const flags = {
   project: null,
   fix: false,
   dryRun: false,
+  correctPrev: false,
 };
 for (const arg of args) {
   if (arg.startsWith("--month=")) flags.month = arg.slice(8);
@@ -77,6 +78,7 @@ for (const arg of args) {
   else if (arg.startsWith("--project=")) flags.project = arg.slice(10);
   else if (arg === "--fix") flags.fix = true;
   else if (arg === "--dry-run") flags.dryRun = true;
+  else if (arg === "--correct-prev") flags.correctPrev = true;
 }
 if (!["下班", "上班", "both"].includes(flags.type)) {
   console.error(`❌ --type 必須是 下班 / 上班 / both`);
@@ -132,6 +134,13 @@ function isMidnightTaipei(date) {
 
 // ===== Main =====
 async function main() {
+  // --correct-prev：把上一輪 --fix 的結果（前一日 23:59:59）+24h 推回
+  // 「同一天 23:59:59」的正確位置
+  if (flags.correctPrev) {
+    await correctPreviousFix();
+    return;
+  }
+
   const { start, end } = parseMonth(flags.month);
 
   // 員工 userId → name 對應（為了人類可讀的輸出）
@@ -242,15 +251,22 @@ async function applyFix(matches) {
   console.log("─".repeat(120));
 
   // 計算每筆 new timestamp + 收集要刪的 attendanceMonthly key
+  // 修正策略：把 00:00:00 改成「同一天 23:59:59」（admin 原本意指「當日結束」）
+  //   範例：4/12 00:00:00 → 4/12 23:59:59（不跨日）
   const plans = matches.map((m) => {
     const oldTs = new Date(m.timestampUTC);
-    const newTs = new Date(oldTs.getTime() - 1000); // -1 秒
+    // 取出該日的 Taipei Y/M/D，重組為當日 23:59:59 Taipei
+    const taipei = new Date(oldTs.getTime() + TAIPEI_OFFSET_MS);
+    const y = taipei.getUTCFullYear();
+    const mo = taipei.getUTCMonth();
+    const d = taipei.getUTCDate();
+    const newTs = new Date(Date.UTC(y, mo, d, 23, 59, 59) - TAIPEI_OFFSET_MS);
     return {
       ...m,
       oldTimestamp: m.timestamp,
       newTimestamp: formatTaipei(newTs),
       newTsDate: newTs,
-      // 受影響月份：原始月 + 新月份（若跨月，譬如 5/1 00:00 → 4/30 23:59:59）
+      // 同一天修正不跨月，但仍用 collectMonthKeys 保險（萬一未來規則改變）
       affectedMonthKeys: collectMonthKeys(oldTs, newTs).map((mk) => `${m.userId}_${mk}`),
     };
   });
@@ -348,6 +364,157 @@ function collectMonthKeys(oldTs, newTs) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * 修正上一輪 --fix 的錯誤方向：
+ *   舊邏輯把 4/12 00:00 搬到 4/11 23:59:59（前一日）
+ *   正確應該是搬到 4/12 23:59:59（同一天結束）
+ *   差距：+24h
+ *
+ * 篩選依據：updatedBy = "scripts/find-midnight-punches.js --fix"
+ *   （只動我們腳本上次標記的紀錄，不會誤動其他資料）
+ */
+async function correctPreviousFix() {
+  console.log("");
+  console.log("🔄 修正上一輪 --fix（前一日 23:59:59 → 當日 23:59:59，+24h）");
+  console.log("");
+
+  // 員工名字對應
+  const empSnap = await db.collection("employees").get();
+  const userIdToName = new Map();
+  empSnap.docs.forEach((d) => userIdToName.set(d.id, d.data()?.name || "(未命名)"));
+
+  // 找 updatedBy 是上次 fix 的紀錄
+  const snap = await db
+    .collection("attendance")
+    .where("updatedBy", "==", "scripts/find-midnight-punches.js --fix")
+    .get();
+
+  if (snap.empty) {
+    console.log("✅ 找不到上次 --fix 修改過的紀錄（可能已修正過、或從未跑過 fix）");
+    return;
+  }
+
+  // 篩選條件：
+  //   1. timestamp 落在 T15:59:59（= 前一日 23:59:59 Taipei）
+  //   2. type 跟 flags 一致（預設下班）
+  //   3. 若指定 month，限定該月（檢查 fixHistory.from 的月份）
+  const targetTypes = flags.type === "both" ? ["下班", "上班"] : [flags.type];
+  const candidates = [];
+  snap.docs.forEach((doc) => {
+    const data = doc.data();
+    if (!targetTypes.includes(data.type)) return;
+    const ts = data.timestamp?.toDate?.();
+    if (!ts) return;
+    // 確認是 T15:59:59 UTC（= 前一日 23:59:59 Taipei）
+    if (ts.getUTCHours() !== 15 || ts.getUTCMinutes() !== 59 || ts.getUTCSeconds() !== 59) return;
+
+    // 若指定 month，限定該月份的「原始 from」屬於該月
+    if (flags.month) {
+      const last = (data.fixHistory || []).slice(-1)[0];
+      if (!last || !last.from) return;
+      const fromMonth = last.from.slice(0, 7); // "YYYY-MM"
+      if (fromMonth !== flags.month) return;
+    }
+
+    candidates.push({
+      docId: doc.id,
+      userId: data.userId,
+      name: userIdToName.get(data.userId) || "(已離職?)",
+      type: data.type,
+      currentTimestamp: formatTaipei(ts),
+      currentTsDate: ts,
+    });
+  });
+
+  if (candidates.length === 0) {
+    console.log("✅ 沒有符合條件的紀錄需要修正");
+    return;
+  }
+
+  // 計畫：currentTs + 24h = 當日 23:59:59
+  const plans = candidates.map((c) => {
+    const newTs = new Date(c.currentTsDate.getTime() + 24 * 60 * 60 * 1000);
+    return {
+      ...c,
+      newTimestamp: formatTaipei(newTs),
+      newTsDate: newTs,
+      affectedMonthKeys: collectMonthKeys(c.currentTsDate, newTs).map(
+        (mk) => `${c.userId}_${mk}`
+      ),
+    };
+  });
+
+  console.log(flags.dryRun ? "🔍 [DRY-RUN] 修正計畫：" : "✏️ 修正計畫：");
+  console.log("─".repeat(120));
+  plans.forEach((p, i) => {
+    console.log(`${String(i + 1).padStart(3)}. ${p.name.padEnd(15)} ${p.userId.slice(0, 12)}…`);
+    console.log(`      docId=${p.docId}`);
+    console.log(`      ${p.currentTimestamp}  →  ${p.newTimestamp}  (+24h)`);
+    console.log(`      將刪除聚合: ${p.affectedMonthKeys.join(", ")}`);
+  });
+
+  const aggregateKeysToDelete = new Set();
+  plans.forEach((p) => p.affectedMonthKeys.forEach((k) => aggregateKeysToDelete.add(k)));
+
+  console.log("─".repeat(120));
+  console.log(`✏️ 共修正 ${plans.length} 筆 attendance + 刪除 ${aggregateKeysToDelete.size} 個 attendanceMonthly`);
+
+  if (flags.dryRun) {
+    console.log("");
+    console.log("⚠️ DRY-RUN：實際沒有寫入。確認計畫無誤後，拿掉 --dry-run 重跑。");
+    return;
+  }
+
+  console.log("");
+  console.log("⏳ 5 秒後開始執行（Ctrl+C 中斷）...");
+  await sleep(5000);
+
+  let okCount = 0;
+  let failCount = 0;
+  for (const p of plans) {
+    try {
+      await db.collection("attendance").doc(p.docId).update({
+        timestamp: admin.firestore.Timestamp.fromDate(p.newTsDate),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: "scripts/find-midnight-punches.js --correct-prev",
+        fixHistory: admin.firestore.FieldValue.arrayUnion({
+          at: new Date().toISOString(),
+          from: p.currentTimestamp,
+          to: p.newTimestamp,
+          reason: "上一輪 --fix 方向錯誤，從前一日 23:59:59 +24h 修正為當日 23:59:59",
+        }),
+      });
+      console.log(`   ✅ ${p.docId} ${p.currentTimestamp} → ${p.newTimestamp}`);
+      okCount++;
+    } catch (err) {
+      console.error(`   ❌ ${p.docId} 失敗: ${err.message}`);
+      failCount++;
+    }
+  }
+
+  console.log("");
+  console.log("🗑️ 刪除受影響的 attendanceMonthly 聚合 doc...");
+  let deletedCount = 0;
+  for (const key of aggregateKeysToDelete) {
+    try {
+      const ref = db.collection("attendanceMonthly").doc(key);
+      const snap = await ref.get();
+      if (snap.exists) {
+        await ref.delete();
+        console.log(`   ✅ 刪除 ${key}`);
+        deletedCount++;
+      } else {
+        console.log(`   ⏭️ 跳過 ${key}（doc 不存在）`);
+      }
+    } catch (err) {
+      console.error(`   ❌ ${key} 刪除失敗: ${err.message}`);
+    }
+  }
+
+  console.log("");
+  console.log(`📊 完成：attendance 修正 ${okCount} / 失敗 ${failCount}；attendanceMonthly 刪除 ${deletedCount}`);
 }
 
 main()
