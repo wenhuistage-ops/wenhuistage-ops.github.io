@@ -2420,13 +2420,16 @@ async function handleDetailedPayrollExport(userId, year, month) {
         // 2026/01/01 起費率（與 js/labor-hours.js EMPLOYEE_CONTRIBUTION_RATES 同步）：
         //   勞保 本國 11.5%+1% × 員工 20% = 2.5%
         //        外籍 11.5%      × 員工 20% = 2.3%（無就保）
-        //   健保 5.17% × 員工 30% = 1.551%（不分國籍；用 0.0155 會少 1 元）
+        //   健保 5.17% × 員工 30% = 1.551%（不分國籍）
+        //
+        // ⚠️ 全部用 ROUND(...,0) 包起來：政府規定保費四捨五入到「元」（整數），
+        //    沒 ROUND 會在 29,500 級顯示 678.5 等小數，與官方分擔金額表不符。
         let curRow = deductTitleRow + 1;
         const laborRateExcel = empNationality === 'foreign' ? 0.023 : 0.025;
-        setF(`D${curRow}`, `-${insuredSalary}*${laborRateExcel}`); curRow++;
+        setF(`D${curRow}`, `-ROUND(${insuredSalary}*${laborRateExcel},0)`); curRow++;
         setF(`D${curRow}`, `-ROUND(${insuredSalary}*0.0517*0.3,0)`); curRow++;
         if (pensionRate > 0) {
-            setF(`D${curRow}`, `-${insuredSalary}*${pensionRate}/100`); curRow++;
+            setF(`D${curRow}`, `-ROUND(${insuredSalary}*${pensionRate}/100,0)`); curRow++;
         }
         if (housingDed > 0) {
             setF(`D${curRow}`, `-${housingDed}`); curRow++;
