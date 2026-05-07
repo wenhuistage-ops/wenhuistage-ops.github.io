@@ -5,6 +5,194 @@
 
 ---
 
+## 2026-05-05 ~ 05-07
+
+> 五月初密集功能週：Firestore 讀取最佳化（月度聚合）、勞保 2026 新制
+> 升級、跨日班虛擬卡、員工管理增強、Excel 匯出修正、突發事件工時警告。
+
+### Firestore 讀取最佳化（P0）— 月度聚合 attendanceMonthly
+
+**動機**：每日 Firestore reads 持續超過 5 萬，懷疑是結構性問題。
+
+**新增 collection**：`attendanceMonthly/{userId}_{YYYY-MM}`
+- per 員工 per 月一筆物化視圖（dailyStatus 預先聚合）
+- 取代「每次讀月曆都掃 ~60 筆 raw attendance」
+
+**Phase 1**：6 個 mutation 端點 shadow write 同步聚合
+- `punch.js` / `punchWithoutLocation.js` / `adjustPunch.js`
+- `submitLeave.js` / `approveReview.js` / `rejectReview.js`
+- 每次寫 attendance 後 await `applyEventToMonthly`，try/catch 不阻擋主流程
+- 首次建立聚合時做全月 rebuild（避免歷史日資料被覆蓋）
+- 增量更新時用 day-level recompute（~3-5 reads + 1 write）
+
+**Phase 1.5**：一次性 backfill 腳本
+- `firebase-functions/scripts/backfill-attendance-monthly.js`
+- 支援 `--dry-run` / `--force` / `--month` / `--user` / `--project`
+
+**Phase 2**：讀取端切換
+- `getCalendarSummary.js` / `getAttendanceDetails.js` 改走 `getMonthlyDailyStatus`
+- 命中聚合 doc → 1 read；未命中 → lazy fallback + transaction race-safe 寫入
+- 預期 reads 降幅 30-60×（50K/天 → 1-2K/天）
+
+**新增 / 修改檔案**：
+- `firebase-functions/functions/src/_attendance.js`：新增 `applyEventToMonthly` /
+  `rebuildMonthlyAggregate` / `getMonthlyDailyStatus` 三個 helper
+- `firebase-functions/functions/src/_helpers.js`：COLLECTIONS 加
+  `ATTENDANCE_MONTHLY: "attendanceMonthly"`
+- `docs/plans/Firestore-讀取最佳化-月度聚合計畫.md`：完整四 Phase 計畫
+  （包含粒度權衡、保留 raw attendance 的法規理由、競態處理）
+
+---
+
+### 跨日班自動補虛擬卡（從 GS 移植）
+
+**新增**：`firebase-functions/functions/src/dailyVirtualPunch.js`
+- 每天 04:00 Asia/Taipei 排程觸發
+- 偵測「前天最後是上班」+「昨天第一筆是下班」的跨日班
+- 自動補：前天 23:59:59 下班 + 昨天 00:00:00 上班
+- 寫入後同步呼叫 `applyEventToMonthly` 維護兩天的聚合 doc
+- 排序：03:00 cleanExpiredSessions → 04:00 dailyVirtualPunch →
+  09:00 checkYesterdayPunch（先補虛擬卡再檢查漏打卡，避免誤通知）
+
+---
+
+### 補打卡誤填修復工具
+
+**新增**：`firebase-functions/scripts/find-midnight-punches.js`
+- 找出 dailyVirtualPunch 上線前手動補卡誤填的「00:00 下班」紀錄
+- 三種模式：
+  - **list**（預設）：列出可疑紀錄
+  - **--fix**：自動把 00:00 改成同一天 23:59:59（保留審計軌跡 fixHistory）
+  - **--correct-prev**：修正第一版 --fix 搬錯方向的紀錄（前一日 → 同一天）
+- 5 秒倒數可 Ctrl+C 中止；同步刪除受影響的 attendanceMonthly doc
+
+---
+
+### 勞保 / 健保 2026 新制升級
+
+**法源**：勞動部 114/11/21 勞動保 2 字第 1140091863 號令、
+[勞保局官方分擔金額表](https://www.bli.gov.tw/0005475.html)、
+[健保署費率表](https://www.nhi.gov.tw/ch/cp-19418-9eefb-2576-1.html)
+
+**勞保分級表**：23 級舊表 → **11 級新表**（29,500 ~ 45,800）
+
+**新增「國籍」欄位**：員工區分台灣 / 外籍
+- 本國勞工：勞保普通事故 11.5% + 就保 1% = 12.5%，員工自付 2.5%
+- 外籍勞工：不適用就保法 §5（限 ROC 國籍），只有 11.5%，員工自付 2.3%
+- 外籍員工自動 disable 勞退提繳（外籍移工通常不適用）
+
+**健保**：費率不變（5.17% × 員工 30%），但**精度修正**
+- 舊：`0.0155`（差 0.001 在 29,500 級會少 1 元，officially 458 顯示成 457）
+- 新：`0.0517 * 0.30`（精確 0.01551）
+
+**基本工資**：28,590 → **29,500**（前後端一致更新）
+
+**Excel 公式修正**：
+- 勞保 / 健保扣繳全部用 `ROUND(...,0)` 包起來（政府規定保費四捨五入到元）
+- 勞保費率依國籍動態（外籍 0.023、本國 0.025）
+
+---
+
+### 突發事件工時偵測（取代「違法工時」）
+
+**邏輯改動**：
+- 移除休息日 `rest_ot3` 12h 上限（員工真實超時也計薪）
+- 新增 `stats.illegalHours` 欄位：勞基法 §32 §36 警示
+  - 例假日：任何 net > 0 即標記
+  - 其他日：max(net - 12, 0)
+
+**改名**：「違法工時」→「**突發事件工時**」
+- 勞基法 §40 允許天災/事變/突發事件停假，員工出勤可能合法
+- 系統標警告而非定罪，業主依 §40 自行判斷
+
+**呈現**：
+- Excel R 欄：每日「⚠️ X.Xh」、月度「⚠️ X.Xh / N天」
+- Excel 警告區（單獨一列）：列出總時數 + 法源 + 業主審查提示
+- 管理員 UI：KPI 區紅 → 橙色警告框（amber，提醒非定罪）
+
+---
+
+### Excel 匯出多項修正
+
+1. **H 欄「加班時數」回歸實際工時定義**（不重複算法定加倍）
+   - workday：ot1 + ot2（扣掉 8h 正常）
+   - rest / public / regular：net（淨工時）
+   - 例假日 base + comp 顯示在「應發項目區」，不混入 H
+
+2. **應發項目區公式錯位修復**：警告區會多吃 1 行，applyBaseRow 動態加
+   `warningOffset` 避免公式落到表頭。
+
+3. **月薪 cell 引用修正**：`$S$1` → `$T$1`（R 欄加入「突發事件工時」後
+   月薪數值移到 T 欄；S 欄為「月薪」label）；`T${sumRow}` /
+   `T${payRow}` 同步調整。
+
+4. **健保精度修正**：`-投保薪資*0.0155` → `-ROUND(投保薪資*0.0517*0.3,0)`
+   29,500 級從 -457 修正為 **-458** 與官方表一致。
+
+5. **勞保 ROUND 補上**：`-投保薪資*0.023` 顯示 -678.5 → 加 ROUND 變 -679。
+
+6. **規則說明 sheet** 更新：新版本沒有 12h cap、納入國籍區分費率。
+
+---
+
+### 員工管理增強
+
+1. **「離職」軟刪除按鈕**（`setEmployeeStatus.js` field='resign'）
+   - status='已離職' + resignedAt 時戳
+   - 單向操作（要重啟用須改 active=true）
+   - 排程任務（checkYesterdayPunch / dailyVirtualPunch）自動排除
+
+2. **管理員員工選單只顯示「啟用中」員工**（過濾停用 / 未啟用 / 已離職）
+
+3. **月薪 step 修復**：`step="100"` → `step="10"`（允許輸入 28590 / 29500
+   等基本工資值）
+
+4. **本地 state 同步**：薪資設定儲存後 `Object.assign` 漏 `nationality`，
+   切換員工會跳回舊值；補上後立即生效。
+
+---
+
+### 假日類型判斷修正
+
+**Bug**：`getDayKind` 對「國定假日落在週末」誤判 public
+
+**法源**：勞基法施行細則 §23（休假日遇例假/休息日應於其他工作日補休）
+
+**修法**：
+- caption 含「補假」 → public（取代被補假的國定假日）
+- caption 有值 + 週末 → rest（六）/ regular（日）（國定假日已遞延）
+- caption 有值 + 平日 → public
+
+**驗證範例**（2026/04 連假四天）：
+- 4/3 (五) 補假 → public ✅
+- 4/4 (六) 兒童節 → rest（之前誤判 public）✅
+- 4/5 (日) 清明節 → regular（之前誤判 public）✅
+- 4/6 (一) 補假 → public ✅
+
+---
+
+### 翻譯補齊（5 語系）
+
+新增 i18n 鍵：
+- `STATUS_PUNCH_NORMAL`（vi 缺失）
+- `RECORD_HOURS_PREFIX`（5 語系全缺）
+- `MONTH_TOTAL_HOURS_PREFIX`（5 語系全缺）
+- `UNIT_HOURS`（5 語系全缺，「小時」單位）
+- `LOCATION_VIRTUAL_PUNCH`（5 語系全缺，「系統虛擬卡」）
+
+對應的 hardcode 字串改用 `t()` 動態取譯。
+
+---
+
+### 其他修復
+
+- `cacheManager.invalidate()` alias（5 處 caller 使用但沒實作 → TypeError）
+- `applyEventToMonthly` 首次建立聚合時做全月 rebuild（避免只寫一日）
+- backfill 腳本用 `createRequire` 從 `functions/` 解析 firebase-admin
+- backfill 腳本 `--correct-prev` 修正搬錯方向的補卡
+
+---
+
 ## 2026-04-25
 
 ### 階段三 D 前置：migrate-to-firestore.js 完整實作

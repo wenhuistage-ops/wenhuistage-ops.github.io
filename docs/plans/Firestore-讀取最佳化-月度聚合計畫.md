@@ -1,9 +1,20 @@
 # Firestore 讀取最佳化｜月度聚合層計畫
 
 > 建立：2026-05-05
-> 狀態：規劃中（P0）
+> **狀態：✅ 已完成（Phase 1 + 1.5 + 2 已上線於 2026-05-05；Phase 3 / 4 暫保留）**
 > 動機：每日 Firestore reads 持續超過 5 萬次，懷疑為**結構性**問題（非單純流量或缺 cache）
 > 相關檔案：[`firebase-functions/functions/src/_attendance.js`](../../firebase-functions/functions/src/_attendance.js)、[`firebase-functions/functions/src/getCalendarSummary.js`](../../firebase-functions/functions/src/getCalendarSummary.js)、[`firebase-functions/functions/src/punch.js`](../../firebase-functions/functions/src/punch.js)
+>
+> **執行成果**：
+> - Phase 1 shadow write：6 個 mutation 端點接上 `applyEventToMonthly` ✅
+> - Phase 1.5：5 月 backfill 完成（13 doc 寫入 / 221 reads / 0 失敗）✅
+> - Phase 2：`getCalendarSummary` / `getAttendanceDetails` 切換到聚合 ✅
+> - 預期 reads 降幅 30-60×（Phase 2 後 1 員工 × 1 月月曆 = 1 read）
+> - 後續 bug fix：首次建立聚合時做全月 rebuild、race-safe transaction、
+>   compose-with-existing merge 等已併入實作
+>
+> **Phase 3（清理舊路徑）**：暫不執行，舊端點仍保留向後相容
+> **Phase 4（對帳腳本）**：暫不執行，目前透過手動 spot-check 驗證
 
 ---
 
