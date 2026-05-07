@@ -113,28 +113,58 @@ function getHolidayName(dateKey) {
 /**
  * 判斷某日的「假日類型」（對應勞基法分類）
  * @returns {{ kind: 'public'|'regular'|'rest'|'workday', name: string, color: string }}
- *   public  = 國定假日（caption 有值）
- *   regular = 例假日（週日，強制休息）
- *   rest    = 休息日（週六，可加班但有特別費率）
- *   workday = 一般工作日
+ *   public  = 國定假日（出勤：1 倍 base + 加班 1.34/1.67）
+ *   regular = 例假日（出勤：2 倍 + 補休折現）
+ *   rest    = 休息日（出勤：1.34/1.67/2.67）
+ *   workday = 一般工作日（normal + 1.34/1.67）
  *
- * ⚠️ 已知限制：「補班週六」會被誤判為 rest
- *   政府 2025 下半年起改「補假不補班」新制 → 2026 全年無補班日 → 不會踩
- *   若未來政策變回補班，需加 isHoliday=false 但 caption 為空的判斷分支：
- *     const rec = _index[year]?.[dateKey];
- *     if (rec && rec.isHoliday === false && (dow === 0 || dow === 6)) {
- *       return { kind: 'workday', name: '補班日', color: 'gray' };
- *     }
+ * 法源：勞基法 §36 §37 §39 + 施行細則 §23
+ *
+ * ⭐ 關鍵規則：「國定假日落在週末」要回歸原本性質（rest/regular），
+ *   國定假日的休假權「遞延」到別的工作日（即「補假日」）
+ *
+ *   範例（2026/04 連假四天）：
+ *   4/3 (五) caption=「補假」      → public（取代 4/4 兒童節）
+ *   4/4 (六) caption=「兒童節」    → rest（兒童節已補假到 4/3，此日回歸休息日）
+ *   4/5 (日) caption=「清明節」    → regular（清明節已補假到 4/6，此日回歸例假日）
+ *   4/6 (一) caption=「補假」      → public（取代 4/5 清明節）
+ *
+ *   若用「caption 有值就 public」（舊邏輯），4/4 出勤 12h 會少算約 9.34
+ *   等價時數的加班費，雇主可能被勞檢罰款。
+ *
+ * ⚠️ 補班週六（caption='', isHoliday=false, dow=6）：
+ *   政府 2025 下半年起改「補假不補班」→ 2026 全年無補班日 → 暫不處理
  */
 function getDayKind(dateKey) {
     const name = getHolidayName(dateKey);
-    if (name) return { kind: 'public', name, color: 'red' };
     if (!dateKey) return { kind: 'workday', name: '', color: 'gray' };
     const [y, m, d] = String(dateKey).split('-').map(Number);
     if (!y || !m || !d) return { kind: 'workday', name: '', color: 'gray' };
     const dow = new Date(y, m - 1, d).getDay();
-    if (dow === 0) return { kind: 'regular', name: '', color: 'red' };       // 週日 = 例假日
-    if (dow === 6) return { kind: 'rest', name: '', color: 'orange' };       // 週六 = 休息日
+
+    // 1. 補假日：取代被補假的國定假日 → public
+    //    判斷：caption 包含「補假」字樣（容錯：可能寫「補假」「補假（兒童節）」等）
+    if (name && name.indexOf('補假') >= 0) {
+        return { kind: 'public', name, color: 'red' };
+    }
+
+    // 2. 國定假日落在週末：休假權已遞延補假，當天回歸原本性質
+    //    勞基法施行細則 §23：休假日遇例假/休息日，於其他工作日補休
+    if (name && dow === 0) {
+        return { kind: 'regular', name, color: 'red' };       // 週日國定 → 例假
+    }
+    if (name && dow === 6) {
+        return { kind: 'rest', name, color: 'orange' };       // 週六國定 → 休息
+    }
+
+    // 3. 國定假日落在平日：public
+    if (name) {
+        return { kind: 'public', name, color: 'red' };
+    }
+
+    // 4. 純週末（無國定假日）
+    if (dow === 0) return { kind: 'regular', name: '', color: 'red' };
+    if (dow === 6) return { kind: 'rest', name: '', color: 'orange' };
     return { kind: 'workday', name: '', color: 'gray' };
 }
 
