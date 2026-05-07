@@ -199,6 +199,8 @@
   "PUNCH_OUT": "退勤",
   "STATUS_PUNCH_NORMAL": "パンチ正常",
   "RECORD_HOURS_PREFIX": "本日の勤務時間：",
+  "MONTH_TOTAL_HOURS_PREFIX": "今月の累計勤務時間：",
+  "UNIT_HOURS": "時間",
   "LABEL_SELECT_EMPLOYEE": "従業員を選択：",
   "OPT_SELECT_EMPLOYEE": "-- 従業員を選んでください --",
   "LABEL_EMPLOYEE_NAME": "従業員名：",

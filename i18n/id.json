@@ -199,6 +199,8 @@
   "PUNCH_OUT": "Absen Keluar",
   "STATUS_PUNCH_NORMAL": "Punch Normal",
   "RECORD_HOURS_PREFIX": "Jam kerja hari ini: ",
+  "MONTH_TOTAL_HOURS_PREFIX": "Total jam bulan ini: ",
+  "UNIT_HOURS": "jam",
   "LABEL_SELECT_EMPLOYEE": "Pilih Karyawan:",
   "OPT_SELECT_EMPLOYEE": "-- Silakan pilih karyawan --",
   "LABEL_EMPLOYEE_NAME": "Nama Karyawan:",

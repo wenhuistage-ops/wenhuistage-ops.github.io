@@ -428,7 +428,8 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     hourLabel.textContent = '本月累計時數：';
 
     const hourValue = document.createElement('span');
-    hourValue.textContent = totalHours + ' 小時';
+    const hoursUnit = (typeof t === 'function' && t('UNIT_HOURS')) || '小時';
+    hourValue.textContent = totalHours + ' ' + hoursUnit;
 
     totalRow.appendChild(hourLabel);
     totalRow.appendChild(hourValue);

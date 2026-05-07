@@ -332,10 +332,11 @@ async function renderAdminDailyRecords(dateKey, userId) {
                 // 薪資顯示已移除（待重新設計），此處只顯示工時
                 let hoursHtml = '';
                 if (dailyRecord.hours > 0) {
+                    const hoursUnit = (typeof t === 'function' && t('UNIT_HOURS')) || '小時';
                     hoursHtml = `
                         <p class="text-sm text-gray-500 dark:text-gray-400">
                             <span data-i18n="RECORD_HOURS_PREFIX">當日工作時數：</span>
-                            ${dailyRecord.hours} 小時
+                            ${dailyRecord.hours} ${hoursUnit}
                         </p>
                     `;
                 }
@@ -2407,7 +2408,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
         setF(`T${payRow}`, `SUM(I${payRow}:P${payRow})`);
 
         // (4) 應發項目區（layout 跟著 personalRows push 順序）
-        const applyBaseRow  = payRow + 5;            // 本薪 row（'應發項目'+表頭+本身共 3 行偏移自空 2 行後）
+        // 警告區會多吃 1 行（突發事件工時 > 0 時 push warning row）→ 所有後續
+        // row 都要往下挪 1，否則 SAL 公式會落在「項目 / 金額」表頭那行，造成
+        // 表頭 cell 被覆寫成數字、本薪 cell 拿到例假日的金額、整區錯位。
+        const warningOffset = totalIllegalHours > 0 ? 1 : 0;
+        const applyBaseRow  = payRow + 5 + warningOffset;  // 本薪 row
         const applyOt2Row   = applyBaseRow + 1;       // 例假日 N 天 / ot2
         const applyRest1Row = applyBaseRow + 2;       // 國定假日 N 天 / rest_ot1
         const applyRest2Row = applyBaseRow + 3;
