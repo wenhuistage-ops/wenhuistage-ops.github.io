@@ -1438,8 +1438,11 @@ async function handleSalaryProfileSubmit(e) {
         if (res && res.ok) {
             showNotification(t('MSG_SALARY_SAVED') || '薪資設定已儲存', 'success');
             // 同步更新 currentManagingEmployee（之後切員工再切回來會看到新值）
+            // ⚠️ allEmployeeList 與 currentManagingEmployee 共用同一物件參考，
+            //    這裡 mutate 會同步改 allEmployeeList[i]，避免切員工讀到舊值
             if (currentManagingEmployee) {
                 Object.assign(currentManagingEmployee, {
+                    nationality: payload.nationality,
                     salaryType: payload.salaryType,
                     monthlySalary: payload.monthlySalary,
                     hourlyRate: payload.hourlyRate,
