@@ -502,13 +502,20 @@ async function getMonthlyDailyStatus(userId, month) {
   // ===== 快速路徑：聚合 doc 已存在 =====
   const snap = await monthRef.get();
   if (snap.exists) {
+    // hit log：用於統計命中率（不要太冗長，每次只印 1 行）
+    console.log(`[reads] getMonthlyDailyStatus HIT u=${userId.slice(0, 8)} m=${month} reads=1`);
     const data = snap.data();
     return Array.isArray(data?.dailyStatus) ? data.dailyStatus : [];
   }
 
   // ===== Lazy fallback：從 raw attendance 重算 =====
+  // ⚠️ MISS 代表這個 (userId, month) 還沒 backfill，會燒 ~50 reads。
+  //    如果經常看到 MISS log，請跑 backfill-attendance-monthly.js --month=YYYY-MM
   const records = await getMonthlyAttendance(month, userId);
   const dailyStatus = summarizeByDay(records);
+  console.warn(
+    `[reads] getMonthlyDailyStatus MISS u=${userId.slice(0, 8)} m=${month} reads=~${records.length + 2} (建議跑 backfill --month=${month})`
+  );
 
   // 用 transaction 寫入，避免被並行 punch 蓋掉
   await db.runTransaction(async (tx) => {
