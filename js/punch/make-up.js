@@ -53,6 +53,42 @@ function validateAdjustTime(value) {
     return true;
 }
 
+// ===================================
+// 2026-05-14：月曆獨立補卡 Modal helpers
+// ===================================
+
+/** 開啟月曆補卡 modal 並回傳 modal 內表單容器 */
+function _openMakeupModal() {
+    const modal = document.getElementById('makeup-modal');
+    if (!modal) return null;
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    return document.getElementById('makeup-modal-form-container');
+}
+
+/** 關閉月曆補卡 modal 並清空表單 */
+function _closeMakeupModal() {
+    const modal = document.getElementById('makeup-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    const c = document.getElementById('makeup-modal-form-container');
+    if (c) c.replaceChildren();
+}
+
+// 點 backdrop / 關閉按鈕關閉 modal
+document.addEventListener('click', (e) => {
+    if (e.target.id === 'makeup-modal-backdrop' || e.target.id === 'makeup-modal-close') {
+        _closeMakeupModal();
+    }
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('makeup-modal');
+        if (modal && modal.style.display !== 'none') _closeMakeupModal();
+    }
+});
+
 /**
  * 集中綁定所有與打卡、異常相關的事件
  * 供 app.js 的 bindEvents 呼叫
@@ -61,10 +97,9 @@ function bindPunchEvents() {
 
     // 1. 處理補打卡表單 (點擊 '補打卡' 按鈕)
     // 2026-05-14：改用 document 事件委派，涵蓋三個來源：
-    //   - 首頁儀表板「異常記錄」清單（原有，#abnormal-list 內）
-    //   - 員工月曆點某天 → 詳情卡末尾「+ 補打卡」（ui.js _appendMakeupButtonToDailyCard）
-    //   - admin 月曆點員工某天 → 詳情卡末尾「+ 代員工補卡」（class 'adjust-btn-as-admin'，
-    //     交給 admin.js 處理，不在此 handler）
+    //   - 首頁儀表板「異常記錄」清單（#abnormal-list）→ 渲染到 adjustmentFormContainer
+    //   - 員工月曆「+ 補打卡」(.makeup-from-calendar-btn) → 渲染到 #makeup-modal-form-container（獨立 modal）
+    //   - admin 月曆「+ 代員工補卡」(.adjust-btn-as-admin) → 由 admin.js 處理
     if (adjustmentFormContainer) {
         document.addEventListener('click', (e) => {
             // 排除 admin 代補卡（由 admin.js 自己 handler）
@@ -75,20 +110,12 @@ function bindPunchEvents() {
                 const date = e.target.dataset.date;
                 const reason = e.target.dataset.reason;
 
-                // 2026-05-14：若按鈕來自月曆（class makeup-from-calendar-btn），
-                // adjustmentFormContainer 是在 dashboard-view 內，月曆 tab 看不到。
-                // 自動切回 dashboard tab 並滾到表單，讓使用者看得到 UI。
-                if (e.target.classList.contains('makeup-from-calendar-btn')) {
-                    if (typeof switchTab === 'function') {
-                        switchTab('dashboard-view');
-                    }
-                    // 等 tab 顯示後再滾到表單位置
-                    setTimeout(() => {
-                        if (adjustmentFormContainer && typeof adjustmentFormContainer.scrollIntoView === 'function') {
-                            adjustmentFormContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                    }, 100);
-                }
+                // 2026-05-14：判斷渲染目標
+                //   來自月曆 → 開 modal 並渲染到 modal 內 form container（獨立申請流程）
+                //   來自儀表板異常清單 → 渲染到 adjustmentFormContainer（原邏輯）
+                const isFromCalendar = e.target.classList.contains('makeup-from-calendar-btn');
+                const targetContainer = isFromCalendar ? _openMakeupModal() : adjustmentFormContainer;
+                if (!targetContainer) return;
 
                 // 判斷異常類型
                 const isBothMissing = reason === "STATUS_BOTH_MISSING";
@@ -173,8 +200,8 @@ function bindPunchEvents() {
                     </div>
                 `;
                 // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-                adjustmentFormContainer.innerHTML = DOMPurify.sanitize(formHtml);
-                renderTranslations(adjustmentFormContainer); // 來自 core.js
+                targetContainer.innerHTML = DOMPurify.sanitize(formHtml);
+                renderTranslations(targetContainer); // 來自 core.js
 
                 // 設置默認時間值
                 if (isBothMissing) {
@@ -248,10 +275,18 @@ function bindPunchEvents() {
         });
 
         // 2. 處理補打卡、請假、休假表單的提交
-        adjustmentFormContainer.addEventListener('click', async (e) => {
+        // 2026-05-14：改為 document delegation，同時涵蓋 adjustmentFormContainer 與 #makeup-modal-form-container
+        document.addEventListener('click', async (e) => {
             const adjustButton = e.target.closest('.submit-adjust-btn');
             const leaveButton = e.target.closest('.submit-leave-btn');
             const vacationButton = e.target.closest('.submit-vacation-btn');
+
+            // 偵測按鈕在哪個容器（決定要 reset 哪個 + 是否關 modal）
+            const inModal = !!(adjustButton || leaveButton || vacationButton) &&
+                !!(e.target.closest('#makeup-modal-form-container'));
+            const hostContainer = inModal
+                ? document.getElementById('makeup-modal-form-container')
+                : adjustmentFormContainer;
 
             if (adjustButton) {
                 // 🌟 修正點 (問題8.6)：補打卡前添加確認
@@ -342,8 +377,10 @@ function bindPunchEvents() {
                         showNotification(outRes.ok ? "全日打卡補登成功" : "下班打卡失敗：" + msg, outRes.ok ? "success" : "error");
 
                         if (outRes.ok) {
-                            adjustmentFormContainer.replaceChildren();
+                            hostContainer.replaceChildren();
+                            if (inModal) _closeMakeupModal();
                             refreshAbnormalAfterApplication();
+                            _refreshCalendarAfterMakeup();
                         }
                     } else {
                         // 單次打卡
@@ -360,8 +397,10 @@ function bindPunchEvents() {
                         showNotification(msg, res.ok ? "success" : "error");
 
                         if (res.ok) {
-                            adjustmentFormContainer.replaceChildren();
+                            hostContainer.replaceChildren();
+                            if (inModal) _closeMakeupModal();
                             refreshAbnormalAfterApplication();
+                            _refreshCalendarAfterMakeup();
                         }
                     }
 
@@ -369,7 +408,7 @@ function bindPunchEvents() {
                     console.error(err);
                     showNotification(t('NETWORK_ERROR') || '網絡錯誤', 'error');
                 } finally {
-                    if (adjustmentFormContainer.children.length > 0) {
+                    if (hostContainer && hostContainer.children.length > 0) {
                         generalButtonState(adjustButton, 'idle');
                     }
                 }
@@ -408,15 +447,17 @@ function bindPunchEvents() {
                     showNotification(msg, res.ok ? "success" : "error");
 
                     if (res.ok) {
-                        adjustmentFormContainer.replaceChildren();
+                        hostContainer.replaceChildren();
+                        if (inModal) _closeMakeupModal();
                         refreshAbnormalAfterApplication();
+                        _refreshCalendarAfterMakeup();
                     }
 
                 } catch (err) {
                     console.error(err);
                     showNotification(t('MSG_NETWORK_ERROR_RETRY'), 'error');
                 } finally {
-                    if (adjustmentFormContainer.children.length > 0) {
+                    if (hostContainer && hostContainer.children.length > 0) {
                         generalButtonState(leaveButton, 'idle');
                     }
                 }
@@ -455,20 +496,42 @@ function bindPunchEvents() {
                     showNotification(msg, res.ok ? "success" : "error");
 
                     if (res.ok) {
-                        adjustmentFormContainer.replaceChildren();
+                        hostContainer.replaceChildren();
+                        if (inModal) _closeMakeupModal();
                         refreshAbnormalAfterApplication();
+                        _refreshCalendarAfterMakeup();
                     }
 
                 } catch (err) {
                     console.error(err);
                     showNotification(t('MSG_NETWORK_ERROR_RETRY'), 'error');
                 } finally {
-                    if (adjustmentFormContainer.children.length > 0) {
+                    if (hostContainer && hostContainer.children.length > 0) {
                         generalButtonState(vacationButton, 'idle');
                     }
                 }
             }
         });
+    }
+}
+
+/**
+ * 月曆補卡 / 請假 / 休假成功後刷新月曆 (若使用者在月曆 tab)
+ * 觸發 getMonthlyDailyStatus 重新撈，重畫月曆 + 詳情卡
+ */
+function _refreshCalendarAfterMakeup() {
+    try {
+        if (typeof cacheManager !== 'undefined' && cacheManager?.clear) {
+            cacheManager.clear('month');
+        }
+    } catch (_) { /* cache 失敗不影響流程 */ }
+    if (typeof renderCalendar === 'function') {
+        try {
+            // renderCalendar(date, isrefresh=true) — 用 state.currentMonthDate 重撈該月
+            const dateToRender = (typeof currentMonthDate !== 'undefined' && currentMonthDate)
+                ? currentMonthDate : new Date();
+            renderCalendar(dateToRender, true);
+        } catch (_) { /* ignore */ }
     }
 }
 

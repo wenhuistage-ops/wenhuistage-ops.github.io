@@ -208,6 +208,7 @@
   "MSG_DELETE_VIRTUAL_SUCCESS": "Virtual punch deleted",
   "BTN_MAKEUP_FROM_CALENDAR": "+ Adjust punch",
   "BTN_MAKEUP_AS_ADMIN": "+ Adjust for employee",
+  "MAKEUP_MODAL_TITLE": "Punch Adjustment Request",
   "LABEL_SELECT_EMPLOYEE": "Select Employee:",
   "OPT_SELECT_EMPLOYEE": "-- Please select an employee --",
   "LABEL_EMPLOYEE_NAME": "Employee Name:",

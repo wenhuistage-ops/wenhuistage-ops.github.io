@@ -404,3 +404,39 @@ html.dark .leaflet-control-attribution {
     /* hue-rotate(180deg)：可選，調整色調，讓藍色街道不至於變成難看的紅色 */
     filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
+
+/* ======================================= */
+/* 2026-05-14：月曆補卡獨立 Modal Overlay     */
+/* ======================================= */
+.makeup-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.makeup-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.makeup-modal-panel {
+    position: relative;
+    width: 100%;
+    max-width: 28rem;
+    margin-top: 4rem;
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.2), 0 8px 10px -6px rgb(0 0 0 / 0.15);
+    animation: fadeIn 0.25s ease-out;
+}
+
+html.dark .makeup-modal-panel {
+    background-color: #1f2937;
+}

@@ -208,6 +208,7 @@
   "MSG_DELETE_VIRTUAL_SUCCESS": "Punch virtual dihapus",
   "BTN_MAKEUP_FROM_CALENDAR": "+ Tambah absensi",
   "BTN_MAKEUP_AS_ADMIN": "+ Tambah untuk karyawan",
+  "MAKEUP_MODAL_TITLE": "Permintaan Penyesuaian Absensi",
   "LABEL_SELECT_EMPLOYEE": "Pilih Karyawan:",
   "OPT_SELECT_EMPLOYEE": "-- Silakan pilih karyawan --",
   "LABEL_EMPLOYEE_NAME": "Nama Karyawan:",

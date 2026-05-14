@@ -192,6 +192,7 @@
   "MSG_DELETE_VIRTUAL_SUCCESS": "Đã xóa thẻ ảo",
   "BTN_MAKEUP_FROM_CALENDAR": "+ Chấm công bổ sung",
   "BTN_MAKEUP_AS_ADMIN": "+ Bổ sung cho nhân viên",
+  "MAKEUP_MODAL_TITLE": "Yêu cầu chấm công bổ sung",
   "PUNCH_IN": "Chấm công vào",
   "PUNCH_OUT": "Chấm công ra",
   "LEAVE_TITLE": "Leave:",

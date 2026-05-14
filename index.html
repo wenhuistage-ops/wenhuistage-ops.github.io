@@ -1373,6 +1373,23 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         data-line-url="https://lin.ee/Hos7UlA">
         💬
     </button>
+
+    <!-- 2026-05-14：月曆獨立補卡 Modal（與儀表板「異常記錄」流程分離）-->
+    <div id="makeup-modal" class="makeup-modal-overlay" style="display: none;" role="dialog" aria-modal="true"
+        aria-labelledby="makeup-modal-title">
+        <div class="makeup-modal-backdrop" id="makeup-modal-backdrop"></div>
+        <div class="makeup-modal-panel card">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h3 id="makeup-modal-title" data-i18n="MAKEUP_MODAL_TITLE"
+                    class="text-lg font-bold text-gray-800 dark:text-white">補卡申請</h3>
+                <button id="makeup-modal-close" type="button" aria-label="關閉"
+                    class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none">
+                    &times;
+                </button>
+            </div>
+            <div id="makeup-modal-form-container" class="p-4"></div>
+        </div>
+    </div>
 </body>
 
 </html>
