@@ -12,28 +12,64 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifyAdmin, formatTaipei } = require("./_helpers");
+const { db, COLLECTIONS, verifyAdmin, verifySession, formatTaipei } = require("./_helpers");
 
 const VALID_AUDIT = new Set(["?", "v", "x", "all"]);
+
+// 預設只看「最近 90 天」的審核紀錄。舊紀錄極少需要重新查（多半已歸檔到
+// Excel 月報），不該每次 API call 都掃到。可由 request.data.daysBack 覆寫。
+const DEFAULT_DAYS_BACK = 90;
+const MAX_DAYS_BACK = 365;
+
+// 預設 limit 從 200 降到 50。實務上每月新增的待審記錄 < 20 筆，超過 50
+// 通常代表 admin 在看歷史已核准/拒絕——這時 admin 自己會調 limit。
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 500;
 
 module.exports = onCall(
   { region: "asia-southeast1", cors: true },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
-    const auth = await verifyAdmin(sessionToken);
-    if (!auth.ok) return { ok: false, code: auth.code };
 
-    const userId = String(request.data?.userId || "").trim();
+    // 員工查自己的審核紀錄 → 用 verifySession（一般員工）；查全公司 → verifyAdmin
+    const requestedUserId = String(request.data?.userId || "").trim();
+    const session = await verifySession(sessionToken);
+    if (!session.ok) return { ok: false, code: session.code };
+
+    // 沒指定 userId 等於要看全公司 → 必須是 admin
+    if (!requestedUserId && session.user.dept !== "管理員") {
+      return { ok: false, code: "ERR_NO_PERMISSION" };
+    }
+    // 指定 userId 但不是自己 → 必須是 admin
+    if (requestedUserId && requestedUserId !== session.user.userId && session.user.dept !== "管理員") {
+      return { ok: false, code: "ERR_NO_PERMISSION" };
+    }
+
     const auditRaw = request.data?.audit;
     const audit = VALID_AUDIT.has(auditRaw) ? auditRaw : "?";
-    const limit = Math.min(Math.max(Number(request.data?.limit) || 200, 1), 500);
+    const limit = Math.min(Math.max(Number(request.data?.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+    const daysBack = Math.min(
+      Math.max(Number(request.data?.daysBack) || DEFAULT_DAYS_BACK, 1),
+      MAX_DAYS_BACK
+    );
 
-    let q = db.collection(COLLECTIONS.ATTENDANCE);
+    // 計算「N 天前的午夜」為時間下界
+    const sinceDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
+
+    let q = db
+      .collection(COLLECTIONS.ATTENDANCE)
+      .where("timestamp", ">=", sinceDate);
     if (audit !== "all") q = q.where("audit", "==", audit);
-    if (userId) q = q.where("userId", "==", userId);
+    if (requestedUserId) q = q.where("userId", "==", requestedUserId);
     q = q.orderBy("timestamp", "desc").limit(limit);
 
     const snap = await q.get();
+
+    // 讀取監測 log：方便辨識「200 limit + 無時間範圍」型的熱點
+    console.log(
+      `[reads] getReviewRequest u=${requestedUserId ? requestedUserId.slice(0, 8) : 'ALL'} ` +
+        `audit=${audit} daysBack=${daysBack} limit=${limit} reads=${snap.size}`
+    );
 
     const reviewRequest = snap.docs
       .map((doc) => {
