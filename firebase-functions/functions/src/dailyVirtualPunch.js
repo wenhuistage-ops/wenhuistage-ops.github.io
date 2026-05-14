@@ -35,10 +35,11 @@ const { applyEventToMonthly } = require("./_attendance");
 
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
 
+// 2026-05-14：改為「預設核准」，admin 可刪除誤判
 const VIRTUAL_NOTE_OUT =
-  "系統自動新增虛擬下班卡（跨日前下班），待管理員審核";
+  "系統自動新增虛擬下班卡（跨日前下班，預設核准，admin 可刪除誤判）";
 const VIRTUAL_NOTE_IN =
-  "系統自動新增虛擬上班卡（跨日後上班），待管理員審核";
+  "系統自動新增虛擬上班卡（跨日後上班，預設核准，admin 可刪除誤判）";
 const VIRTUAL_TAG = "系統虛擬卡";
 
 /**
@@ -168,6 +169,11 @@ module.exports = onSchedule(
       const userName = emp.name || "";
       const dept = emp.dept || "";
 
+      // 2026-05-14：虛擬卡升級為「預設核准 + 可識別來源」
+      //   audit='v' → 不進審核佇列（系統自動補的，無需 admin 動作）
+      //   adjustmentType='系統虛擬卡' → Firestore Console / find-midnight-punches 能識別
+      //   reviewedBy='system:dailyVirtualPunch' → 審計軌跡
+      // 誤判時 admin 可透過 deleteAttendance endpoint 刪除單筆
       const virtualOut = {
         timestamp: admin.firestore.Timestamp.fromDate(bounds.dayBefore235959),
         userId,
@@ -177,8 +183,10 @@ module.exports = onSchedule(
         coords: VIRTUAL_TAG,
         locationName: VIRTUAL_TAG,
         note: VIRTUAL_NOTE_OUT,
-        audit: "",
-        adjustmentType: "",
+        audit: "v",
+        adjustmentType: "系統虛擬卡",
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "system:dailyVirtualPunch",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
       const virtualIn = {
@@ -190,8 +198,10 @@ module.exports = onSchedule(
         coords: VIRTUAL_TAG,
         locationName: VIRTUAL_TAG,
         note: VIRTUAL_NOTE_IN,
-        audit: "",
-        adjustmentType: "",
+        audit: "v",
+        adjustmentType: "系統虛擬卡",
+        reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewedBy: "system:dailyVirtualPunch",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 

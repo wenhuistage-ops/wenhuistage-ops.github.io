@@ -192,6 +192,27 @@ html.dark .notification {
     cursor: pointer;
     user-select: none;
     transition: all 0.2s;
+    /* 為紫色角標騰出絕對定位錨點 */
+    position: relative;
+}
+
+/* 2026-05-14：紫色角標標記「該日含系統虛擬卡（dailyVirtualPunch 補的）」
+ * 與 reason 顏色解耦：紫色角標只表示「系統有補卡」，不改變該日狀態色 */
+.day-cell.has-virtual::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 8px;
+    height: 8px;
+    background-color: #a855f7; /* purple-500 */
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    pointer-events: none; /* 不擋日期 click */
+}
+/* 暗色模式邊框換深色，避免在淺色 cell 上邊框失效 */
+.dark .day-cell.has-virtual::after {
+    border-color: rgba(0, 0, 0, 0.3);
 }
 
 /* 亮色模式 (已定義) */

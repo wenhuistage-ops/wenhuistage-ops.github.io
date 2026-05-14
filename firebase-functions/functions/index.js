@@ -20,6 +20,8 @@ exports.exchangeToken = require("./src/exchangeToken");
 exports.punch = require("./src/punch");
 exports.punchWithoutLocation = require("./src/punchWithoutLocation");
 exports.adjustPunch = require("./src/adjustPunch");
+exports.adjustPunchAsAdmin = require("./src/adjustPunchAsAdmin"); // admin 代員工補卡
+exports.deleteAttendance = require("./src/deleteAttendance"); // admin 刪除虛擬卡
 
 // ===== 打卡查詢 =====
 exports.getLocations = require("./src/getLocations");

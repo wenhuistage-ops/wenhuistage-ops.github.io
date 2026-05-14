@@ -216,6 +216,11 @@ function summarizeByDay(records) {
     const mm = String(t.getUTCMinutes()).padStart(2, "0");
 
     const newRecord = {
+      // 2026-05-14：record 帶 attendance doc id，讓前端能對單筆操作
+      //   - admin 刪除虛擬卡（deleteAttendance endpoint）
+      //   - 未來其他單筆操作
+      // 舊聚合 doc（pre-2026-05-14）的 record 內無此欄位，前端需 fallback
+      id: r.id || "",
       time: `${hh}:${mm}`,
       type: r.type || "",
       location: r.locationName || "",
@@ -284,6 +289,12 @@ function summarizeByDay(records) {
       hours = Math.max(0, (outH * 60 + outM - inH * 60 - inM) / 60);
     }
 
+    // 2026-05-14：hasVirtual flag 標記該日含系統虛擬卡（dailyVirtualPunch 補的）
+    //   前端月曆用此 flag 加紫色角標，跟 reason 解耦（reason 仍照 hasIn/hasOut 算）
+    const hasVirtual = day.record.some(
+      (p) => p.adjustmentType === "系統虛擬卡"
+    );
+
     days.push({
       date: day.date,
       reason,
@@ -291,6 +302,7 @@ function summarizeByDay(records) {
       punchInTime,
       punchOutTime,
       isHoliday: false, // TODO：整合國定假日 map
+      hasVirtual,
       record: day.record,
     });
   }

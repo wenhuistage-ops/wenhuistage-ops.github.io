@@ -317,12 +317,38 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         ? (typeof t === 'function' ? t('LOCATION_VIRTUAL_PUNCH') : r.location)
                         : r.location;
 
+                    // 2026-05-14：虛擬卡（adjustmentType='系統虛擬卡'）顯示「刪除」按鈕
+                    // 若聚合 doc 較舊（沒帶 r.id），按鈕無法掛 docId，提示重建聚合
+                    const isVirtual = r.adjustmentType === '系統虛擬卡';
+                    let deleteBtnHtml = '';
+                    if (isVirtual) {
+                        if (r.id) {
+                            deleteBtnHtml = `
+                                <button type="button"
+                                        class="delete-virtual-btn mt-2 px-3 py-1 text-xs font-medium
+                                               text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30
+                                               hover:bg-rose-100 dark:hover:bg-rose-900/50
+                                               border border-rose-300 dark:border-rose-700 rounded transition"
+                                        data-doc-id="${r.id}"
+                                        data-i18n="BTN_DELETE_VIRTUAL_PUNCH">
+                                    <i class="fas fa-trash-alt mr-1"></i>刪除虛擬卡
+                                </button>`;
+                        } else {
+                            deleteBtnHtml = `
+                                <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    舊版聚合資料無 doc id，請刷新本月後再操作
+                                </p>`;
+                        }
+                    }
+
                     // 產生單一打卡記錄的 HTML
                     // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                     const recordHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${locationDisplay}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
+                        ${deleteBtnHtml}
                     `;
                     li.innerHTML = DOMPurify.sanitize(recordHtml);
 
@@ -362,8 +388,229 @@ async function renderAdminDailyRecords(dateKey, userId) {
         } else {
             adminDailyRecordsEmpty.style.display = 'block';
         }
+
+        // 2026-05-14：admin 月曆點某天 → 詳情卡末尾加「+ 代員工補卡」按鈕
+        // 用獨立 class 'adjust-btn-as-admin'，由 admin.js 自己 handler 處理
+        // （make-up.js document handler 會 skip 這個 class）
+        _appendAdminMakeupButton(adminDailyRecordsList.parentNode, dateKey, userId);
+
         adminRecordsLoading.style.display = 'none';
     }
+}
+
+/**
+ * admin 詳情卡尾巴 append「+ 代員工補卡」按鈕
+ * 不允許未來日；reason 給 STATUS_BOTH_MISSING 開全日補卡 UI
+ */
+function _appendAdminMakeupButton(container, dateKey, targetUserId) {
+    if (!container || !dateKey || !targetUserId) return;
+    const old = container.querySelector('.makeup-as-admin-btn');
+    if (old) old.remove();
+
+    try {
+        const [y, m, d] = dateKey.split('-').map(Number);
+        const cellDate = new Date(y, m - 1, d);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (cellDate > today) return;
+    } catch (_) { /* ignore */ }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className =
+        'makeup-as-admin-btn adjust-btn-as-admin mt-3 w-full px-4 py-2 ' +
+        'text-sm font-medium text-amber-700 dark:text-amber-200 ' +
+        'bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 ' +
+        'border border-amber-300 dark:border-amber-700 rounded-lg transition';
+    btn.dataset.date = dateKey;
+    btn.dataset.targetUserId = targetUserId;
+    btn.dataset.reason = 'STATUS_BOTH_MISSING';
+    btn.setAttribute('data-i18n', 'BTN_MAKEUP_AS_ADMIN');
+    btn.textContent = '+ 代員工補卡';
+    container.appendChild(btn);
+    if (typeof renderTranslations === 'function') renderTranslations(btn);
+}
+
+/**
+ * 一次性綁定：監聽 admin 詳情卡內的「刪除虛擬卡」與「代員工補卡」按鈕
+ * 用 document 事件委派，不依賴元素是否存在於 DOM。
+ */
+function _initAdminAttendanceActions() {
+    if (window._adminAttendanceActionsBound) return;
+    window._adminAttendanceActionsBound = true;
+
+    document.addEventListener('click', async (e) => {
+        // 刪除虛擬卡
+        if (e.target.closest('.delete-virtual-btn')) {
+            const btn = e.target.closest('.delete-virtual-btn');
+            const docId = btn.dataset.docId;
+            if (!docId) return;
+            const confirmMsg = (typeof t === 'function' && t('MSG_DELETE_VIRTUAL_CONFIRM'))
+                || '確定要刪除此筆系統虛擬補卡？';
+            const ok = typeof showConfirmDialog === 'function'
+                ? await showConfirmDialog(confirmMsg)
+                : window.confirm(confirmMsg);
+            if (!ok) return;
+            btn.disabled = true;
+            try {
+                const res = await callApifetch({ action: 'deleteAttendance', id: docId });
+                if (res && res.ok) {
+                    const successMsg = (typeof t === 'function' && t('MSG_DELETE_VIRTUAL_SUCCESS'))
+                        || '虛擬卡已刪除';
+                    showNotification(successMsg, 'success');
+                    // 清月度 cache 後重 render 該員工該月
+                    if (adminSelectedUserId && adminCurrentDate) {
+                        const monthKey = `${adminCurrentDate.getFullYear()}-${String(adminCurrentDate.getMonth() + 1).padStart(2, '0')}`;
+                        if (typeof adminMonthDataCache !== 'undefined') {
+                            delete adminMonthDataCache[`${monthKey}-${adminSelectedUserId}`];
+                        }
+                        if (typeof cacheManager !== 'undefined') {
+                            cacheManager.invalidate('month');
+                        }
+                        renderAdminCalendar(adminSelectedUserId, adminCurrentDate).catch(console.error);
+                    }
+                } else {
+                    showNotification((res && res.msg) || '刪除失敗', 'error');
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error('delete virtual punch 失敗:', err);
+                showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+                btn.disabled = false;
+            }
+            return;
+        }
+
+        // 代員工補卡（開 modal）
+        if (e.target.closest('.adjust-btn-as-admin')) {
+            const btn = e.target.closest('.adjust-btn-as-admin');
+            const date = btn.dataset.date;
+            const targetUserId = btn.dataset.targetUserId;
+            if (!date || !targetUserId) return;
+            _openAdminMakeupModal(date, targetUserId);
+        }
+    });
+}
+
+/**
+ * 簡易 modal：admin 代員工補卡（直接呼叫 adjustPunchAsAdmin endpoint）
+ *
+ * 不沿用 make-up.js 流程（那個是員工 self-serve），但 UI 結構類似：
+ *   - 日期顯示
+ *   - 上班時間 + 下班時間（24h validate）
+ *   - 備註
+ *   - 「送出」按鈕
+ */
+async function _openAdminMakeupModal(dateKey, targetUserId) {
+    const empName = (allEmployeeList || []).find((e) => e.userId === targetUserId)?.name || targetUserId.slice(0, 8);
+    const modalId = 'admin-makeup-modal';
+    let modal = document.getElementById(modalId);
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-[1200] flex items-center justify-center bg-black/50';
+    modal.innerHTML = DOMPurify.sanitize(`
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-[92%] max-w-md shadow-2xl">
+            <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">
+                <i class="fas fa-user-edit mr-2 text-amber-600"></i>代員工補卡
+            </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">員工：<span class="font-semibold">${empName}</span></p>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">日期：<span class="font-semibold">${dateKey}</span></p>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">上班時間 (HH:MM)</label>
+                    <input type="time" id="admin-makeup-in" value="09:00"
+                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">下班時間 (HH:MM)</label>
+                    <input type="time" id="admin-makeup-out" value="18:00"
+                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">備註（可選）</label>
+                    <input type="text" id="admin-makeup-note" placeholder="補卡原因 / 員工口述"
+                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                </div>
+            </div>
+            <div class="mt-4 flex gap-2">
+                <button id="admin-makeup-submit"
+                        class="flex-1 py-2 px-4 rounded-lg font-bold bg-amber-600 hover:bg-amber-700 text-white transition">
+                    送出（上下班各一筆）
+                </button>
+                <button id="admin-makeup-cancel"
+                        class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    取消
+                </button>
+            </div>
+        </div>
+    `);
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    document.getElementById('admin-makeup-cancel').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+    document.getElementById('admin-makeup-submit').addEventListener('click', async () => {
+        const inTime = document.getElementById('admin-makeup-in').value;
+        const outTime = document.getElementById('admin-makeup-out').value;
+        const note = document.getElementById('admin-makeup-note').value || '';
+        if (!inTime || !outTime) {
+            showNotification('請填寫上下班時間', 'error');
+            return;
+        }
+        if (outTime <= inTime) {
+            showNotification('下班時間必須晚於上班時間', 'error');
+            return;
+        }
+        const submitBtn = document.getElementById('admin-makeup-submit');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '送出中...';
+
+        // 兩筆：上班 + 下班
+        const inDateTime = new Date(`${dateKey}T${inTime}:00`);
+        const outDateTime = new Date(`${dateKey}T${outTime}:00`);
+
+        try {
+            const r1 = await callApifetch({
+                action: 'adjustPunchAsAdmin',
+                targetUserId,
+                type: '上班',
+                datetime: inDateTime.toISOString(),
+                note,
+            });
+            if (!r1 || !r1.ok) throw new Error(r1?.msg || r1?.code || '上班補卡失敗');
+            const r2 = await callApifetch({
+                action: 'adjustPunchAsAdmin',
+                targetUserId,
+                type: '下班',
+                datetime: outDateTime.toISOString(),
+                note,
+            });
+            if (!r2 || !r2.ok) throw new Error(r2?.msg || r2?.code || '下班補卡失敗');
+
+            showNotification('代員工補卡成功（上下班共 2 筆）', 'success');
+            close();
+            // 清快取重 render
+            if (adminCurrentDate) {
+                const monthKey = `${adminCurrentDate.getFullYear()}-${String(adminCurrentDate.getMonth() + 1).padStart(2, '0')}`;
+                if (typeof adminMonthDataCache !== 'undefined') {
+                    delete adminMonthDataCache[`${monthKey}-${targetUserId}`];
+                }
+                renderAdminCalendar(targetUserId, adminCurrentDate).catch(console.error);
+            }
+        } catch (err) {
+            console.error('admin makeup 失敗:', err);
+            showNotification(err.message || '補卡失敗', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '送出（上下班各一筆）';
+        }
+    });
+}
+
+// 模組載入時自動綁 document 事件委派
+if (typeof window !== 'undefined') {
+    _initAdminAttendanceActions();
 }
 
 /**

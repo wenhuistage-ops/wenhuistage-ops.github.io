@@ -358,6 +358,12 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
             dayCell.classList.add(dateClass);
         }
 
+        // 2026-05-14：含「系統虛擬卡」的日子加紫色角標（不影響 reason 顏色）
+        // record.hasVirtual flag 由後端 summarizeByDay 設置
+        if (todayRecords.length > 0 && todayRecords[0].hasVirtual) {
+            dayCell.classList.add('has-virtual');
+        }
+
         dayCell.classList.add('day-cell');
         dayCell.dataset.date = dateKey;
         dayCell.dataset.records = JSON.stringify(todayRecords); // 儲存當天資料
@@ -676,8 +682,58 @@ async function renderDailyRecords(dateKey) {
         } else {
             dailyRecordsEmpty.style.display = 'block';
         }
+
+        // 2026-05-14：員工月曆點某天 → 詳情卡末尾加「+ 補打卡」按鈕
+        // 允許員工針對非異常日（譬如雙班、午休下班、特殊加班）主動補卡
+        // class 'adjust-btn' 跟既有 make-up.js handler 相容（事件委派接管）
+        _appendMakeupButtonToDailyCard(dailyRecordsList.parentNode, dateKey);
+
         dailyRecordsCard.style.display = 'block';
     }
+}
+
+/**
+ * 在「某日詳情卡」末尾附加「+ 補打卡」按鈕（員工側 + admin 側共用）
+ *
+ * 顯示條件：dateKey 不可未來日（make-up.js 內部還會做當月驗證）
+ *
+ * @param {HTMLElement} container 詳情卡父節點（按鈕會 append 進去）
+ * @param {string} dateKey 'YYYY-MM-DD'
+ */
+function _appendMakeupButtonToDailyCard(container, dateKey) {
+    if (!container || !dateKey) return;
+    // 移除舊按鈕（避免重複）
+    const old = container.querySelector('.makeup-from-calendar-btn');
+    if (old) old.remove();
+
+    // 不允許補未來
+    try {
+        const [y, m, d] = dateKey.split('-').map(Number);
+        const cellDate = new Date(y, m - 1, d);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (cellDate > today) return;
+    } catch (_) { /* 解析失敗也直接 append */ }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className =
+        'makeup-from-calendar-btn adjust-btn mt-3 w-full px-4 py-2 ' +
+        'text-sm font-medium text-indigo-700 dark:text-indigo-200 ' +
+        'bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 ' +
+        'border border-indigo-300 dark:border-indigo-700 rounded-lg transition';
+    btn.dataset.date = dateKey;
+    // reason 給 STATUS_BOTH_MISSING → make-up.js 開「全日補卡」UI（兩個輸入框）
+    btn.dataset.reason = 'STATUS_BOTH_MISSING';
+    btn.setAttribute('data-i18n', 'BTN_MAKEUP_FROM_CALENDAR');
+    btn.textContent = '+ 補打卡';
+    container.appendChild(btn);
+    if (typeof renderTranslations === 'function') renderTranslations(btn);
+}
+
+// 暴露給 admin.js 共用
+if (typeof window !== 'undefined') {
+    window._appendMakeupButtonToDailyCard = _appendMakeupButtonToDailyCard;
 }
 
 // #endregion

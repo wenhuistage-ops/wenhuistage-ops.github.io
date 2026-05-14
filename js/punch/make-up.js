@@ -60,9 +60,16 @@ function validateAdjustTime(value) {
 function bindPunchEvents() {
 
     // 1. 處理補打卡表單 (點擊 '補打卡' 按鈕)
-    // abnormalList 已在 state.js 宣告並在 app.js 中賦值
-    if (abnormalList && adjustmentFormContainer) {
-        abnormalList.addEventListener('click', (e) => {
+    // 2026-05-14：改用 document 事件委派，涵蓋三個來源：
+    //   - 首頁儀表板「異常記錄」清單（原有，#abnormal-list 內）
+    //   - 員工月曆點某天 → 詳情卡末尾「+ 補打卡」（ui.js _appendMakeupButtonToDailyCard）
+    //   - admin 月曆點員工某天 → 詳情卡末尾「+ 代員工補卡」（class 'adjust-btn-as-admin'，
+    //     交給 admin.js 處理，不在此 handler）
+    if (adjustmentFormContainer) {
+        document.addEventListener('click', (e) => {
+            // 排除 admin 代補卡（由 admin.js 自己 handler）
+            if (e.target.classList.contains('adjust-btn-as-admin')) return;
+
             if (e.target.classList.contains('adjust-btn')) {
                 // 補打卡按鈕處理邏輯
                 const date = e.target.dataset.date;

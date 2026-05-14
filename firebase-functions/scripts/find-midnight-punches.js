@@ -168,6 +168,9 @@ async function main() {
     if (!ts) return;
     if (!targetTypes.includes(data.type)) return;
     if (!isMidnightTaipei(ts)) return;
+    // 2026-05-14：排除 dailyVirtualPunch 補的虛擬卡（不是誤填補卡）
+    //   虛擬卡的 23:59:59 下班 / 00:00:00 上班屬於合法系統補卡，不該列為「待修正」
+    if (data.adjustmentType === "系統虛擬卡") return;
 
     matches.push({
       docId: doc.id,
