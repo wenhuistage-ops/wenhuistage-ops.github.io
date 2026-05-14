@@ -8,12 +8,42 @@
  *   → httpsCallable(functions, 'getLocations')({ sessionToken })
  *
  * 回傳：
- *   成功：{ ok: true, locations: [{ name, lat, lng, radius }, ...] }
+ *   成功：{ ok: true, locations: [{ id, name, lat, lng, scope, radius }, ...] }
  *   失敗：{ ok: false, code: 'ERR_SESSION_INVALID' | ... }
+ *
+ * 2026-05-14：加入 in-process 5 分鐘 cache（與 punch.js 的 getAllLocations 並行）
+ *   - 同容器活躍期 cache hit → 0 Firestore reads
+ *   - 保留 doc.id（getAllLocations 沒給 id，前端 addLocation 操作會用到）
+ *   - addLocation 端點之後若有寫入新地點，需呼叫 _cache=null 清此 cache
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession } = require("./_helpers");
+const { db, COLLECTIONS, verifySession, invalidateLocationsCache } = require("./_helpers");
+
+// in-process cache（5 分鐘 TTL）
+const LOCATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+let _cache = null; // { value, expiry }
+
+async function _getCachedLocations() {
+  if (_cache && _cache.expiry > Date.now()) {
+    return { value: _cache.value, fromCache: true };
+  }
+  const snap = await db.collection(COLLECTIONS.LOCATIONS).get();
+  const value = snap.docs.map((doc) => {
+    const d = doc.data();
+    const r = Number(d.radius || 100);
+    return {
+      id: doc.id,
+      name: d.name || "",
+      lat: Number(d.lat || 0),
+      lng: Number(d.lng || 0),
+      scope: r,
+      radius: r,
+    };
+  });
+  _cache = { value, expiry: Date.now() + LOCATIONS_CACHE_TTL_MS };
+  return { value, fromCache: false, reads: snap.size };
+}
 
 module.exports = onCall(
   {
@@ -29,28 +59,18 @@ module.exports = onCall(
       return { ok: false, code: session.code };
     }
 
-    // 改用 _helpers.getAllLocations，與 punch.js 共用 in-process cache（5 分鐘 TTL）
-    // 之前直接 db.collection(...).get() 每次都打 DB，沒命中 cache，
-    // 83 次/天 × ~5 locations ≈ 400 reads/天 浪費。
-    // 注意：getAllLocations 過濾掉無效座標，所以 doc.id / radius 字段需手動補。
-    // 簡單做：仍直接讀 collection 但接 cache。為相容性保留 id 欄位。
-    const snap = await db.collection(COLLECTIONS.LOCATIONS).get();
-    console.log(`[reads] getLocations reads=${snap.size}`);
-    const locations = snap.docs.map((doc) => {
-      const d = doc.data();
-      const r = Number(d.radius || 100);
-      return {
-        id: doc.id,
-        name: d.name || "",
-        lat: Number(d.lat || 0),
-        lng: Number(d.lng || 0),
-        // GS 慣例前端讀 scope（容許誤差/打卡半徑），保留 radius 為後備
-        // 兩者必須一致，否則前端紅圈與後端打卡判斷會不同步
-        scope: r,
-        radius: r,
-      };
-    });
+    const cached = await _getCachedLocations();
+    if (cached.fromCache) {
+      console.log(`[reads] getLocations reads=0 (cache hit)`);
+    } else {
+      console.log(`[reads] getLocations reads=${cached.reads} (cache miss → refilled)`);
+      // 順便清 _helpers.getAllLocations 的 cache，避免新增地點時兩邊不同步
+      invalidateLocationsCache();
+    }
 
-    return { ok: true, locations };
+    return { ok: true, locations: cached.value };
   }
 );
+
+// 暴露 cache 清除 hook（給 addLocation 等 mutation 端點可主動清除）
+module.exports.invalidateLocalCache = () => { _cache = null; };
