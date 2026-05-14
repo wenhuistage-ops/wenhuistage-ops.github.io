@@ -509,87 +509,153 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
     modal = document.createElement('div');
     modal.id = modalId;
     modal.className = 'fixed inset-0 z-[1200] flex items-center justify-center bg-black/50';
-    modal.innerHTML = DOMPurify.sanitize(`
-        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-[92%] max-w-md shadow-2xl">
-            <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">
-                <i class="fas fa-user-edit mr-2 text-amber-600"></i>代員工補卡
-            </h3>
-            <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">員工：<span class="font-semibold">${empName}</span></p>
-            <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">日期：<span class="font-semibold">${dateKey}</span></p>
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">上班時間 (HH:MM)</label>
-                    <input type="time" id="admin-makeup-in" value="09:00"
-                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+
+    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    let currentMode = 'full'; // 'in' | 'out' | 'full'
+
+    // 渲染整個 modal 內容（mode 切換時 re-render）
+    function renderModal() {
+        const isIn = currentMode === 'in';
+        const isOut = currentMode === 'out';
+        const isFull = currentMode === 'full';
+
+        const activeCls = 'bg-amber-600 text-white';
+        const inactiveCls = 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
+
+        const inputsHtml = isFull ? `
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${tt('LABEL_PUNCH_IN_TIME', '上班時間')} (HH:MM)</label>
+                <input type="time" id="admin-makeup-in" value="09:00"
+                       class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${tt('LABEL_PUNCH_OUT_TIME', '下班時間')} (HH:MM)</label>
+                <input type="time" id="admin-makeup-out" value="18:00"
+                       class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            </div>` : `
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${isIn ? tt('LABEL_PUNCH_IN_TIME', '上班時間') : tt('LABEL_PUNCH_OUT_TIME', '下班時間')} (HH:MM)</label>
+                <input type="time" id="admin-makeup-single" value="${isIn ? '09:00' : '18:00'}"
+                       class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+            </div>`;
+
+        const submitText = isFull
+            ? tt('BTN_ADMIN_MAKEUP_SUBMIT_FULL', '送出（上下班各一筆）')
+            : (isIn ? tt('BTN_ADMIN_MAKEUP_SUBMIT_IN', '送出（補上班一筆）') : tt('BTN_ADMIN_MAKEUP_SUBMIT_OUT', '送出（補下班一筆）'));
+
+        modal.innerHTML = DOMPurify.sanitize(`
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-[92%] max-w-md shadow-2xl">
+                <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">
+                    <i class="fas fa-user-edit mr-2 text-amber-600"></i>${tt('BTN_MAKEUP_AS_ADMIN', '代員工補卡')}
+                </h3>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">員工：<span class="font-semibold">${empName}</span></p>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">日期：<span class="font-semibold">${dateKey}</span></p>
+
+                <div class="grid grid-cols-3 gap-1 mb-3 p-1 bg-gray-100 dark:bg-gray-900 rounded-lg">
+                    <button type="button" data-admin-mode="in" class="admin-makeup-mode-btn px-2 py-1 rounded text-sm font-medium transition ${isIn ? activeCls : inactiveCls}">${tt('MAKEUP_MODE_IN_ONLY', '只補上班')}</button>
+                    <button type="button" data-admin-mode="out" class="admin-makeup-mode-btn px-2 py-1 rounded text-sm font-medium transition ${isOut ? activeCls : inactiveCls}">${tt('MAKEUP_MODE_OUT_ONLY', '只補下班')}</button>
+                    <button type="button" data-admin-mode="full" class="admin-makeup-mode-btn px-2 py-1 rounded text-sm font-medium transition ${isFull ? activeCls : inactiveCls}">${tt('MAKEUP_MODE_FULL', '補全日')}</button>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">下班時間 (HH:MM)</label>
-                    <input type="time" id="admin-makeup-out" value="18:00"
-                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+
+                <div class="space-y-3">
+                    ${inputsHtml}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">備註（可選）</label>
+                        <input type="text" id="admin-makeup-note" placeholder="補卡原因 / 員工口述"
+                               class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">備註（可選）</label>
-                    <input type="text" id="admin-makeup-note" placeholder="補卡原因 / 員工口述"
-                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                <div class="mt-4 flex gap-2">
+                    <button id="admin-makeup-submit"
+                            class="flex-1 py-2 px-4 rounded-lg font-bold bg-amber-600 hover:bg-amber-700 text-white transition">
+                        ${submitText}
+                    </button>
+                    <button id="admin-makeup-cancel"
+                            class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        ${tt('BTN_CANCEL', '取消')}
+                    </button>
                 </div>
             </div>
-            <div class="mt-4 flex gap-2">
-                <button id="admin-makeup-submit"
-                        class="flex-1 py-2 px-4 rounded-lg font-bold bg-amber-600 hover:bg-amber-700 text-white transition">
-                    送出（上下班各一筆）
-                </button>
-                <button id="admin-makeup-cancel"
-                        class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                    取消
-                </button>
-            </div>
-        </div>
-    `);
+        `);
+    }
+
+    renderModal();
     document.body.appendChild(modal);
 
     const close = () => modal.remove();
-    document.getElementById('admin-makeup-cancel').addEventListener('click', close);
-    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 
-    document.getElementById('admin-makeup-submit').addEventListener('click', async () => {
-        const inTime = document.getElementById('admin-makeup-in').value;
-        const outTime = document.getElementById('admin-makeup-out').value;
-        const note = document.getElementById('admin-makeup-note').value || '';
-        if (!inTime || !outTime) {
-            showNotification('請填寫上下班時間', 'error');
+    // 用事件委派處理 mode 切換、cancel、submit、backdrop
+    modal.addEventListener('click', async (e) => {
+        // 點 backdrop（modal 本身，不是內容）關閉
+        if (e.target === modal) { close(); return; }
+
+        const modeBtn = e.target.closest('.admin-makeup-mode-btn');
+        if (modeBtn) {
+            currentMode = modeBtn.dataset.adminMode;
+            renderModal();
             return;
         }
-        if (outTime <= inTime) {
-            showNotification('下班時間必須晚於上班時間', 'error');
-            return;
+
+        if (e.target.closest('#admin-makeup-cancel')) { close(); return; }
+
+        const submitBtn = e.target.closest('#admin-makeup-submit');
+        if (!submitBtn) return;
+
+        const note = document.getElementById('admin-makeup-note')?.value || '';
+        const isFull = currentMode === 'full';
+        const isIn = currentMode === 'in';
+
+        // 時間取值與驗證
+        let inTime, outTime;
+        if (isFull) {
+            inTime = document.getElementById('admin-makeup-in')?.value;
+            outTime = document.getElementById('admin-makeup-out')?.value;
+            if (!inTime || !outTime) {
+                showNotification('請填寫上下班時間', 'error');
+                return;
+            }
+            if (outTime <= inTime) {
+                showNotification('下班時間必須晚於上班時間', 'error');
+                return;
+            }
+        } else {
+            const single = document.getElementById('admin-makeup-single')?.value;
+            if (!single) {
+                showNotification('請填寫時間', 'error');
+                return;
+            }
+            if (isIn) inTime = single; else outTime = single;
         }
-        const submitBtn = document.getElementById('admin-makeup-submit');
+
         submitBtn.disabled = true;
         submitBtn.textContent = '送出中...';
 
-        // 兩筆：上班 + 下班
-        const inDateTime = new Date(`${dateKey}T${inTime}:00`);
-        const outDateTime = new Date(`${dateKey}T${outTime}:00`);
-
         try {
-            const r1 = await callApifetch({
-                action: 'adjustPunchAsAdmin',
-                targetUserId,
-                type: '上班',
-                datetime: inDateTime.toISOString(),
-                note,
-            });
-            if (!r1 || !r1.ok) throw new Error(r1?.msg || r1?.code || '上班補卡失敗');
-            const r2 = await callApifetch({
-                action: 'adjustPunchAsAdmin',
-                targetUserId,
-                type: '下班',
-                datetime: outDateTime.toISOString(),
-                note,
-            });
-            if (!r2 || !r2.ok) throw new Error(r2?.msg || r2?.code || '下班補卡失敗');
+            if (isFull) {
+                const inDateTime = new Date(`${dateKey}T${inTime}:00`);
+                const outDateTime = new Date(`${dateKey}T${outTime}:00`);
+                const r1 = await callApifetch({
+                    action: 'adjustPunchAsAdmin', targetUserId, type: '上班',
+                    datetime: inDateTime.toISOString(), note,
+                });
+                if (!r1 || !r1.ok) throw new Error(r1?.msg || r1?.code || '上班補卡失敗');
+                const r2 = await callApifetch({
+                    action: 'adjustPunchAsAdmin', targetUserId, type: '下班',
+                    datetime: outDateTime.toISOString(), note,
+                });
+                if (!r2 || !r2.ok) throw new Error(r2?.msg || r2?.code || '下班補卡失敗');
+                showNotification('代員工補卡成功（上下班共 2 筆）', 'success');
+            } else {
+                const ts = isIn ? new Date(`${dateKey}T${inTime}:00`) : new Date(`${dateKey}T${outTime}:00`);
+                const r = await callApifetch({
+                    action: 'adjustPunchAsAdmin', targetUserId,
+                    type: isIn ? '上班' : '下班',
+                    datetime: ts.toISOString(), note,
+                });
+                if (!r || !r.ok) throw new Error(r?.msg || r?.code || (isIn ? '上班補卡失敗' : '下班補卡失敗'));
+                showNotification(`代員工補卡成功（${isIn ? '上班' : '下班'}一筆）`, 'success');
+            }
 
-            showNotification('代員工補卡成功（上下班共 2 筆）', 'success');
             close();
             // 清快取重 render
             if (adminCurrentDate) {
@@ -603,7 +669,7 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
             console.error('admin makeup 失敗:', err);
             showNotification(err.message || '補卡失敗', 'error');
             submitBtn.disabled = false;
-            submitBtn.textContent = '送出（上下班各一筆）';
+            renderModal(); // 還原按鈕
         }
     });
 }

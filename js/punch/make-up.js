@@ -57,6 +57,97 @@ function validateAdjustTime(value) {
 // 2026-05-14：月曆獨立補卡 Modal helpers
 // ===================================
 
+/**
+ * 渲染補卡表單 HTML（mode = 'in' | 'out' | 'full'）
+ *
+ * @param {HTMLElement} container 目標容器
+ * @param {string} date 'YYYY-MM-DD'
+ * @param {string} mode 'in' | 'out' | 'full'
+ * @param {boolean} showModeSelector 是否顯示模式切換按鈕（月曆觸發 true，異常清單觸發 false）
+ */
+function _renderMakeupFormHtml(container, date, mode, showModeSelector) {
+    const tt = (k, fallback) => (typeof t === 'function' ? (t(k) || fallback) : fallback);
+    const isIn = mode === 'in';
+    const isOut = mode === 'out';
+    const isFull = mode === 'full';
+
+    let formTitle, buttonsHtml, inputsHtml;
+
+    if (isFull) {
+        formTitle = tt('STATUS_BOTH_MISSING', '本日未打卡');
+        inputsHtml = `
+            <div class="form-group mb-3">
+                <label for="adjustInTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${tt('LABEL_PUNCH_IN_TIME', '上班時間：')}</label>
+                <input id="adjustInTime" type="datetime-local"
+                    class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div class="form-group mb-3">
+                <label for="adjustOutTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${tt('LABEL_PUNCH_OUT_TIME', '下班時間：')}</label>
+                <input id="adjustOutTime" type="datetime-local"
+                    class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500">
+            </div>`;
+        buttonsHtml = `<button data-type="full" data-i18n="BTN_ADJUST_FULL"
+                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                            ${tt('BTN_ADJUST_FULL', '補全日打卡')}
+                        </button>`;
+    } else {
+        formTitle = isIn ? tt('STATUS_PUNCH_IN_MISSING', '未打上班卡') : tt('STATUS_PUNCH_OUT_MISSING', '未打下班卡');
+        inputsHtml = `
+            <div class="form-group mb-3">
+                <label for="adjustDateTime" data-i18n="SELECT_DATETIME_LABEL" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${tt('SELECT_DATETIME_LABEL', '選擇日期與時間：')}</label>
+                <input id="adjustDateTime" type="datetime-local"
+                    class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500">
+            </div>`;
+        if (isIn) {
+            buttonsHtml = `<button data-type="in" data-i18n="BTN_ADJUST_IN"
+                                    class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                                ${tt('BTN_ADJUST_IN', '補全上班打卡')}
+                            </button>`;
+        } else {
+            buttonsHtml = `<button data-type="out" data-i18n="BTN_ADJUST_OUT"
+                                    class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
+                                ${tt('BTN_ADJUST_OUT', '補全下班打卡')}
+                            </button>`;
+        }
+    }
+
+    // Mode selector（3 個 segmented button）
+    const activeCls = 'bg-indigo-600 text-white';
+    const inactiveCls = 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600';
+    const selectorHtml = showModeSelector ? `
+        <div class="grid grid-cols-3 gap-1 mb-3 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <button type="button" class="makeup-mode-btn px-2 py-1 rounded text-sm font-medium transition ${isIn ? activeCls : inactiveCls}"
+                    data-mode="in" data-date="${date}" data-i18n="MAKEUP_MODE_IN_ONLY">${tt('MAKEUP_MODE_IN_ONLY', '只補上班')}</button>
+            <button type="button" class="makeup-mode-btn px-2 py-1 rounded text-sm font-medium transition ${isOut ? activeCls : inactiveCls}"
+                    data-mode="out" data-date="${date}" data-i18n="MAKEUP_MODE_OUT_ONLY">${tt('MAKEUP_MODE_OUT_ONLY', '只補下班')}</button>
+            <button type="button" class="makeup-mode-btn px-2 py-1 rounded text-sm font-medium transition ${isFull ? activeCls : inactiveCls}"
+                    data-mode="full" data-date="${date}" data-i18n="MAKEUP_MODE_FULL">${tt('MAKEUP_MODE_FULL', '補全日')}</button>
+        </div>` : '';
+
+    const formHtml = `
+        <div class="p-4 ${showModeSelector ? '' : 'border-t border-gray-200'} fade-in ">
+            ${selectorHtml}
+            <p class="font-semibold mb-2">${formTitle}：<span class="text-indigo-600">${date}</span></p>
+            <div id="timeInputsContainer">${inputsHtml}</div>
+            <div class="grid grid-cols-1 sm:grid-cols-1 gap-2">${buttonsHtml}</div>
+        </div>`;
+
+    container.innerHTML = DOMPurify.sanitize(formHtml);
+    if (typeof renderTranslations === 'function') renderTranslations(container);
+
+    // 設置默認時間值
+    if (isFull) {
+        const inEl = container.querySelector('#adjustInTime');
+        const outEl = container.querySelector('#adjustOutTime');
+        if (inEl) inEl.value = `${date}T08:00`;
+        if (outEl) outEl.value = `${date}T18:00`;
+    } else {
+        const defaultTime = isIn ? '08:00' : '18:00';
+        const el = container.querySelector('#adjustDateTime');
+        if (el) el.value = `${date}T${defaultTime}`;
+    }
+}
+
 /** 開啟月曆補卡 modal 並回傳 modal 內表單容器 */
 function _openMakeupModal() {
     const modal = document.getElementById('makeup-modal');
@@ -105,6 +196,17 @@ function bindPunchEvents() {
             // 排除 admin 代補卡（由 admin.js 自己 handler）
             if (e.target.classList.contains('adjust-btn-as-admin')) return;
 
+            // 月曆 modal 內 mode 切換按鈕（上班 / 下班 / 全日）
+            if (e.target.classList.contains('makeup-mode-btn')) {
+                const newMode = e.target.dataset.mode;
+                const date = e.target.dataset.date;
+                const container = document.getElementById('makeup-modal-form-container');
+                if (container && newMode && date) {
+                    _renderMakeupFormHtml(container, date, newMode, /* showModeSelector */ true);
+                }
+                return;
+            }
+
             if (e.target.classList.contains('adjust-btn')) {
                 // 補打卡按鈕處理邏輯
                 const date = e.target.dataset.date;
@@ -117,102 +219,17 @@ function bindPunchEvents() {
                 const targetContainer = isFromCalendar ? _openMakeupModal() : adjustmentFormContainer;
                 if (!targetContainer) return;
 
-                // 判斷異常類型
-                const isBothMissing = reason === "STATUS_BOTH_MISSING";
-                const hasPunchInMissing = reason === "STATUS_PUNCH_IN_MISSING";
-                const hasPunchOutMissing = reason === "STATUS_PUNCH_OUT_MISSING";
+                // 預設 mode：
+                //   - STATUS_PUNCH_IN_MISSING → 'in'
+                //   - STATUS_PUNCH_OUT_MISSING → 'out'
+                //   - 其他（含月曆預設 STATUS_BOTH_MISSING）→ 'full'
+                let initialMode = 'full';
+                if (reason === 'STATUS_PUNCH_IN_MISSING') initialMode = 'in';
+                else if (reason === 'STATUS_PUNCH_OUT_MISSING') initialMode = 'out';
 
-                // 決定按鈕顯示邏輯
-                let formTitle = "補打卡";
-                let buttonsHtml = "";
-                let defaultTime = "09:00";
-                let isFullDayForm = false;
-
-                if (isBothMissing) {
-                    // 本日未打卡：UI 同時顯示上下班輸入框，使用單一按鈕一次補兩筆
-                    // （避免舊版兩個按鈕在 isBothTimeInputs 分支下永遠送 inDateTime 的 bug）
-                    formTitle = "本日未打卡";
-                    buttonsHtml = `
-                        <button data-type="full" data-i18n="BTN_ADJUST_FULL"
-                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
-                            補全日打卡
-                        </button>`;
-                    defaultTime = "08:00"; // 上班卡預設早上8點
-                } else if (hasPunchInMissing) {
-                    // 只缺上班卡：顯示補上班卡按鈕
-                    buttonsHtml = `
-                        <button data-type="in" data-i18n="BTN_ADJUST_IN"
-                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
-                            補全上班打卡
-                        </button>`;
-                    defaultTime = "08:00"; // 上班卡預設早上8點
-                } else if (hasPunchOutMissing) {
-                    // 只缺下班卡：顯示補下班卡按鈕
-                    buttonsHtml = `
-                        <button data-type="out" data-i18n="BTN_ADJUST_OUT"
-                                class="submit-adjust-btn w-full py-2 px-4 rounded-lg font-bold btn-secondary">
-                            補全下班打卡
-                        </button>`;
-                    defaultTime = "18:00"; // 下班卡預設下午6點
-                }
-
-                const formHtml = `
-                    <div class="p-4 border-t border-gray-200 fade-in ">
-                        <p class="font-semibold mb-2">${formTitle}：<span class="text-indigo-600">${date}</span></p>
-                        <div id="timeInputsContainer">
-                            ${isBothMissing ? `
-                                <div class="form-group mb-3">
-                                    <label for="adjustInTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">上班時間：</label>
-                                    <input id="adjustInTime"
-                                        type="datetime-local"
-                                        class="w-full p-2
-                                                border border-gray-300 dark:border-gray-600
-                                                rounded-md shadow-sm
-                                                dark:bg-gray-700 dark:text-white
-                                                focus:ring-indigo-500 focus:border-indigo-500">
-                                </div>
-                                <div class="form-group mb-3">
-                                    <label for="adjustOutTime" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">下班時間：</label>
-                                    <input id="adjustOutTime"
-                                        type="datetime-local"
-                                        class="w-full p-2
-                                                border border-gray-300 dark:border-gray-600
-                                                rounded-md shadow-sm
-                                                dark:bg-gray-700 dark:text-white
-                                                focus:ring-indigo-500 focus:border-indigo-500">
-                                </div>
-                            ` : `
-                                <div class="form-group mb-3">
-                                    <label for="adjustDateTime" data-i18n="SELECT_DATETIME_LABEL" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">選擇日期與時間：</label>
-                                    <input id="adjustDateTime"
-                                        type="datetime-local"
-                                        class="w-full p-2
-                                                border border-gray-300 dark:border-gray-600
-                                                rounded-md shadow-sm
-                                                dark:bg-gray-700 dark:text-white
-                                                focus:ring-indigo-500 focus:border-indigo-500">
-                                </div>
-                            `}
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-1 gap-2">
-                            ${buttonsHtml}
-                        </div>
-                    </div>
-                `;
-                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-                targetContainer.innerHTML = DOMPurify.sanitize(formHtml);
-                renderTranslations(targetContainer); // 來自 core.js
-
-                // 設置默認時間值
-                if (isBothMissing) {
-                    document.getElementById("adjustInTime").value = `${date}T08:00`;
-                    document.getElementById("adjustOutTime").value = `${date}T18:00`;
-                } else {
-                    const adjustDateTimeInput = document.getElementById("adjustDateTime");
-                    if (adjustDateTimeInput) {
-                        adjustDateTimeInput.value = `${date}T${defaultTime}`;
-                    }
-                }
+                // 月曆觸發的補卡才顯示 mode selector（讓使用者切換 上/下/全日）
+                // 異常清單觸發的不顯示（reason 由系統判定，使用者不該切換）
+                _renderMakeupFormHtml(targetContainer, date, initialMode, isFromCalendar);
             } else if (e.target.classList.contains('leave-btn')) {
                 // 請假按鈕處理邏輯
                 const date = e.target.dataset.date;
