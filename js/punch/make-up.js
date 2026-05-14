@@ -75,6 +75,21 @@ function bindPunchEvents() {
                 const date = e.target.dataset.date;
                 const reason = e.target.dataset.reason;
 
+                // 2026-05-14：若按鈕來自月曆（class makeup-from-calendar-btn），
+                // adjustmentFormContainer 是在 dashboard-view 內，月曆 tab 看不到。
+                // 自動切回 dashboard tab 並滾到表單，讓使用者看得到 UI。
+                if (e.target.classList.contains('makeup-from-calendar-btn')) {
+                    if (typeof switchTab === 'function') {
+                        switchTab('dashboard-view');
+                    }
+                    // 等 tab 顯示後再滾到表單位置
+                    setTimeout(() => {
+                        if (adjustmentFormContainer && typeof adjustmentFormContainer.scrollIntoView === 'function') {
+                            adjustmentFormContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 100);
+                }
+
                 // 判斷異常類型
                 const isBothMissing = reason === "STATUS_BOTH_MISSING";
                 const hasPunchInMissing = reason === "STATUS_PUNCH_IN_MISSING";
