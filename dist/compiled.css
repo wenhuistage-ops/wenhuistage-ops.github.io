@@ -2261,6 +2261,31 @@ html.dark .day-cell:hover {
 html.dark .leaflet-layer, html.dark .leaflet-control-zoom-in, html.dark .leaflet-control-zoom-out, html.dark .leaflet-control-attribution {
   filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
+#floating-line-btn, .floating-line-btn {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9999;
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  background-color: #00B900;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+  border: none;
+  cursor: pointer;
+  font-size: 22px;
+  transition: transform .08s ease;
+}
+#floating-line-btn:active {
+  transform: translateY(1px);
+}
+#floating-line-btn.hidden {
+  display: none !important;
+}
 .makeup-modal-overlay {
   position: fixed;
   inset: 0;
