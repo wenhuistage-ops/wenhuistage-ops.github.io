@@ -1,25 +1,25 @@
 /**
- * deleteAttendance — 刪除單筆 attendance（admin 專用，目前只允許刪虛擬卡）
+ * deleteAttendance — 管理員刪除單筆 attendance（任何類型）
  *
- * 對應前端：admin 後台月曆「點某天 → 詳情卡」上的「刪除虛擬卡」按鈕
+ * 對應前端：admin 後台月曆「點某天 → 詳情卡」上每筆 record 的「刪除」按鈕
+ *   （含虛擬卡 / 員工補卡 / Admin 代補卡 / 請假記錄 / 一般打卡）
  *
- * 白名單保護：只允許刪除 adjustmentType='系統虛擬卡' 的紀錄
- *   - 防止 admin 誤刪正常打卡 / 補卡 / 請假紀錄
- *   - 若日後需擴大用途，請新增 confirm 機制或細分 endpoint
+ * 2026-05-15：取消原本「只允許刪虛擬卡」白名單。
+ *   - admin 全權，前端 UI 端 confirm 即可
+ *   - 記 deletedByAdmin / deletedAt log（雖然 doc 被 delete，仍可在 Cloud Logging 找回）
  *
  * 流程：
  *   1. 驗 admin session
- *   2. 讀目標 doc，驗證 adjustmentType
- *   3. 記下 userId + timestamp（用於後續聚合重算）
- *   4. ref.delete()
- *   5. 呼叫 applyEventToMonthly 同步該日聚合（虛擬卡刪除 → 該日 reason 退回 *_MISSING）
+ *   2. 讀目標 doc，記下 userId + timestamp（用於後續聚合重算）
+ *   3. ref.delete()
+ *   4. 呼叫 applyEventToMonthly 同步該日聚合
  *
  * 前端呼叫格式：
  *   callApifetch({ action: 'deleteAttendance', id: '<docId>' })
  *
  * 回傳：
- *   成功：{ ok: true, code: "DELETE_VIRTUAL_PUNCH_SUCCESS" }
- *   失敗：{ ok: false, code: 'ERR_NO_PERMISSION' | 'ERR_NOT_FOUND' | 'ERR_NOT_VIRTUAL_PUNCH' }
+ *   成功：{ ok: true, code: "DELETE_ATTENDANCE_SUCCESS" }
+ *   失敗：{ ok: false, code: 'ERR_NO_PERMISSION' | 'ERR_NOT_FOUND' }
  */
 
 "use strict";
@@ -45,15 +45,7 @@ module.exports = onCall(
     }
     const data = snap.data();
 
-    // 白名單：只允許刪除「系統虛擬卡」
-    if (data.adjustmentType !== "系統虛擬卡") {
-      return {
-        ok: false,
-        code: "ERR_NOT_VIRTUAL_PUNCH",
-        msg: "只能刪除系統虛擬卡（adjustmentType='系統虛擬卡'），其他紀錄不允許刪除",
-      };
-    }
-
+    // 2026-05-15：admin 全權刪除（取消「只允許虛擬卡」白名單）
     const userId = data.userId;
     const punchDate = data.timestamp?.toDate?.() || data.timestamp;
 
@@ -73,12 +65,12 @@ module.exports = onCall(
 
     console.log(
       `[admin-action] deleteAttendance docId=${id} user=${userId?.slice(0, 8)} ` +
-        `type=${data.type} by=${auth.user?.userId}`
+        `type=${data.type} adjType=${data.adjustmentType || ""} by=${auth.user?.userId}`
     );
 
     return {
       ok: true,
-      code: "DELETE_VIRTUAL_PUNCH_SUCCESS",
+      code: "DELETE_ATTENDANCE_SUCCESS",
       deletedId: id,
       affectedUserId: userId,
     };

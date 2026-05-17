@@ -317,29 +317,50 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         ? (typeof t === 'function' ? t('LOCATION_VIRTUAL_PUNCH') : r.location)
                         : r.location;
 
-                    // 2026-05-14：虛擬卡（adjustmentType='系統虛擬卡'）顯示「刪除」按鈕
-                    // 若聚合 doc 較舊（沒帶 r.id），按鈕無法掛 docId，提示重建聚合
-                    const isVirtual = r.adjustmentType === '系統虛擬卡';
-                    let deleteBtnHtml = '';
-                    if (isVirtual) {
-                        if (r.id) {
-                            deleteBtnHtml = `
+                    // 2026-05-15：admin 全權 CRUD — 每筆 record 都顯示「編輯 / 刪除」按鈕
+                    //   不分 adjustmentType（虛擬卡 / 補卡 / 一般打卡 / 請假 都可改可刪）
+                    // 若聚合 doc 較舊（沒帶 r.id），按鈕無法掛 docId，顯示提示
+                    let actionBtnsHtml = '';
+                    if (r.id) {
+                        const safeId = String(r.id).replace(/[^a-zA-Z0-9_-]/g, '');
+                        const safeType = (r.type || '').replace(/[<>"&]/g, '');
+                        const safeNote = (r.note || '').replace(/"/g, '&quot;');
+                        const safeAudit = r.audit || '';
+                        const safeLocation = (r.location || '').replace(/"/g, '&quot;');
+                        actionBtnsHtml = `
+                            <div class="mt-2 flex gap-2">
                                 <button type="button"
-                                        class="delete-virtual-btn mt-2 px-3 py-1 text-xs font-medium
+                                        class="admin-edit-record-btn px-3 py-1 text-xs font-medium
+                                               text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30
+                                               hover:bg-indigo-100 dark:hover:bg-indigo-900/50
+                                               border border-indigo-300 dark:border-indigo-700 rounded transition"
+                                        data-doc-id="${safeId}"
+                                        data-record-type="${safeType}"
+                                        data-record-time="${r.time || ''}"
+                                        data-record-date="${dateKey}"
+                                        data-record-note="${safeNote}"
+                                        data-record-audit="${safeAudit}"
+                                        data-record-location="${safeLocation}"
+                                        data-i18n="BTN_EDIT">
+                                    <i class="fas fa-pen mr-1"></i>編輯
+                                </button>
+                                <button type="button"
+                                        class="admin-delete-record-btn px-3 py-1 text-xs font-medium
                                                text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30
                                                hover:bg-rose-100 dark:hover:bg-rose-900/50
                                                border border-rose-300 dark:border-rose-700 rounded transition"
-                                        data-doc-id="${r.id}"
-                                        data-i18n="BTN_DELETE_VIRTUAL_PUNCH">
-                                    <i class="fas fa-trash-alt mr-1"></i>刪除虛擬卡
-                                </button>`;
-                        } else {
-                            deleteBtnHtml = `
-                                <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                                    <i class="fas fa-exclamation-triangle mr-1"></i>
-                                    舊版聚合資料無 doc id，請刷新本月後再操作
-                                </p>`;
-                        }
+                                        data-doc-id="${safeId}"
+                                        data-adjustment-type="${(r.adjustmentType || '').replace(/"/g, '&quot;')}"
+                                        data-i18n="BTN_DELETE">
+                                    <i class="fas fa-trash-alt mr-1"></i>刪除
+                                </button>
+                            </div>`;
+                    } else {
+                        actionBtnsHtml = `
+                            <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                舊版聚合資料無 doc id，請刷新本月後再操作
+                            </p>`;
                     }
 
                     // 產生單一打卡記錄的 HTML
@@ -348,7 +369,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${locationDisplay}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
-                        ${deleteBtnHtml}
+                        ${actionBtnsHtml}
                     `;
                     li.innerHTML = DOMPurify.sanitize(recordHtml);
 
@@ -440,13 +461,15 @@ function _initAdminAttendanceActions() {
     window._adminAttendanceActionsBound = true;
 
     document.addEventListener('click', async (e) => {
-        // 刪除虛擬卡
-        if (e.target.closest('.delete-virtual-btn')) {
-            const btn = e.target.closest('.delete-virtual-btn');
+        // 2026-05-15：admin 通用刪除（任意 attendance 類型）
+        if (e.target.closest('.admin-delete-record-btn')) {
+            const btn = e.target.closest('.admin-delete-record-btn');
             const docId = btn.dataset.docId;
+            const adjType = btn.dataset.adjustmentType || '';
             if (!docId) return;
-            const confirmMsg = (typeof t === 'function' && t('MSG_DELETE_VIRTUAL_CONFIRM'))
-                || '確定要刪除此筆系統虛擬補卡？';
+            const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+            const confirmMsg = tt('MSG_ADMIN_DELETE_CONFIRM', '確定要刪除這筆紀錄？此操作無法復原。') +
+                (adjType ? `\n\n類型：${adjType}` : '');
             const ok = typeof showConfirmDialog === 'function'
                 ? await showConfirmDialog(confirmMsg)
                 : window.confirm(confirmMsg);
@@ -455,29 +478,32 @@ function _initAdminAttendanceActions() {
             try {
                 const res = await callApifetch({ action: 'deleteAttendance', id: docId });
                 if (res && res.ok) {
-                    const successMsg = (typeof t === 'function' && t('MSG_DELETE_VIRTUAL_SUCCESS'))
-                        || '虛擬卡已刪除';
-                    showNotification(successMsg, 'success');
-                    // 清月度 cache 後重 render 該員工該月
-                    if (adminSelectedUserId && adminCurrentDate) {
-                        const monthKey = `${adminCurrentDate.getFullYear()}-${String(adminCurrentDate.getMonth() + 1).padStart(2, '0')}`;
-                        if (typeof adminMonthDataCache !== 'undefined') {
-                            delete adminMonthDataCache[`${monthKey}-${adminSelectedUserId}`];
-                        }
-                        if (typeof cacheManager !== 'undefined') {
-                            cacheManager.invalidate('month');
-                        }
-                        renderAdminCalendar(adminSelectedUserId, adminCurrentDate).catch(console.error);
-                    }
+                    showNotification(tt('MSG_ADMIN_DELETE_SUCCESS', '紀錄已刪除'), 'success');
+                    _refreshAdminAfterMutation();
                 } else {
-                    showNotification((res && res.msg) || '刪除失敗', 'error');
+                    showNotification((res && res.msg) || tt('MSG_ADMIN_DELETE_FAILED', '刪除失敗'), 'error');
                     btn.disabled = false;
                 }
             } catch (err) {
-                console.error('delete virtual punch 失敗:', err);
-                showNotification(t('NETWORK_ERROR') || '網路錯誤', 'error');
+                console.error('admin delete record 失敗:', err);
+                showNotification(tt('NETWORK_ERROR', '網路錯誤'), 'error');
                 btn.disabled = false;
             }
+            return;
+        }
+
+        // 2026-05-15：admin 通用編輯（任意 attendance 類型）
+        if (e.target.closest('.admin-edit-record-btn')) {
+            const btn = e.target.closest('.admin-edit-record-btn');
+            _openAdminEditModal({
+                id: btn.dataset.docId,
+                type: btn.dataset.recordType || '',
+                time: btn.dataset.recordTime || '',
+                date: btn.dataset.recordDate || '',
+                note: btn.dataset.recordNote || '',
+                audit: btn.dataset.recordAudit || '',
+                locationName: btn.dataset.recordLocation || '',
+            });
             return;
         }
 
@@ -488,6 +514,171 @@ function _initAdminAttendanceActions() {
             const targetUserId = btn.dataset.targetUserId;
             if (!date || !targetUserId) return;
             _openAdminMakeupModal(date, targetUserId);
+        }
+    });
+}
+
+/**
+ * mutation 後重 render：清快取 + renderAdminCalendar
+ */
+function _refreshAdminAfterMutation() {
+    if (adminSelectedUserId && adminCurrentDate) {
+        const monthKey = `${adminCurrentDate.getFullYear()}-${String(adminCurrentDate.getMonth() + 1).padStart(2, '0')}`;
+        if (typeof adminMonthDataCache !== 'undefined') {
+            delete adminMonthDataCache[`${monthKey}-${adminSelectedUserId}`];
+        }
+        if (typeof cacheManager !== 'undefined') {
+            cacheManager.invalidate('month');
+        }
+        renderAdminCalendar(adminSelectedUserId, adminCurrentDate).catch(console.error);
+    }
+}
+
+/**
+ * Admin 編輯任意 attendance modal
+ * @param {object} rec { id, type, time ('HH:mm'), date ('YYYY-MM-DD'), note, audit, locationName }
+ */
+function _openAdminEditModal(rec) {
+    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    const modalId = 'admin-edit-record-modal';
+    let modal = document.getElementById(modalId);
+    if (modal) modal.remove();
+
+    // 組裝 datetime-local 預填值
+    const datetimeVal = (rec.date && rec.time) ? `${rec.date}T${rec.time}` : '';
+
+    modal = document.createElement('div');
+    modal.id = modalId;
+    modal.className = 'fixed inset-0 z-[1200] flex items-center justify-center bg-black/50 p-4';
+
+    const selOpt = (val, label, current) =>
+        `<option value="${val}" ${val === current ? 'selected' : ''}>${label}</option>`;
+
+    modal.innerHTML = DOMPurify.sanitize(`
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-full max-w-md shadow-2xl">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">
+                    <i class="fas fa-pen mr-2 text-indigo-600"></i>${tt('ADMIN_EDIT_TITLE', '編輯打卡紀錄')}
+                </h3>
+                <button id="admin-edit-close" class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ${tt('LABEL_TYPE', '類型')}
+                    </label>
+                    <select id="admin-edit-type" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                        ${selOpt('', tt('ADMIN_EDIT_KEEP_TYPE', '不變更'), '')}
+                        ${selOpt('上班', tt('PUNCH_IN', '上班'), rec.type)}
+                        ${selOpt('下班', tt('PUNCH_OUT', '下班'), rec.type)}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ${tt('LABEL_DATETIME', '日期與時間')}
+                    </label>
+                    <input type="datetime-local" id="admin-edit-datetime"
+                           value="${datetimeVal}"
+                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ${tt('LABEL_LOCATION', '地點')}
+                    </label>
+                    <input type="text" id="admin-edit-location"
+                           value="${(rec.locationName || '').replace(/"/g, '&quot;')}"
+                           placeholder="${tt('ADMIN_EDIT_LOCATION_PLACEHOLDER', '地點名稱（可空白）')}"
+                           class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ${tt('LABEL_AUDIT', '審核狀態')}
+                    </label>
+                    <select id="admin-edit-audit" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                        ${selOpt('', tt('ADMIN_EDIT_KEEP_AUDIT', '不變更'), '')}
+                        ${selOpt('?', tt('STATUS_PENDING', '待審核'), rec.audit)}
+                        ${selOpt('v', tt('STATUS_APPROVED', '已核准'), rec.audit)}
+                        ${selOpt('x', tt('STATUS_REJECTED', '已退回'), rec.audit)}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ${tt('NOTE_LABEL', '備註')}
+                    </label>
+                    <textarea id="admin-edit-note" rows="2"
+                              class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">${(rec.note || '').replace(/</g, '&lt;')}</textarea>
+                </div>
+            </div>
+
+            <div class="mt-4 flex gap-2">
+                <button id="admin-edit-submit"
+                        class="flex-1 py-2 px-4 rounded-lg font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition">
+                    ${tt('BTN_SAVE', '儲存')}
+                </button>
+                <button id="admin-edit-cancel"
+                        class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    ${tt('BTN_CANCEL', '取消')}
+                </button>
+            </div>
+        </div>
+    `);
+
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.getElementById('admin-edit-close').addEventListener('click', close);
+    document.getElementById('admin-edit-cancel').addEventListener('click', close);
+
+    document.getElementById('admin-edit-submit').addEventListener('click', async () => {
+        const submitBtn = document.getElementById('admin-edit-submit');
+        const tt2 = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+
+        const newType = document.getElementById('admin-edit-type').value;
+        const newDatetime = document.getElementById('admin-edit-datetime').value;
+        const newLocation = document.getElementById('admin-edit-location').value;
+        const newAudit = document.getElementById('admin-edit-audit').value;
+        const newNote = document.getElementById('admin-edit-note').value;
+
+        const payload = { action: 'updateAttendanceAsAdmin', id: rec.id };
+        // 只送有變更的欄位（empty 表示「不變更」）
+        if (newType) payload.type = newType;
+        if (newDatetime) {
+            const d = new Date(newDatetime);
+            if (isNaN(d.getTime())) {
+                showNotification(tt2('ERR_INVALID_DATETIME', '時間格式錯誤'), 'error');
+                return;
+            }
+            payload.timestamp = d.toISOString();
+        }
+        // locationName 與 note 是字串型 always-send（用戶可清空）
+        payload.locationName = newLocation;
+        payload.note = newNote;
+        if (newAudit) payload.audit = newAudit;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = tt2('LOADING', '處理中...');
+        try {
+            const res = await callApifetch(payload);
+            if (!res || !res.ok) {
+                showNotification(tt2(res?.code || 'UNKNOWN_ERROR', res?.msg || '修改失敗'), 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = tt2('BTN_SAVE', '儲存');
+                return;
+            }
+            showNotification(tt2('UPDATE_ATTENDANCE_SUCCESS', '紀錄已更新'), 'success');
+            close();
+            _refreshAdminAfterMutation();
+        } catch (err) {
+            console.error('admin edit 失敗:', err);
+            showNotification(tt2('NETWORK_ERROR', '網路錯誤'), 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = tt2('BTN_SAVE', '儲存');
         }
     });
 }
