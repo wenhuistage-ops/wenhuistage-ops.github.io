@@ -227,6 +227,9 @@ function summarizeByDay(records) {
       note: r.note || "",
       audit: r.audit || "",
       adjustmentType: r.adjustmentType || "",
+      // 2026-05-15：admin 代員工補卡會寫 createdByAdmin = adminUserId
+      // 帶出來讓前端 badge 區分「員工補卡」vs「Admin 代補」
+      createdByAdmin: r.createdByAdmin || "",
     };
 
     // 去重：同一天若已有 type + time + location 相同的記錄就跳過

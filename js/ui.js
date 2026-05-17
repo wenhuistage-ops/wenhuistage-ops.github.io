@@ -637,10 +637,14 @@ async function renderDailyRecords(dateKey) {
                             ? (typeof t === 'function' ? t('LOCATION_VIRTUAL_PUNCH') : r.location)
                             : r.location;
 
+                        // 2026-05-15：來源類型 badge（員工端也顯示，方便員工識別 admin 代補等）
+                        const sourceBadge = (typeof recordSourceBadgeHtml === 'function')
+                            ? recordSourceBadgeHtml(r) : '';
+
                         // 產生單一打卡記錄的 HTML
                         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                         const punchHtml = `
-                        <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}</p>
+                        <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}${sourceBadge}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">${locationDisplay}</p>
                         <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
                     `;
@@ -690,6 +694,52 @@ async function renderDailyRecords(dateKey) {
 
         dailyRecordsCard.style.display = 'block';
     }
+}
+
+/**
+ * 2026-05-15：依 record 屬性產生「來源類型 badge」HTML
+ *
+ * 五種來源（依優先順序判斷）：
+ *   1. adjustmentType === '系統虛擬卡' → 紫色「虛擬卡」
+ *   2. adjustmentType === '系統請假記錄' → 橘色「請假」
+ *   3. adjustmentType === '補打卡' + createdByAdmin 不為空 → 琥珀色「Admin 代補」
+ *      （fallback：note 開頭含 '[Admin '）
+ *   4. adjustmentType === '補打卡' → 靛色「員工補卡」
+ *   5. 其他（adjustmentType === ''） → 灰色「正常打卡」
+ *
+ * @param {object} r record 物件（含 adjustmentType / createdByAdmin / note）
+ * @returns {string} <span class="..."> 之 HTML 片段
+ */
+function recordSourceBadgeHtml(r) {
+    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    const adjType = r?.adjustmentType || '';
+    const createdByAdmin = r?.createdByAdmin || '';
+    const note = r?.note || '';
+    // fallback：note 開頭含 '[Admin ' 或 '[由 admin '（舊版 suffix tag 也接住）
+    const isAdminMakeup = !!createdByAdmin || /^\[Admin\s/.test(note) || /\[由 admin/.test(note);
+
+    let label, classes;
+    if (adjType === '系統虛擬卡') {
+        label = tt('BADGE_SOURCE_VIRTUAL', '虛擬卡');
+        classes = 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200';
+    } else if (adjType === '系統請假記錄') {
+        label = tt('BADGE_SOURCE_LEAVE', '請假');
+        classes = 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-200';
+    } else if (adjType === '補打卡' && isAdminMakeup) {
+        label = tt('BADGE_SOURCE_ADMIN_MAKEUP', 'Admin 代補');
+        classes = 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200';
+    } else if (adjType === '補打卡') {
+        label = tt('BADGE_SOURCE_EMPLOYEE_MAKEUP', '員工補卡');
+        classes = 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-200';
+    } else {
+        label = tt('BADGE_SOURCE_NORMAL', '正常打卡');
+        classes = 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200';
+    }
+    return `<span class="px-2 py-0.5 ml-2 text-xs font-medium rounded-full ${classes}">${label}</span>`;
+}
+
+if (typeof window !== 'undefined') {
+    window.recordSourceBadgeHtml = recordSourceBadgeHtml;
 }
 
 /**
