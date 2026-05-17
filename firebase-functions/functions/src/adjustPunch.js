@@ -35,6 +35,10 @@ module.exports = onCall(
     }
 
     const applicationTime = new Date();
+    // 2026-05-15：在 note 加 [員工補卡] prefix，UI / Firestore Console 一眼能識別來源
+    const noteWithTag = note
+      ? `[員工補卡] ${note}`
+      : "[員工補卡]";
     await db.collection(COLLECTIONS.ATTENDANCE).add({
       timestamp: admin.firestore.Timestamp.fromDate(punchDate),
       userId: user.userId,
@@ -45,7 +49,7 @@ module.exports = onCall(
       lng: lng !== undefined ? Number(lng) : null,
       coords: `申請時間: ${applicationTime.toISOString()}`,
       locationName: "", // 補打卡不填地點
-      note: note || "",
+      note: noteWithTag,
       audit: "?", // 待審核
       adjustmentType: "補打卡",
       applicationTime: admin.firestore.Timestamp.fromDate(applicationTime),

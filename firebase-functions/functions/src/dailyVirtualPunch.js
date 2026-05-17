@@ -36,10 +36,11 @@ const { applyEventToMonthly } = require("./_attendance");
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 // 2026-05-14：改為「預設核准」，admin 可刪除誤判
+// 2026-05-15：加 [系統虛擬卡] prefix tag，與其他補卡來源（員工/Admin）一致
 const VIRTUAL_NOTE_OUT =
-  "系統自動新增虛擬下班卡（跨日前下班，預設核准，admin 可刪除誤判）";
+  "[系統虛擬卡] 系統自動新增虛擬下班卡（跨日前下班，預設核准，admin 可刪除誤判）";
 const VIRTUAL_NOTE_IN =
-  "系統自動新增虛擬上班卡（跨日後上班，預設核准，admin 可刪除誤判）";
+  "[系統虛擬卡] 系統自動新增虛擬上班卡（跨日後上班，預設核准，admin 可刪除誤判）";
 const VIRTUAL_TAG = "系統虛擬卡";
 
 /**

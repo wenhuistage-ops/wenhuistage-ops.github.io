@@ -73,7 +73,10 @@ module.exports = onCall(
 
     const adminName = auth.user?.name || "(未命名)";
     const adminUserId = auth.user?.userId || "";
-    const noteWithAuditTag = `${note || ""}${note ? " " : ""}[由 admin ${adminName} 代補]`;
+    // 2026-05-15：tag 移到 prefix，與 [員工補卡] / [系統虛擬卡] 一致，方便 UI / Firestore Console 一眼識別來源
+    const noteWithAuditTag = note
+      ? `[Admin ${adminName} 代補] ${note}`
+      : `[Admin ${adminName} 代補]`;
     const applicationTime = new Date();
 
     await db.collection(COLLECTIONS.ATTENDANCE).add({
