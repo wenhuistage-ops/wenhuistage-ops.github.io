@@ -741,8 +741,8 @@ if (typeof window !== 'undefined') {
 
 // UI切換邏輯
 const switchTab = (tabId) => {
-    const tabs = ['dashboard-view', 'monthly-view', 'location-view', 'Form-view', 'admin-view'];
-    const btns = ['tab-dashboard-btn', 'tab-monthly-btn', 'tab-location-btn', 'tab-Form-btn', 'tab-admin-btn'];
+    const tabs = ['dashboard-view', 'monthly-view', 'my-requests-view', 'location-view', 'Form-view', 'admin-view'];
+    const btns = ['tab-dashboard-btn', 'tab-monthly-btn', 'tab-my-requests-btn', 'tab-location-btn', 'tab-Form-btn', 'tab-admin-btn'];
 
     // 1. 移除舊的 active 類別和 CSS 屬性
     tabs.forEach(id => {
@@ -786,6 +786,11 @@ const switchTab = (tabId) => {
         }
     } else if (tabId === 'admin-view') {
         fetchAndRenderReviewRequests();
+    } else if (tabId === 'my-requests-view') {
+        // 2026-05-15：切到「我的補卡申請」tab → 觸發載入
+        if (typeof loadMyRequests === 'function') {
+            loadMyRequests({ force: false });
+        }
     }
 };
 

@@ -408,6 +408,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     class="py-2 px-4 rounded-full font-bold text-sm text-white bg-indigo-600">儀表板</button>
                 <button id="tab-monthly-btn" data-i18n="TAB_MONTHLY"
                     class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">月份檢視</button>
+                <button id="tab-my-requests-btn" data-i18n="TAB_MY_REQUESTS"
+                    class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">我的申請</button>
                 <button id="tab-Form-btn" data-i18n="TAB_FORM" style="display: none;"
                     class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">表單申請</button>
                 <button id="tab-location-btn" data-i18n="TAB_LOCATION"
@@ -529,6 +531,50 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                         style="display: none;">
                         該日沒有打卡紀錄。
                     </div>
+                </div>
+            </section>
+
+            <!-- 2026-05-15：我的補卡申請（員工自助管理待審 / 已核 / 已退申請） -->
+            <section id="my-requests-view" class="space-y-6" style="display: none;">
+                <div class="card p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 data-i18n="MY_REQUESTS_TITLE" class="text-xl font-bold text-gray-800 dark:text-white">
+                            我的補卡申請
+                        </h2>
+                        <button id="my-requests-refresh"
+                            class="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+                            ↻
+                        </button>
+                    </div>
+                    <p data-i18n="MY_REQUESTS_DESCRIPTION" class="text-gray-500 dark:text-gray-400 mb-4">
+                        管理你提交的補卡申請。待審核的申請可以修改或刪除，已核准 / 已退回的申請僅供查閱。
+                    </p>
+
+                    <!-- 篩選 chip：待審核 / 已核准 / 已退回 -->
+                    <div id="my-requests-filter" class="flex gap-2 mb-4">
+                        <button data-filter="?"
+                            class="my-req-filter-btn px-3 py-1 rounded-full text-sm font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200 ring-2 ring-amber-500"
+                            data-i18n="MY_REQUESTS_FILTER_PENDING">待審核</button>
+                        <button data-filter="v"
+                            class="my-req-filter-btn px-3 py-1 rounded-full text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                            data-i18n="MY_REQUESTS_FILTER_APPROVED">已核准</button>
+                        <button data-filter="x"
+                            class="my-req-filter-btn px-3 py-1 rounded-full text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                            data-i18n="MY_REQUESTS_FILTER_REJECTED">已退回</button>
+                        <button data-filter="all"
+                            class="my-req-filter-btn px-3 py-1 rounded-full text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                            data-i18n="MY_REQUESTS_FILTER_ALL">全部</button>
+                    </div>
+
+                    <div id="my-requests-loading" data-i18n="MY_REQUESTS_LOADING"
+                        class="text-center text-gray-500 dark:text-gray-400 py-4">
+                        正在載入...
+                    </div>
+                    <div id="my-requests-empty" data-i18n="MY_REQUESTS_EMPTY"
+                        class="text-center text-gray-500 dark:text-gray-400 py-4" style="display: none;">
+                        目前沒有符合條件的補卡申請。
+                    </div>
+                    <ul id="my-requests-list" class="space-y-3"></ul>
                 </div>
             </section>
 
@@ -1361,6 +1407,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script defer src="js/labor-hours.js"></script>
     <script defer src="js/weekly-chart.js"></script>
     <script defer src="js/ui.js"></script>
+    <script defer src="js/my-requests.js"></script>
     <script defer src="js/location.js"></script>
 
     <!-- SheetJS for Excel export (從 CDN 加載) -->

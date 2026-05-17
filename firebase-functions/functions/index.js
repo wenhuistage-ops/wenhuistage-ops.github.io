@@ -22,6 +22,8 @@ exports.punchWithoutLocation = require("./src/punchWithoutLocation");
 exports.adjustPunch = require("./src/adjustPunch");
 exports.adjustPunchAsAdmin = require("./src/adjustPunchAsAdmin"); // admin 代員工補卡
 exports.deleteAttendance = require("./src/deleteAttendance"); // admin 刪除虛擬卡
+exports.updateAdjustRequest = require("./src/updateAdjustRequest"); // 員工修改自己待審的補卡
+exports.deleteAdjustRequest = require("./src/deleteAdjustRequest"); // 員工刪除自己待審的補卡
 
 // ===== 打卡查詢 =====
 exports.getLocations = require("./src/getLocations");

@@ -212,6 +212,12 @@ function bindEvents() {
     tabLocationBtn.addEventListener('click', () => switchTab('location-view'));
     tabMonthlyBtn.addEventListener('click', () => switchTab('monthly-view'));
 
+    // 2026-05-15：我的補卡申請 tab
+    const tabMyRequestsBtn = document.getElementById('tab-my-requests-btn');
+    if (tabMyRequestsBtn) {
+        tabMyRequestsBtn.addEventListener('click', () => switchTab('my-requests-view'));
+    }
+
     tabFormBtn.addEventListener('click', () => switchTab('Form-view'));
 
 
