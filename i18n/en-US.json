@@ -253,6 +253,7 @@
   "MSG_ADMIN_DELETE_FAILED": "Delete failed",
   "UPDATE_ATTENDANCE_SUCCESS": "Record updated",
   "DELETE_ATTENDANCE_SUCCESS": "Record deleted",
+  "ERR_NOT_DELETABLE": "Only adjustment / virtual punches can be deleted. Regular punches and leave records must be edited instead.",
   "MAKEUP_MODE_IN_ONLY": "Punch In only",
   "MAKEUP_MODE_OUT_ONLY": "Punch Out only",
   "MAKEUP_MODE_FULL": "Full day",

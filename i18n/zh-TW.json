@@ -241,6 +241,7 @@
   "MSG_ADMIN_DELETE_FAILED": "刪除失敗",
   "UPDATE_ATTENDANCE_SUCCESS": "紀錄已更新",
   "DELETE_ATTENDANCE_SUCCESS": "紀錄已刪除",
+  "ERR_NOT_DELETABLE": "僅能刪除補打卡或系統虛擬卡。一般打卡 / 請假記錄不可刪除（請改用編輯）",
   "MAKEUP_MODE_IN_ONLY": "只補上班",
   "MAKEUP_MODE_OUT_ONLY": "只補下班",
   "MAKEUP_MODE_FULL": "補全日",

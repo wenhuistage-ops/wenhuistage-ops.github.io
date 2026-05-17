@@ -253,6 +253,7 @@
   "MSG_ADMIN_DELETE_FAILED": "Hapus gagal",
   "UPDATE_ATTENDANCE_SUCCESS": "Catatan diperbarui",
   "DELETE_ATTENDANCE_SUCCESS": "Catatan dihapus",
+  "ERR_NOT_DELETABLE": "Hanya catatan penyesuaian / kartu virtual yang dapat dihapus. Absensi reguler / cuti harus diubah.",
   "MAKEUP_MODE_IN_ONLY": "Hanya Masuk",
   "MAKEUP_MODE_OUT_ONLY": "Hanya Keluar",
   "MAKEUP_MODE_FULL": "Sehari penuh",

@@ -317,9 +317,9 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         ? (typeof t === 'function' ? t('LOCATION_VIRTUAL_PUNCH') : r.location)
                         : r.location;
 
-                    // 2026-05-15：admin 全權 CRUD — 每筆 record 都顯示「編輯 / 刪除」按鈕
-                    //   不分 adjustmentType（虛擬卡 / 補卡 / 一般打卡 / 請假 都可改可刪）
-                    // 若聚合 doc 較舊（沒帶 r.id），按鈕無法掛 docId，顯示提示
+                    // 2026-05-15：admin CRUD — 編輯按鈕對所有 record 顯示，
+                    //   但「刪除」按鈕只對「補打卡 / 系統虛擬卡」顯示
+                    //   （一般打卡 / 請假記錄不可刪，避免破壞 source of truth 或影響員工權益）
                     let actionBtnsHtml = '';
                     if (r.id) {
                         const safeId = String(r.id).replace(/[^a-zA-Z0-9_-]/g, '');
@@ -327,6 +327,21 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         const safeNote = (r.note || '').replace(/"/g, '&quot;');
                         const safeAudit = r.audit || '';
                         const safeLocation = (r.location || '').replace(/"/g, '&quot;');
+                        const adjType = r.adjustmentType || '';
+                        const canDelete = adjType === '補打卡' || adjType === '系統虛擬卡';
+
+                        const deleteBtnHtml = canDelete ? `
+                                <button type="button"
+                                        class="admin-delete-record-btn px-3 py-1 text-xs font-medium
+                                               text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30
+                                               hover:bg-rose-100 dark:hover:bg-rose-900/50
+                                               border border-rose-300 dark:border-rose-700 rounded transition"
+                                        data-doc-id="${safeId}"
+                                        data-adjustment-type="${adjType.replace(/"/g, '&quot;')}"
+                                        data-i18n="BTN_DELETE">
+                                    <i class="fas fa-trash-alt mr-1"></i>刪除
+                                </button>` : '';
+
                         actionBtnsHtml = `
                             <div class="mt-2 flex gap-2">
                                 <button type="button"
@@ -344,16 +359,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                                         data-i18n="BTN_EDIT">
                                     <i class="fas fa-pen mr-1"></i>編輯
                                 </button>
-                                <button type="button"
-                                        class="admin-delete-record-btn px-3 py-1 text-xs font-medium
-                                               text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30
-                                               hover:bg-rose-100 dark:hover:bg-rose-900/50
-                                               border border-rose-300 dark:border-rose-700 rounded transition"
-                                        data-doc-id="${safeId}"
-                                        data-adjustment-type="${(r.adjustmentType || '').replace(/"/g, '&quot;')}"
-                                        data-i18n="BTN_DELETE">
-                                    <i class="fas fa-trash-alt mr-1"></i>刪除
-                                </button>
+                                ${deleteBtnHtml}
                             </div>`;
                     } else {
                         actionBtnsHtml = `
