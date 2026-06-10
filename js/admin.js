@@ -2431,6 +2431,25 @@ function _pairShifts(record) {
 }
 
 /**
+ * 當日「扣休息分鐘」：逐班計算與休息時段的重疊（支援雙班）
+ *
+ * 2026-06-03：雙班 bug 修正 — 舊版用 punchInTime(首上班)→punchOutTime(末下班)
+ * 整段算重疊，休息時段若落在班距空檔內（員工根本不在班）也被算成「扣休息」。
+ * 改為對 _pairShifts 配對出的每個完整班次各算重疊再加總。
+ */
+function _dayBreakMinutes(day, breakTimes) {
+    const completeShifts = _pairShifts(day.record || []).filter((s) => s.complete);
+    if (completeShifts.length > 0) {
+        return completeShifts.reduce(
+            (acc, s) => acc + _overlapBreakMinutes(s.inTime, s.outTime, breakTimes), 0);
+    }
+    // fallback：舊聚合 doc 無 record 時退回整段法
+    return (day.punchInTime && day.punchOutTime)
+        ? _overlapBreakMinutes(day.punchInTime, day.punchOutTime, breakTimes)
+        : 0;
+}
+
+/**
  * 計算「上下班區間 [in, out] 與休息時段」的重疊分鐘加總
  */
 function _overlapBreakMinutes(inTime, outTime, breakTimes) {
@@ -2649,9 +2668,8 @@ async function handleDetailedPayrollExport(userId, year, month) {
         hVal = Math.round(hVal * 100) / 100;
 
         // Q 欄：當日扣休息分鐘數（透明度：讓使用者看到午休/晚休扣了多少）
-        const breakMin = (day.punchInTime && day.punchOutTime)
-            ? _overlapBreakMinutes(day.punchInTime, day.punchOutTime, breakTimes)
-            : 0;
+        // 逐班計算（雙班日休息時段落在班距空檔不誤算）
+        const breakMin = _dayBreakMinutes(day, breakTimes);
 
         personalRows.push([
             kindMark, weekday, dateLabel,
@@ -2678,12 +2696,8 @@ async function handleDetailedPayrollExport(userId, year, month) {
     });
 
     // 合計列（範本 R30）：G=普通工時(normal 合計)、I~P=月度各段時數、Q=扣休息分鐘合計、R='加班總時'、S=數值
-    const totalBreakMin = fullDays.reduce((acc, day) => {
-        if (day.punchInTime && day.punchOutTime) {
-            return acc + _overlapBreakMinutes(day.punchInTime, day.punchOutTime, breakTimes);
-        }
-        return acc;
-    }, 0);
+    const totalBreakMin = fullDays.reduce(
+        (acc, day) => acc + _dayBreakMinutes(day, breakTimes), 0);
     // G 欄合計 = 每日 H 欄（實際工時）加總，與 H 欄計算邏輯一致：
     //   - workday：ot1 + ot2（扣掉法定 8h 正常工時）
     //   - rest / public / regular：整天淨工時 net

@@ -68,6 +68,67 @@ function calcWorkHours(inTime, outTime, breakTimes) {
 }
 
 /**
+ * 把當日 record 配對成「上下班班次區間」（支援一天多班）
+ *
+ * 規則：
+ *   - 只取 上班/下班（容錯 IN/OUT），依時間排序
+ *   - 上班 配 下一筆 下班為一班；連續上班取最早、連續下班取最晚
+ *   - 缺上班或缺下班的殘段不回傳（calcWorkHours 對殘段本來就回 0）
+ *
+ * @param {Array} record day.record（[{ time:'HH:MM', type:'上班'|'下班' }]）
+ * @returns {Array<{ inTime, outTime }>} 完整班次區間
+ */
+function _pairShiftRanges(record) {
+    const isOut = (t) => /下班|OUT/i.test(t || '');
+    const isIn = (t) => !isOut(t) && /上班|IN/i.test(t || '');
+    const arr = (record || [])
+        .filter((r) => r && r.time && (isIn(r.type) || isOut(r.type)))
+        .map((r) => ({ time: String(r.time), out: isOut(r.type) }))
+        .sort((a, b) => a.time.localeCompare(b.time));
+
+    const ranges = [];
+    let pendingIn = null;
+    for (const r of arr) {
+        if (!r.out) {
+            // 連續上班：取最早（與後端 punchInTime 取「最早上班」一致）
+            if (pendingIn == null) pendingIn = r.time;
+        } else if (pendingIn != null) {
+            ranges.push({ inTime: pendingIn, outTime: r.time });
+            pendingIn = null;
+        } else if (ranges.length > 0 && r.time > ranges[ranges.length - 1].outTime) {
+            // 連續下班（先按下班又回去工作再補一筆）：取最晚，與後端 last-out 一致
+            ranges[ranges.length - 1].outTime = r.time;
+        }
+    }
+    return ranges;
+}
+
+/**
+ * 依班次區間逐班計算工時加總（雙班 / 多班日專用）
+ *
+ * 與 calcWorkHours(首上班, 末下班) 的差異：班與班之間的空檔不計入工時，
+ * 公司休息時段只扣「落在班次內」的部分。
+ *
+ * @returns {{ gross, net, shiftCount }|null} record 配不出完整班次時回 null（呼叫端 fallback）
+ */
+function calcWorkHoursFromShifts(record, breakTimes) {
+    const ranges = _pairShiftRanges(record);
+    if (!ranges.length) return null;
+    let gross = 0;
+    let net = 0;
+    for (const rg of ranges) {
+        const r = calcWorkHours(rg.inTime, rg.outTime, breakTimes);
+        gross += r.gross;
+        net += r.net;
+    }
+    return {
+        gross: Math.round(gross * 100) / 100,
+        net: Math.round(net * 100) / 100,
+        shiftCount: ranges.length,
+    };
+}
+
+/**
  * 將單日 dailyStatus 補上勞基法分段工時
  *
  * @param {Object} day            dailyStatus 元素（含 date / punchInTime / punchOutTime / hours / record）
@@ -91,7 +152,14 @@ function enrichDayWithLaborStats(day, breakTimes) {
     }
 
     // 計算淨工時
-    const { gross, net } = calcWorkHours(day.punchInTime, day.punchOutTime, breakTimes);
+    // 2026-06-03：優先逐班計算（修雙班 bug — 舊版用 首上班→末下班 整段計算，
+    // 班距空檔被誤算成工時，雙班日 net 灌水導致 Excel OT / 違法工時 / 工資全錯）
+    // record 配不出完整班次（單缺卡 / 無 record 舊聚合 doc）時 fallback 回整段法
+    const fromShifts = Array.isArray(day.record) && day.record.length > 0
+        ? calcWorkHoursFromShifts(day.record, breakTimes)
+        : null;
+    const { gross, net } = fromShifts
+        || calcWorkHours(day.punchInTime, day.punchOutTime, breakTimes);
 
     // 各段預設 0
     const stats = {
@@ -319,6 +387,7 @@ function calcEmployeeDeductions(insuredSalary, pensionRate = 0, opts = {}) {
 // 暴露給瀏覽器全域
 if (typeof window !== 'undefined') {
     window.calcWorkHours = calcWorkHours;
+    window.calcWorkHoursFromShifts = calcWorkHoursFromShifts;
     window.enrichDayWithLaborStats = enrichDayWithLaborStats;
     window.aggregateMonthLaborStats = aggregateMonthLaborStats;
     window.monthlyToHourly = monthlyToHourly;
@@ -332,6 +401,8 @@ console.log('✓ labor-hours 模組已加載');
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         calcWorkHours,
+        calcWorkHoursFromShifts,
+        _pairShiftRanges,
         enrichDayWithLaborStats,
         aggregateMonthLaborStats,
         monthlyToHourly,

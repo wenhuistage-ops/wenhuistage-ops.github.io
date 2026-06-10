@@ -272,10 +272,10 @@ function summarizeByDay(records) {
     else if (!hasIn) reason = "STATUS_PUNCH_IN_MISSING";
     else if (!hasOut) reason = "STATUS_PUNCH_OUT_MISSING";
 
-    // 簡易工時估算（下班時間 - 上班時間，不扣休息）
-    // punchInTime 取「最早」上班、punchOutTime 取「最晚」下班
-    // 配合上方 dedupe 已處理 5 分鐘內重複打卡，這裡 last-out 處理 30 分鐘以內
-    // 的合理重複下班（員工先按下班再回工作），讓淨工時不會被誤打的早期 OUT 截斷。
+    // 簡易工時估算（不扣休息）
+    // punchInTime 取「最早」上班、punchOutTime 取「最晚」下班（顯示用欄位不變）
+    // 2026-06-03 雙班修正：hours 改為「逐班 span 加總」— 舊版用 首上班→末下班
+    // 整段計算，雙班日（早班+晚班）的班距空檔被誤算成工時。
     let hours = 0;
     let punchInTime = "";
     let punchOutTime = "";
@@ -287,9 +287,37 @@ function summarizeByDay(records) {
       punchOutTime = outRecs[outRecs.length - 1].time;
     }
     if (punchInTime && punchOutTime) {
-      const [inH, inM] = punchInTime.split(":").map(Number);
-      const [outH, outM] = punchOutTime.split(":").map(Number);
-      hours = Math.max(0, (outH * 60 + outM - inH * 60 - inM) / 60);
+      const toMin = (t) => {
+        const [h, m] = String(t).split(":").map(Number);
+        return h * 60 + m;
+      };
+      // 配對班次：依時間排序，上班配下一筆下班；連續上班取最早、連續下班取最晚
+      const sorted = day.record
+        .filter((p) => p.time && /上班|下班|IN|OUT/i.test(p.type || ""))
+        .slice()
+        .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      const ranges = [];
+      let pendingIn = null;
+      for (const p of sorted) {
+        const isOut = /下班|OUT/i.test(p.type || "");
+        if (!isOut) {
+          if (pendingIn == null) pendingIn = p.time;
+        } else if (pendingIn != null) {
+          ranges.push([pendingIn, p.time]);
+          pendingIn = null;
+        } else if (ranges.length > 0 && String(p.time) > String(ranges[ranges.length - 1][1])) {
+          ranges[ranges.length - 1][1] = p.time; // 連續下班取最晚
+        }
+      }
+      if (ranges.length > 0) {
+        hours = ranges.reduce(
+          (acc, [tin, tout]) => acc + Math.max(0, (toMin(tout) - toMin(tin)) / 60),
+          0
+        );
+      } else {
+        // 配不出完整班次（理論上 hasIn && hasOut 必有一班；保險 fallback 舊整段法）
+        hours = Math.max(0, (toMin(punchOutTime) - toMin(punchInTime)) / 60);
+      }
     }
 
     // 2026-05-14：hasVirtual flag 標記該日含系統虛擬卡（dailyVirtualPunch 補的）
