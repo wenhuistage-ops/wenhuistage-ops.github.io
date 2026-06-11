@@ -192,7 +192,14 @@ function bindEvents() {
             action: 'getLoginUrl',
             redirectUrl: redirectUrl  // 將回跳網址作為參數傳遞給後端
         });
-        if (res.url) window.location.href = res.url;
+        if (res.url) {
+            // CSRF 防護：記住本次授權的 state，callback 時比對
+            // 用 sessionStorage（分頁關閉即清，不跨分頁），比 localStorage 更貼近一次性
+            if (res.state) {
+                try { sessionStorage.setItem('lineLoginState', res.state); } catch (_) { /* ignore */ }
+            }
+            window.location.href = res.url;
+        }
     };
 
     logoutBtn.onclick = () => {
@@ -312,7 +319,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================
     let loginResult = { isLoggedIn: false, isAdmin: false };
     const params = new URLSearchParams(window.location.search);
-    const otoken = params.get('code');
+    let otoken = params.get('code');
+
+    // CSRF 防護：OAuth callback 必須帶回登入時存的 state，且與 sessionStorage 一致
+    // 不一致 = 這個 authorization code 不是本瀏覽器發起的授權（login CSRF），丟棄
+    if (otoken) {
+        const returnedState = params.get('state');
+        let storedState = null;
+        try { storedState = sessionStorage.getItem('lineLoginState'); } catch (_) { /* ignore */ }
+        if (!storedState || returnedState !== storedState) {
+            console.warn('OAuth state 驗證失敗，丟棄 authorization code（可能為 CSRF 或過期分頁）');
+            showNotification(t('ERROR_LOGIN_FAILED', { msg: 'state mismatch' }) || '登入驗證失敗，請重新登入', 'error');
+            history.replaceState({}, '', window.location.pathname);
+            otoken = null;
+        } else {
+            try { sessionStorage.removeItem('lineLoginState'); } catch (_) { /* ignore */ }
+        }
+    }
 
     if (otoken) {
         // 處理 otoken 換取 sessionToken 的流程

@@ -207,8 +207,13 @@ module.exports = onSchedule(
       };
 
       try {
-        await db.collection(COLLECTIONS.ATTENDANCE).add(virtualOut);
-        await db.collection(COLLECTIONS.ATTENDANCE).add(virtualIn);
+        // 2026-06-10：兩筆虛擬卡改 batch 原子寫入 —— 舊版兩次 add 之間若
+        // crash / 超時，會留「半套虛擬卡」（只有下班沒上班），且隔天排程
+        // 重跑時跨日判斷條件仍成立，會重複補卡。batch 保證全有或全無。
+        const batch = db.batch();
+        batch.set(db.collection(COLLECTIONS.ATTENDANCE).doc(), virtualOut);
+        batch.set(db.collection(COLLECTIONS.ATTENDANCE).doc(), virtualIn);
+        await batch.commit();
 
         // 同步 attendanceMonthly 聚合（兩天可能跨月，分別呼叫）
         await applyEventToMonthly(userId, bounds.dayBefore235959);

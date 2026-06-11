@@ -96,8 +96,13 @@ module.exports = onCall(
     invalidateMonthlyCacheForDate(newDate, session.user.userId);
 
     try {
-      // 若修改後跨月，要 apply 兩個月份
-      if (oldPunchDate && oldPunchDate.getMonth?.() !== newDate.getMonth()) {
+      // 2026-06-10 修正：applyEventToMonthly 是「按日」增量重算。
+      // 只要新舊日期不是同一天（台北時區），兩天都要重算 —— 否則舊日期的
+      // 聚合會殘留已搬走的紀錄（舊版只在「跨月」才重算舊日期，同月改日 /
+      // 跨年同月都會漏）。
+      const taipeiDayKey = (d) =>
+        new Date(d.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      if (oldPunchDate && taipeiDayKey(oldPunchDate) !== taipeiDayKey(newDate)) {
         await applyEventToMonthly(session.user.userId, oldPunchDate);
       }
       await applyEventToMonthly(session.user.userId, newDate);

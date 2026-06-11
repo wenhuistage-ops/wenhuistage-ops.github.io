@@ -1085,6 +1085,13 @@ async function handleReviewAction(button, index, action) {
             showNotification(t(translationKey), "success");
             // 列表已變更，清快取讓重抓拿到新狀態
             cacheManager.invalidate('reviewRequest');
+            // 2026-06-10：審核會改變該日 reason（如 STATUS_LEAVE_APPROVED），
+            // 月曆相關快取也要清，否則月曆顯示舊狀態直到 reload
+            cacheManager.invalidate('month');
+            cacheManager.invalidate('monthDetail');
+            if (typeof adminMonthDataCache !== 'undefined') {
+                Object.keys(adminMonthDataCache).forEach((k) => delete adminMonthDataCache[k]);
+            }
             await new Promise(resolve => setTimeout(resolve, 500));
             // 成功後重新整理列表
             fetchAndRenderReviewRequests();
@@ -3424,8 +3431,9 @@ async function renderEmployeePunchTable(userId, date) {
         }).join('');
         const tbody = card.querySelector('table tbody');
         const cardList = card.querySelector('.emp-punch-card-list');
-        if (tbody) tbody.innerHTML = tableRowsHtml;
-        if (cardList) cardList.innerHTML = cardRowsHtml;
+        // ✅ XSS 防護：locationOf(day) 內容源自 attendance.locationName（admin 可任填），需淨化
+        if (tbody) tbody.innerHTML = DOMPurify.sanitize(tableRowsHtml);
+        if (cardList) cardList.innerHTML = DOMPurify.sanitize(cardRowsHtml);
         // table 內的 badge 仍含 data-i18n，確保切語言時有效
         renderTranslations(tbody);
         renderTranslations(cardList);

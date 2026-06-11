@@ -143,13 +143,17 @@ module.exports = onCall(
     }
 
     try {
+      // 2026-06-10 修正：applyEventToMonthly 是「按日」增量重算。
+      // 舊日期永遠重算；新日期只要與舊日期不是同一天（台北時區）也要重算
+      // —— 舊版只在「跨月」才重算新日期，同月內改日（5/10→5/20）會漏掉
+      // 新日期，該筆紀錄在月曆上消失。
+      const taipeiDayKey = (d) =>
+        new Date(d.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
       if (oldDate && targetUserId) {
         await applyEventToMonthly(targetUserId, oldDate);
       }
-      // 若改了 timestamp 跨月，新月份也要重算
       if (newDate && targetUserId &&
-          (oldDate?.getMonth?.() !== newDate.getMonth() ||
-           oldDate?.getFullYear?.() !== newDate.getFullYear())) {
+          (!oldDate || taipeiDayKey(oldDate) !== taipeiDayKey(newDate))) {
         await applyEventToMonthly(targetUserId, newDate);
       }
     } catch (err) {

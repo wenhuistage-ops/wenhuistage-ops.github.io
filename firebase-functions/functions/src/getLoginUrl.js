@@ -6,7 +6,11 @@
  * 前端呼叫：
  *   callApifetch({ action: 'getLoginUrl', redirectUrl: '...' })
  *
- * 回傳：{ url: "https://access.line.me/oauth2/v2.1/authorize?..." }
+ * 回傳：{ url: "https://access.line.me/oauth2/v2.1/authorize?...", state: "<uuid>" }
+ *
+ * 2026-06-10 CSRF 防護：state 隨 url 一併回傳，前端存 sessionStorage，
+ * OAuth callback 時比對 query string 的 state 與 sessionStorage 是否一致，
+ * 不一致代表 authorization code 不是本瀏覽器發起的授權（login CSRF），拒絕。
  */
 
 const crypto = require("crypto");
@@ -34,6 +38,6 @@ module.exports = onCall(
       `&scope=${scope}`;
 
     console.log("getLoginUrl: 使用的 redirectUrl =", redirectUrl);
-    return { url };
+    return { url, state };
   }
 );
