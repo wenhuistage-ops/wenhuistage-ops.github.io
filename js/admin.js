@@ -1023,6 +1023,7 @@ function renderReviewRequests(requests) {
             </p>
 
             <div class="flex space-x-2">
+                ${req.hasProof ? `<button data-i18n="BTN_VIEW_PROOF" data-proof-id="${(req.id || '').replace(/[^a-zA-Z0-9_-]/g, '')}" class="view-proof-btn px-3 py-1 rounded-md text-sm font-bold bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-800 dark:text-purple-100">📎 查看證明</button>` : ''}
                 <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
                 <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
             </div>
@@ -1041,6 +1042,55 @@ function renderReviewRequests(requests) {
     listEl.querySelectorAll('.reject-btn').forEach(button => {
         button.addEventListener('click', (e) => handleReviewAction(e.currentTarget, e.currentTarget.dataset.index, 'reject'));
     });
+
+    // 2026-06-10：查看病假證明照片（按需呼叫 getLeaveProof，不在清單預載）
+    listEl.querySelectorAll('.view-proof-btn').forEach(button => {
+        button.addEventListener('click', (e) => _showLeaveProofLightbox(e.currentTarget.dataset.proofId));
+    });
+}
+
+/**
+ * 病假證明照片燈箱：按需呼叫 getLeaveProof 取得 base64 後全螢幕顯示
+ */
+async function _showLeaveProofLightbox(docId) {
+    if (!docId) return;
+    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    try {
+        const res = await callApifetch({ action: 'getLeaveProof', id: docId });
+        if (!res || !res.ok || !res.photo) {
+            showNotification(tt(res?.code || 'MSG_PROOF_LOAD_FAILED', '無法載入證明照片'), 'error');
+            return;
+        }
+        const existing = document.getElementById('proof-lightbox');
+        if (existing) existing.remove();
+        const overlay = document.createElement('div');
+        overlay.id = 'proof-lightbox';
+        // 用 inline style 處理 overlay/z-index/背景（Tailwind 編譯不含 arbitrary/opacity
+        // class，動態注入的 overlay 不能依賴它們）。z-index 設 10000 蓋過浮動 LINE 按鈕(9999)
+        overlay.style.cssText =
+            'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;' +
+            'justify-content:center;padding:1rem;background:rgba(0,0,0,0.8);';
+        // 圖片 src 用 JS 直接賦值（非 innerHTML），避免 DOMPurify 砍 data: URL
+        overlay.innerHTML = DOMPurify.sanitize(`
+            <div class="w-full" style="max-width:42rem;position:relative;">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold" style="color:#fff;" data-i18n="PROOF_MODAL_TITLE">${tt('PROOF_MODAL_TITLE', '病假證明')}</h3>
+                    <button id="proof-lightbox-close" class="text-3xl leading-none" style="color:#fff;" aria-label="關閉">&times;</button>
+                </div>
+                <img id="proof-lightbox-img" alt="proof" class="w-full rounded-lg" style="max-height:80vh;object-fit:contain;background:#fff;">
+            </div>
+        `);
+        document.body.appendChild(overlay);
+        const img = document.getElementById('proof-lightbox-img');
+        if (img) img.src = res.photo;
+        const close = () => overlay.remove();
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        const closeBtn = document.getElementById('proof-lightbox-close');
+        if (closeBtn) closeBtn.addEventListener('click', close);
+    } catch (err) {
+        console.error('載入證明照片失敗:', err);
+        showNotification(tt('MSG_PROOF_LOAD_FAILED', '無法載入證明照片'), 'error');
+    }
 }
 
 /**

@@ -39,6 +39,7 @@ exports.addLocation = require("./src/addLocation");
 
 // ===== 請假與審核 =====
 exports.submitLeave = require("./src/submitLeave");
+exports.getLeaveProof = require("./src/getLeaveProof"); // 按需取病假證明照片
 exports.getReviewRequest = require("./src/getReviewRequest");
 exports.approveReview = require("./src/approveReview");
 exports.rejectReview = require("./src/rejectReview");

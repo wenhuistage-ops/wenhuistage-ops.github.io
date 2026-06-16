@@ -752,8 +752,8 @@ if (typeof window !== 'undefined') {
  */
 function _appendMakeupButtonToDailyCard(container, dateKey) {
     if (!container || !dateKey) return;
-    // 移除舊按鈕（避免重複）
-    const old = container.querySelector('.makeup-from-calendar-btn');
+    // 移除舊按鈕群組（避免重複）
+    const old = container.querySelector('.calendar-action-group');
     if (old) old.remove();
 
     // 不允許補未來
@@ -765,20 +765,40 @@ function _appendMakeupButtonToDailyCard(container, dateKey) {
         if (cellDate > today) return;
     } catch (_) { /* 解析失敗也直接 append */ }
 
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className =
-        'makeup-from-calendar-btn adjust-btn mt-3 w-full px-4 py-2 ' +
-        'text-sm font-medium text-indigo-700 dark:text-indigo-200 ' +
-        'bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 ' +
-        'border border-indigo-300 dark:border-indigo-700 rounded-lg transition';
-    btn.dataset.date = dateKey;
-    // reason 給 STATUS_BOTH_MISSING → make-up.js 開「全日補卡」UI（兩個輸入框）
-    btn.dataset.reason = 'STATUS_BOTH_MISSING';
-    btn.setAttribute('data-i18n', 'BTN_MAKEUP_FROM_CALENDAR');
-    btn.textContent = '+ 補打卡';
-    container.appendChild(btn);
-    if (typeof renderTranslations === 'function') renderTranslations(btn);
+    // 2026-06-10：月曆詳情卡末尾的三個操作按鈕（補打卡 / 請假 / 休假）
+    // 都帶 class 'from-calendar' → make-up.js 偵測後渲染進獨立 modal（而非儀表板表單）
+    // reason 給 STATUS_BOTH_MISSING → 補打卡走「全日」UI；請假/休假不看 reason
+    const group = document.createElement('div');
+    group.className = 'calendar-action-group grid grid-cols-3 gap-2 mt-3';
+
+    const mkBtn = (cls, color, i18nKey, fallback) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className =
+            `${cls} from-calendar px-2 py-2 text-sm font-medium rounded-lg border transition ` +
+            color;
+        b.dataset.date = dateKey;
+        b.dataset.reason = 'STATUS_BOTH_MISSING';
+        b.setAttribute('data-i18n', i18nKey);
+        b.textContent = fallback;
+        return b;
+    };
+
+    group.appendChild(mkBtn(
+        'makeup-from-calendar-btn adjust-btn',
+        'text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border-indigo-300 dark:border-indigo-700',
+        'BTN_MAKEUP_FROM_CALENDAR', '+ 補打卡'));
+    group.appendChild(mkBtn(
+        'leave-btn',
+        'text-orange-700 dark:text-orange-200 bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border-orange-300 dark:border-orange-700',
+        'BTN_LEAVE', '請假'));
+    group.appendChild(mkBtn(
+        'vacation-btn',
+        'text-green-700 dark:text-green-200 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border-green-300 dark:border-green-700',
+        'BTN_VACATION', '休假'));
+
+    container.appendChild(group);
+    if (typeof renderTranslations === 'function') renderTranslations(group);
 }
 
 // 暴露給 admin.js 共用

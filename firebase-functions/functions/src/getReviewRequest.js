@@ -91,6 +91,8 @@ module.exports = onCall(
           applicationTime: formatTaipei(applicationTime),
           targetTime: formatTaipei(punchDate),
           audit: d.audit || "?", // Phase 4：給前端 tab 分群用
+          // 2026-06-10：病假證明照片旗標（只帶 boolean，照片本體由 getLeaveProof 按需取）
+          hasProof: !!d.proofPhoto,
         };
       })
       .filter(Boolean);

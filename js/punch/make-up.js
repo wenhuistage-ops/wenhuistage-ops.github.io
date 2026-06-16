@@ -148,13 +148,137 @@ function _renderMakeupFormHtml(container, date, mode, showModeSelector) {
     }
 }
 
-/** 開啟月曆補卡 modal 並回傳 modal 內表單容器 */
-function _openMakeupModal() {
+// 2026-06-10：病假證明照片暫存（壓縮後的 base64 data URL，提交時帶給 submitLeave）
+// 每次開「請假」表單時重置為 null
+let _pendingLeaveProof = null;
+
+/**
+ * 開啟月曆 modal 並回傳 modal 內表單容器
+ * @param {string} [titleKey] i18n 鍵（補打卡 / 請假 / 休假各自標題），預設補卡申請
+ * @param {string} [titleFallback] 對應 fallback 文字
+ */
+function _openMakeupModal(titleKey, titleFallback) {
     const modal = document.getElementById('makeup-modal');
     if (!modal) return null;
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
+    const titleEl = document.getElementById('makeup-modal-title');
+    if (titleEl) {
+        const key = titleKey || 'MAKEUP_MODAL_TITLE';
+        titleEl.setAttribute('data-i18n', key);
+        titleEl.textContent = (typeof t === 'function' ? (t(key) || titleFallback) : titleFallback) || '補卡申請';
+    }
     return document.getElementById('makeup-modal-form-container');
+}
+
+/**
+ * 把圖檔壓縮成 JPEG base64 data URL（resize ≤ maxDim、quality 自適應）
+ * 目標 < ~525KB（base64 ≤ ~700k 字元），確保 Firestore doc 遠低於 1MiB。
+ * @returns {Promise<string>} data URL
+ */
+function _compressImageToDataUrl(file, maxDim = 1280, quality = 0.6) {
+    return new Promise((resolve, reject) => {
+        if (!file || !/^image\//.test(file.type)) {
+            reject(new Error('not-image'));
+            return;
+        }
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('read-fail'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('decode-fail'));
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > maxDim || height > maxDim) {
+                    if (width >= height) {
+                        height = Math.round((height * maxDim) / width);
+                        width = maxDim;
+                    } else {
+                        width = Math.round((width * maxDim) / height);
+                        height = maxDim;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                // 白底（避免 PNG 透明轉 JPEG 變黑）
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+                let q = quality;
+                let dataUrl = canvas.toDataURL('image/jpeg', q);
+                while (dataUrl.length > 700000 && q > 0.3) {
+                    q -= 0.1;
+                    dataUrl = canvas.toDataURL('image/jpeg', q);
+                }
+                resolve(dataUrl);
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// 病假證明照片：選檔 / 換檔 / 移除（document 事件委派，涵蓋兩個 host container）
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#leaveProofPick')) {
+        const input = document.getElementById('leaveProofInput');
+        if (input) input.click();
+    } else if (e.target.closest('#leaveProofRemove')) {
+        _pendingLeaveProof = null;
+        const preview = document.getElementById('leaveProofPreview');
+        const removeBtn = document.getElementById('leaveProofRemove');
+        const input = document.getElementById('leaveProofInput');
+        if (preview) { preview.classList.add('hidden'); preview.src = ''; }
+        if (removeBtn) removeBtn.classList.add('hidden');
+        if (input) input.value = '';
+    }
+});
+document.addEventListener('change', async (e) => {
+    if (e.target && e.target.id === 'leaveProofInput') {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+        try {
+            const preview = document.getElementById('leaveProofPreview');
+            const removeBtn = document.getElementById('leaveProofRemove');
+            showNotification(tt('MSG_PHOTO_PROCESSING', '照片處理中...'), 'info');
+            const dataUrl = await _compressImageToDataUrl(file);
+            if (dataUrl.length > 700000) {
+                showNotification(tt('MSG_PHOTO_TOO_LARGE', '照片太大，請重拍或換一張'), 'error');
+                return;
+            }
+            _pendingLeaveProof = dataUrl;
+            if (preview) { preview.src = dataUrl; preview.classList.remove('hidden'); }
+            if (removeBtn) removeBtn.classList.remove('hidden');
+        } catch (err) {
+            console.error('壓縮照片失敗:', err);
+            showNotification(tt('MSG_PHOTO_FAILED', '照片讀取失敗，請換一張'), 'error');
+        }
+    }
+});
+
+/** 產生病假證明照片區塊 HTML */
+function _leaveProofSectionHtml() {
+    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    return `
+        <div class="form-group mb-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300" data-i18n="LEAVE_PROOF_LABEL">${tt('LEAVE_PROOF_LABEL', '證明照片（病假請附，其他選填）')}</label>
+            <input type="file" id="leaveProofInput" accept="image/*" capture="environment" class="hidden">
+            <div class="flex items-center gap-2">
+                <button type="button" id="leaveProofPick"
+                        class="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600">
+                    📷 <span data-i18n="BTN_ADD_PHOTO">${tt('BTN_ADD_PHOTO', '拍照 / 選擇照片')}</span>
+                </button>
+                <button type="button" id="leaveProofRemove"
+                        class="hidden px-3 py-2 text-sm rounded-lg border border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30">
+                    <span data-i18n="LEAVE_PROOF_REMOVE">${tt('LEAVE_PROOF_REMOVE', '移除')}</span>
+                </button>
+            </div>
+            <img id="leaveProofPreview" alt="proof" class="hidden mt-2 max-h-40 rounded border border-gray-200 dark:border-gray-700">
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1" data-i18n="LEAVE_PROOF_HINT">${tt('LEAVE_PROOF_HINT', '建議拍攝診斷證明或就醫單據，上傳後會壓縮')}</p>
+        </div>`;
 }
 
 /** 關閉月曆補卡 modal 並清空表單 */
@@ -233,12 +357,20 @@ function bindPunchEvents() {
             } else if (e.target.classList.contains('leave-btn')) {
                 // 請假按鈕處理邏輯
                 const date = e.target.dataset.date;
+                // 來自月曆（.from-calendar）→ 開 modal；來自儀表板異常清單 → 內嵌表單
+                const isFromCalendar = e.target.classList.contains('from-calendar');
+                const targetContainer = isFromCalendar
+                    ? _openMakeupModal('LEAVE_MODAL_TITLE', '請假申請')
+                    : adjustmentFormContainer;
+                if (!targetContainer) return;
+                _pendingLeaveProof = null; // 重置上一次的照片
+
                 const formHtml = `
-                    <div class="p-4 border-t border-gray-200 fade-in ">
+                    <div class="p-4 ${isFromCalendar ? '' : 'border-t border-gray-200'} fade-in ">
                         <p class="font-semibold mb-2 text-orange-600">${t('LEAVE_TITLE') || '請假：'}<span class="text-orange-600">${date}</span></p>
                         <div class="form-group mb-3">
                             <label for="leaveReason" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('LEAVE_REASON_LABEL') || '請假原因：'}</label>
-                            <select id="leaveReason" 
+                            <select id="leaveReason"
                                     class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
                                 <option value="${t('LEAVE_SICK') || '病假'}">${t('LEAVE_SICK') || '病假'}</option>
                                 <option value="${t('LEAVE_PERSONAL') || '事假'}">${t('LEAVE_PERSONAL') || '事假'}</option>
@@ -247,27 +379,35 @@ function bindPunchEvents() {
                         </div>
                         <div class="form-group mb-3">
                             <label for="leaveNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('NOTE_LABEL') || '備註：'}</label>
-                            <textarea id="leaveNote" 
-                                      class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white" 
+                            <textarea id="leaveNote"
+                                      class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white"
                                       rows="3" placeholder="${t('LEAVE_PLACEHOLDER') || '請輸入請假備註...'}"></textarea>
                         </div>
-                        <button data-type="leave" data-date="${date}" 
+                        ${_leaveProofSectionHtml()}
+                        <button data-type="leave" data-date="${date}"
                                 class="submit-leave-btn w-full py-2 px-4 rounded-lg font-bold bg-orange-500 hover:bg-orange-600 text-white">
                             ${t('SUBMIT_LEAVE') || '提交請假'}
                         </button>
                     </div>
                 `;
-                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-                adjustmentFormContainer.innerHTML = DOMPurify.sanitize(formHtml);
+                // ✅ XSS防護：使用 DOMPurify 淨化 HTML（保留 data-* 與 input capture）
+                targetContainer.innerHTML = DOMPurify.sanitize(formHtml);
+                if (typeof renderTranslations === 'function') renderTranslations(targetContainer);
             } else if (e.target.classList.contains('vacation-btn')) {
                 // 休假按鈕處理邏輯
                 const date = e.target.dataset.date;
+                const isFromCalendar = e.target.classList.contains('from-calendar');
+                const targetContainer = isFromCalendar
+                    ? _openMakeupModal('VACATION_MODAL_TITLE', '休假申請')
+                    : adjustmentFormContainer;
+                if (!targetContainer) return;
+
                 const formHtml = `
-                    <div class="p-4 border-t border-gray-200 fade-in ">
+                    <div class="p-4 ${isFromCalendar ? '' : 'border-t border-gray-200'} fade-in ">
                         <p class="font-semibold mb-2 text-green-600">${t('VACATION_TITLE') || '休假：'}<span class="text-green-600">${date}</span></p>
                         <div class="form-group mb-3">
                             <label for="vacationType" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('VACATION_TYPE_LABEL') || '休假類型：'}</label>
-                            <select id="vacationType" 
+                            <select id="vacationType"
                                     class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
                                 <option value="${t('VACATION_ANNUAL') || '年假'}">${t('VACATION_ANNUAL') || '年假'}</option>
                                 <option value="${t('VACATION_SPECIAL') || '特休'}">${t('VACATION_SPECIAL') || '特休'}</option>
@@ -276,18 +416,19 @@ function bindPunchEvents() {
                         </div>
                         <div class="form-group mb-3">
                             <label for="vacationNote" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('NOTE_LABEL') || '備註：'}</label>
-                            <textarea id="vacationNote" 
-                                      class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white" 
+                            <textarea id="vacationNote"
+                                      class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white"
                                       rows="3" placeholder="${t('VACATION_PLACEHOLDER') || '請輸入休假備註...'}"></textarea>
                         </div>
-                        <button data-type="vacation" data-date="${date}" 
+                        <button data-type="vacation" data-date="${date}"
                                 class="submit-vacation-btn w-full py-2 px-4 rounded-lg font-bold bg-green-500 hover:bg-green-600 text-white">
                             ${t('SUBMIT_VACATION') || '提交休假'}
                         </button>
                     </div>
                 `;
                 // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-                adjustmentFormContainer.innerHTML = DOMPurify.sanitize(formHtml);
+                targetContainer.innerHTML = DOMPurify.sanitize(formHtml);
+                if (typeof renderTranslations === 'function') renderTranslations(targetContainer);
             }
         });
 
@@ -441,6 +582,14 @@ function bindPunchEvents() {
                     return;
                 }
 
+                // 病假未附證明 → 二次確認（鼓勵附但不強制）
+                const sickText = t('LEAVE_SICK') || '病假';
+                if (reason === sickText && !_pendingLeaveProof) {
+                    const proofConfirm = t('MSG_SICK_NO_PROOF_CONFIRM') || '病假未附證明照片，確定要提交嗎？';
+                    const proceed = await showConfirmDialog(proofConfirm);
+                    if (!proceed) return;
+                }
+
                 // 添加確認對話框
                 const confirmMsg = t('CONFIRM_LEAVE_VACATION', { date: date, reason: reason });
                 const confirmed = await showConfirmDialog(confirmMsg);
@@ -457,13 +606,15 @@ function bindPunchEvents() {
                         date: date,
                         type: 'leave',
                         reason: reason,
-                        note: note || ''
+                        note: note || '',
+                        photo: _pendingLeaveProof || ''
                     }, "loadingMsg");
 
-                    const msg = res.ok ? (t('LEAVE_SUBMIT_SUCCESS') || "請假申請已提交") : (res.msg || (t('LEAVE_SUBMIT_FAILURE') || "請假申請失敗"));
+                    const msg = res.ok ? (t('LEAVE_SUBMIT_SUCCESS') || "請假申請已提交") : (res.msg || (t(res.code) || t('LEAVE_SUBMIT_FAILURE') || "請假申請失敗"));
                     showNotification(msg, res.ok ? "success" : "error");
 
                     if (res.ok) {
+                        _pendingLeaveProof = null;
                         hostContainer.replaceChildren();
                         if (inModal) _closeMakeupModal();
                         refreshAbnormalAfterApplication();
