@@ -219,27 +219,34 @@ function initLocationMap(forceReload = false) {
 
             },
             (error) => {
-                // 處理定位失敗
-                statusEl.textContent = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
+                // 處理定位失敗：依「實際」錯誤類型顯示訊息（先前一律寫死成「拒絕」會誤導診斷）
                 console.error("Geolocation failed:", error);
 
                 let message;
                 switch (error.code) {
-                    case error.PERMISSION_DENIED:
+                    case error.PERMISSION_DENIED:   // 1：使用者/系統拒絕
                         message = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
                         break;
-                    case error.POSITION_UNAVAILABLE:
+                    case error.POSITION_UNAVAILABLE: // 2：抓不到定位（GPS 訊號不足 / 定位服務未開）
                         message = t('ERROR_GEOLOCATION_UNAVAILABLE');
                         break;
-                    case error.TIMEOUT:
+                    case error.TIMEOUT:              // 3：逾時
                         message = t('ERROR_GEOLOCATION_TIMEOUT');
                         break;
-                    case error.UNKNOWN_ERROR:
+                    default:
                         message = t('ERROR_GEOLOCATION_UNKNOWN');
                         break;
                 }
-                showNotification(t("MSG_GEOLOCATION_FAILED", { message: message || "" }), "error");
-            }
+                // 狀態列顯示真正的錯誤，而非一律「拒絕」
+                statusEl.textContent = message;
+                // 通知附上錯誤代碼，方便現場回報排查（code 1=拒絕 / 2=抓不到 / 3=逾時）
+                showNotification(
+                    t("MSG_GEOLOCATION_FAILED", { message: `${message || ""}（code ${error.code}）` }),
+                    "error"
+                );
+            },
+            // 加上定位選項：避免無限等待，逾時後可回報；高精度失敗時系統仍會回退
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 }
         );
         // 成功取得使用者位置後，載入所有打卡地點
         fetchAndRenderLocationsOnMap();

@@ -77,10 +77,13 @@ async function requestGeolocationPermission() {
                 navigator.geolocation.getCurrentPosition(
                     () => resolve(true),  // 成功
                     (error) => {
+                        // 只有「真的被拒絕」(code 1) 才當作沒有權限；
+                        // GPS 抓不到 / 逾時 (code 2/3) 不是權限問題 —— 放行讓後續正式定位
+                        // (getAccurateLocation) 顯示真正的錯誤，避免把訊號問題誤報成「使用者拒絕」。
                         if (error.code === error.PERMISSION_DENIED) {
-                            resolve(false); // 用戶拒絕
+                            resolve(false); // 使用者/系統拒絕
                         } else {
-                            resolve(false); // 其他錯誤
+                            resolve(true);  // 非權限錯誤：放行，由正式定位流程回報真正原因
                         }
                     },
                     { timeout: 10000, enableHighAccuracy: false } // 快速檢查
@@ -162,7 +165,7 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
 
                 // 達到最大重試次數，顯示錯誤
                 const errorMsg = t("ERROR_GEOLOCATION", {
-                    msg: `${err.message} (已重試 ${MAX_RETRIES} 次)`
+                    msg: `${err.message || ''} [code ${err.code}] (已重試 ${MAX_RETRIES} 次)`
                 });
                 showNotification(errorMsg, "error");
                 generalButtonState(button, 'idle');
