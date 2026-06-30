@@ -239,11 +239,17 @@ function initLocationMap(forceReload = false) {
                 }
                 // 狀態列顯示真正的錯誤，而非一律「拒絕」
                 statusEl.textContent = message;
-                // 通知附上錯誤代碼，方便現場回報排查（code 1=拒絕 / 2=抓不到 / 3=逾時）
-                showNotification(
-                    t("MSG_GEOLOCATION_FAILED", { message: `${message || ""}（code ${error.code}）` }),
-                    "error"
-                );
+                // 被拒絕（code 1）→ 跳出平台對應的「如何開啟定位」引導，體驗較佳
+                if (error.code === error.PERMISSION_DENIED &&
+                    typeof showLocationPermissionHelp === 'function') {
+                    showLocationPermissionHelp({ onRetry: () => initLocationMap(true) });
+                } else {
+                    // 其他錯誤（抓不到 / 逾時）：附上代碼方便排查
+                    showNotification(
+                        t("MSG_GEOLOCATION_FAILED", { message: `${message || ""}（code ${error.code}）` }),
+                        "error"
+                    );
+                }
             },
             // 加上定位選項：避免無限等待，逾時後可回報；高精度失敗時系統仍會回退
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 }
