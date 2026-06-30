@@ -194,9 +194,14 @@ function bindEvents() {
         });
         if (res.url) {
             // CSRF 防護：記住本次授權的 state，callback 時比對
-            // 用 sessionStorage（分頁關閉即清，不跨分頁），比 localStorage 更貼近一次性
+            // 改用 localStorage（含時效）：iOS Safari / LINE 等環境在 OAuth 跳轉回來時
+            // 常會開新分頁或新 webview，sessionStorage（只活在原分頁）會遺失而誤判 state mismatch。
+            // localStorage 跨分頁共享、能撐過跳轉，搭配 10 分鐘時效仍維持一次性 + CSRF 防護。
             if (res.state) {
-                try { sessionStorage.setItem('lineLoginState', res.state); } catch (_) { /* ignore */ }
+                try {
+                    localStorage.setItem('lineLoginState', res.state);
+                    localStorage.setItem('lineLoginStateAt', String(Date.now()));
+                } catch (_) { /* ignore */ }
             }
             window.location.href = res.url;
         }
@@ -326,14 +331,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (otoken) {
         const returnedState = params.get('state');
         let storedState = null;
-        try { storedState = sessionStorage.getItem('lineLoginState'); } catch (_) { /* ignore */ }
-        if (!storedState || returnedState !== storedState) {
-            console.warn('OAuth state 驗證失敗，丟棄 authorization code（可能為 CSRF 或過期分頁）');
+        let storedAt = 0;
+        try {
+            storedState = localStorage.getItem('lineLoginState');
+            storedAt = Number(localStorage.getItem('lineLoginStateAt')) || 0;
+        } catch (_) { /* ignore */ }
+        // 時效：state 僅在 10 分鐘內有效，過期即視同無效（防止舊 state 被重放）
+        const STATE_TTL_MS = 10 * 60 * 1000;
+        const expired = !storedAt || (Date.now() - storedAt) > STATE_TTL_MS;
+        // 比對成功與否都要清掉，避免殘留 state 影響後續登入
+        const clearStoredState = () => {
+            try {
+                localStorage.removeItem('lineLoginState');
+                localStorage.removeItem('lineLoginStateAt');
+            } catch (_) { /* ignore */ }
+        };
+        if (!storedState || expired || returnedState !== storedState) {
+            console.warn('OAuth state 驗證失敗，丟棄 authorization code（可能為 CSRF 或過期）');
             showNotification(t('ERROR_LOGIN_FAILED', { msg: 'state mismatch' }) || '登入驗證失敗，請重新登入', 'error');
             history.replaceState({}, '', window.location.pathname);
+            clearStoredState();
             otoken = null;
         } else {
-            try { sessionStorage.removeItem('lineLoginState'); } catch (_) { /* ignore */ }
+            clearStoredState();
         }
     }
 
