@@ -177,6 +177,143 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
 }
 // #endregion
 
+// ===================================
+// #region 定位權限引導（被拒絕 code 1 時的友善說明）
+// ===================================
+
+let _geoHelpEl = null;
+
+function _detectGeoPlatform() {
+    const ua = navigator.userAgent || '';
+    const isIOS = /iphone|ipad|ipod/i.test(ua) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /android/i.test(ua);
+    const isStandalone = window.navigator.standalone === true ||
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    return { isIOS, isAndroid, isStandalone };
+}
+
+function _closeGeoHelp() {
+    if (_geoHelpEl && _geoHelpEl.parentNode) _geoHelpEl.parentNode.removeChild(_geoHelpEl);
+    _geoHelpEl = null;
+}
+
+/**
+ * 顯示「如何開啟定位權限」引導彈窗（平台對應步驟 + 重新嘗試）
+ * @param {Object} [opts]
+ * @param {Function} [opts.onRetry] - 點「重新嘗試」時呼叫
+ * @param {{label:string, onClick:Function}} [opts.secondary] - 次要動作（如管理員手動打卡）
+ */
+function showLocationPermissionHelp(opts) {
+    opts = opts || {};
+    if (_geoHelpEl) return; // 避免重複開啟
+    const { isIOS, isAndroid, isStandalone } = _detectGeoPlatform();
+
+    let steps;
+    if (isIOS) {
+        const appName = isStandalone ? '「文輝考勤」' : '「Safari 網站」';
+        steps = [
+            '開啟 iPhone 的「設定」App',
+            '點「隱私權與安全性」→「定位服務」，確認最上方總開關為開啟',
+            `往下找到 ${appName}，點進去選「使用 App 期間」，並開啟「精確位置」`,
+            '回到本頁，點下方「重新嘗試」',
+        ];
+    } else if (isAndroid) {
+        steps = [
+            '開啟手機「設定」→「位置」，確認定位已開啟',
+            '在瀏覽器點網址列左側的鎖頭圖示 →「權限」→「位置」→ 改為「允許」',
+            '（或：Chrome 選單 →「設定」→「網站設定」→「位置」→ 允許）',
+            '回到本頁，點下方「重新嘗試」',
+        ];
+    } else {
+        steps = [
+            '點瀏覽器網址列旁的鎖頭／資訊圖示',
+            '找到「位置」權限，改為「允許」',
+            '重新整理頁面後再試一次',
+        ];
+    }
+
+    // 遮罩
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+        'position:fixed', 'inset:0', 'z-index:10000',
+        'background:rgba(0,0,0,.45)', 'display:flex',
+        'align-items:center', 'justify-content:center', 'padding:16px'
+    ].join(';');
+
+    // 卡片
+    const card = document.createElement('div');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.style.cssText = [
+        'background:#fff', 'color:#1f2937', 'border-radius:16px',
+        'max-width:440px', 'width:100%', 'padding:22px',
+        'box-shadow:0 20px 60px rgba(0,0,0,.3)',
+        'max-height:90vh', 'overflow:auto', 'font-size:15px', 'line-height:1.6'
+    ].join(';');
+
+    const title = document.createElement('div');
+    title.textContent = tr_geo('LOCATION_HELP_TITLE', '需要開啟定位權限');
+    title.style.cssText = 'font-size:18px;font-weight:800;margin-bottom:6px';
+
+    const intro = document.createElement('div');
+    intro.textContent = tr_geo('LOCATION_HELP_INTRO', '打卡需要您的位置，但目前定位權限被關閉了。請依下列步驟開啟：');
+    intro.style.cssText = 'color:#4b5563;margin-bottom:14px';
+
+    const ol = document.createElement('ol');
+    ol.style.cssText = 'margin:0 0 18px 0;padding-left:22px;display:flex;flex-direction:column;gap:8px';
+    steps.forEach((s) => {
+        const li = document.createElement('li');
+        li.textContent = s; // textContent：避免任何 XSS
+        ol.appendChild(li);
+    });
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+
+    const retryBtn = document.createElement('button');
+    retryBtn.textContent = tr_geo('LOCATION_HELP_RETRY', '重新嘗試');
+    retryBtn.style.cssText = 'background:#4f46e5;color:#fff;border:none;border-radius:12px;padding:12px;font-weight:700;font-size:15px;cursor:pointer';
+    retryBtn.onclick = () => { _closeGeoHelp(); if (typeof opts.onRetry === 'function') opts.onRetry(); };
+    btnRow.appendChild(retryBtn);
+
+    if (opts.secondary && typeof opts.secondary.onClick === 'function') {
+        const secBtn = document.createElement('button');
+        secBtn.textContent = opts.secondary.label || '其他方式';
+        secBtn.style.cssText = 'background:#f3f4f6;color:#374151;border:none;border-radius:12px;padding:11px;font-weight:600;font-size:14px;cursor:pointer';
+        secBtn.onclick = () => { _closeGeoHelp(); opts.secondary.onClick(); };
+        btnRow.appendChild(secBtn);
+    }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = tr_geo('LOCATION_HELP_CLOSE', '關閉');
+    closeBtn.style.cssText = 'background:transparent;color:#6b7280;border:none;padding:6px;font-size:14px;cursor:pointer';
+    closeBtn.onclick = _closeGeoHelp;
+    btnRow.appendChild(closeBtn);
+
+    card.appendChild(title);
+    card.appendChild(intro);
+    card.appendChild(ol);
+    card.appendChild(btnRow);
+    overlay.appendChild(card);
+    // 點遮罩空白處關閉
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) _closeGeoHelp(); });
+    document.body.appendChild(overlay);
+    _geoHelpEl = overlay;
+}
+
+// 取翻譯（無 i18n 時用中文 fallback）
+function tr_geo(key, fallback) {
+    try {
+        if (typeof t === 'function') {
+            const v = t(key);
+            if (v && v !== key) return v;
+        }
+    } catch (_) { /* ignore */ }
+    return fallback;
+}
+// #endregion
+
 console.log('✓ geolocation 模組已加載');
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
@@ -187,5 +324,6 @@ if (typeof module !== 'undefined' && module.exports) {
         checkGeolocationPermission,
         requestGeolocationPermission,
         getAccurateLocation,
+        showLocationPermissionHelp,
     };
 }
