@@ -76,7 +76,8 @@
 
     const content = document.createElement('div');
     content.style.flex = '1';
-    content.innerHTML = html;
+    // 內容為自控的 i18n 字串，非使用者輸入；仍用 DOMPurify 保持與專案其他 innerHTML 一致
+    content.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(html) : html;
 
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;align-items:center;flex-shrink:0';

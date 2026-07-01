@@ -25,6 +25,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // 延遲初始化標誌
 let _mapInitialized = false;
 
+// 地圖容器尺寸觀察器（重試時先斷開舊的，避免累積洩漏）
+let _mapResizeObserver = null;
+
 /**
  * 確保地圖已初始化，如果未初始化則進行初始化
  * 供其他模塊調用（如 ui.js 的 switchTab）
@@ -160,12 +163,15 @@ function initLocationMap(forceReload = false) {
 
     // 🐛 P2-1 修複：在地圖容器變為可見時重新計算大小
     // 因為初始化時容器可能還是 display:none，導致 Leaflet 無法正確計算大小
+    // 先斷開上一次的 observer，避免 initLocationMap(true) 重試時累積洩漏
+    if (_mapResizeObserver) { try { _mapResizeObserver.disconnect(); } catch (_) { /* ignore */ } }
     const observer = new MutationObserver(() => {
         if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
             mapInstance.invalidateSize();
             console.log('✅ 地圖容器尺寸已重新計算');
         }
     });
+    _mapResizeObserver = observer;
     if (mapContainer) {
         observer.observe(mapContainer, {
             attributes: true,

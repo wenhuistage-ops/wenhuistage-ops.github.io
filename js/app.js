@@ -199,8 +199,9 @@ function bindEvents() {
             // localStorage 跨分頁共享、能撐過跳轉，搭配 10 分鐘時效仍維持一次性 + CSRF 防護。
             if (res.state) {
                 try {
-                    localStorage.setItem('lineLoginState', res.state);
-                    localStorage.setItem('lineLoginStateAt', String(Date.now()));
+                    // 以 state 值本身當鍵，支援多分頁同時登入（各自的 state 不會互相覆蓋）；
+                    // value 存時間戳供 callback 端做 10 分鐘時效檢查。
+                    localStorage.setItem('lineLoginState:' + res.state, String(Date.now()));
                 } catch (_) { /* ignore */ }
             }
             window.location.href = res.url;
@@ -330,23 +331,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 不一致 = 這個 authorization code 不是本瀏覽器發起的授權（login CSRF），丟棄
     if (otoken) {
         const returnedState = params.get('state');
-        let storedState = null;
+        const STATE_TTL_MS = 10 * 60 * 1000; // state 僅在 10 分鐘內有效
+        const stateKey = returnedState ? 'lineLoginState:' + returnedState : null;
         let storedAt = 0;
-        try {
-            storedState = localStorage.getItem('lineLoginState');
-            storedAt = Number(localStorage.getItem('lineLoginStateAt')) || 0;
-        } catch (_) { /* ignore */ }
-        // 時效：state 僅在 10 分鐘內有效，過期即視同無效（防止舊 state 被重放）
-        const STATE_TTL_MS = 10 * 60 * 1000;
-        const expired = !storedAt || (Date.now() - storedAt) > STATE_TTL_MS;
-        // 比對成功與否都要清掉，避免殘留 state 影響後續登入
+        try { if (stateKey) storedAt = Number(localStorage.getItem(stateKey)) || 0; } catch (_) { /* ignore */ }
+        // 僅接受「本瀏覽器發起、且未過期」的 state：未知 state（CSRF）或過期一律拒絕
+        const valid = !!storedAt && (Date.now() - storedAt) <= STATE_TTL_MS;
+        // 清掉本次用過的 state（維持一次性），並順手清掉所有過期殘留鍵（含舊版扁平鍵）
         const clearStoredState = () => {
             try {
-                localStorage.removeItem('lineLoginState');
-                localStorage.removeItem('lineLoginStateAt');
+                if (stateKey) localStorage.removeItem(stateKey);
+                localStorage.removeItem('lineLoginState');   // 舊版遺留鍵
+                localStorage.removeItem('lineLoginStateAt'); // 舊版遺留鍵
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const k = localStorage.key(i);
+                    if (k && k.indexOf('lineLoginState:') === 0) {
+                        const ts = Number(localStorage.getItem(k)) || 0;
+                        if (!ts || (Date.now() - ts) > STATE_TTL_MS) localStorage.removeItem(k);
+                    }
+                }
             } catch (_) { /* ignore */ }
         };
-        if (!storedState || expired || returnedState !== storedState) {
+        if (!valid) {
             console.warn('OAuth state 驗證失敗，丟棄 authorization code（可能為 CSRF 或過期）');
             showNotification(t('ERROR_LOGIN_FAILED', { msg: 'state mismatch' }) || '登入驗證失敗，請重新登入', 'error');
             history.replaceState({}, '', window.location.pathname);

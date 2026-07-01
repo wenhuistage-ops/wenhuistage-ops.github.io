@@ -149,11 +149,20 @@ async function doPunch(type) {
     const geoStart = performance.now();
 
     // 獲取新位置
-    await getAccurateLocation(async (lat, lng, accuracy) => {
-        const geoEnd = performance.now();
-        const geoTime = geoEnd - geoStart;
-        await submitPunch(lat, lng, accuracy, geoTime);
-    }, button);
+    // ⚠️ 必須 try/catch：GPS 逾時/抓不到時 getAccurateLocation 會 reject，
+    // 此時 submitPunch 的 finally 不會執行，若不在這裡補 _clearProgress()，
+    // _punchInProgress[type] 會卡住到 30 秒保險才解除（期間無法重試打卡）。
+    try {
+        await getAccurateLocation(async (lat, lng, accuracy) => {
+            const geoEnd = performance.now();
+            const geoTime = geoEnd - geoStart;
+            await submitPunch(lat, lng, accuracy, geoTime);
+        }, button);
+    } catch (err) {
+        // getAccurateLocation 內部已顯示錯誤並將按鈕重置為 idle，這裡只需解除進行中 flag
+        console.warn('打卡定位失敗:', err);
+        _clearProgress();
+    }
 }
 
 // ===================================
