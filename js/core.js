@@ -145,20 +145,17 @@ async function callApifetch(params, loadingId = "loading") {
  */
 async function verifyAdminPermission() {
     try {
-        // 首先檢查 localStorage 中是否有用戶部門信息
-        const userDept = localStorage.getItem("userDept");
-        if (userDept === "管理員") {
-            return true;
-        }
-
-        // 如果沒有部門信息，調用 checkSession API 驗證
+        // ⚠️ 一律向伺服器驗證，不信任 localStorage 快取：
+        // 否則降權（管理員→一般員工）後，舊的 userDept 快取會讓對方繼續看到 admin UI；
+        // 且該快取可被使用者於 devtools 自行竄改。安全邊界必須在伺服器。
         const res = await callApifetch({ action: 'checkSession' });
         if (res && res.ok && res.user) {
             const isAdmin = res.user.dept === "管理員";
-            // 保存部門信息供後續使用
-            if (isAdmin) {
-                localStorage.setItem("userDept", res.user.dept);
-            }
+            // 同步快取（僅供顯示用途），降權時一併清除
+            try {
+                if (isAdmin) localStorage.setItem("userDept", res.user.dept);
+                else localStorage.removeItem("userDept");
+            } catch (_) { /* ignore */ }
             return isAdmin;
         }
         return false;
@@ -195,9 +192,13 @@ async function executeAdminOperation(adminOperation) {
 // ===================================
 
 /* ===== 共用訊息顯示 ===== */
+let _notificationTimer = null;
 const showNotification = (message, type = 'success') => {
     const notification = document.getElementById('notification');
     const notificationMessage = document.getElementById('notification-message');
+    if (!notification || !notificationMessage) return;
+    // 清掉上一則的計時器，避免殘留計時器把這則重要訊息提早關掉
+    if (_notificationTimer) { clearTimeout(_notificationTimer); _notificationTimer = null; }
     notificationMessage.textContent = message;
     notification.className = 'notification'; // reset classes
     if (type === 'success') {
@@ -208,9 +209,20 @@ const showNotification = (message, type = 'success') => {
         notification.classList.add('bg-red-500', 'text-white');
     }
     notification.classList.add('show');
-    setTimeout(() => {
+    // 點一下可手動關閉
+    notification.style.cursor = 'pointer';
+    notification.onclick = () => {
         notification.classList.remove('show');
-    }, 3000);
+        if (_notificationTimer) { clearTimeout(_notificationTimer); _notificationTimer = null; }
+    };
+    // 依訊息長度與類型調整停留時間：錯誤/警告久一點，長訊息加時，上限 8 秒
+    const base = (type === 'error' || type === 'warning') ? 5000 : 3000;
+    const len = message ? String(message).length : 0;
+    const duration = Math.min(8000, base + Math.max(0, len - 20) * 60);
+    _notificationTimer = setTimeout(() => {
+        notification.classList.remove('show');
+        _notificationTimer = null;
+    }, duration);
 };
 
 // ===================================

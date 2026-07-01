@@ -186,33 +186,47 @@ function getDOMElements() {
 function bindEvents() {
     // 登入/登出事件
     loginBtn.onclick = async () => {
-        // 根據當前環境動態決定登入後的回跳網址
-        const redirectUrl = getRedirectUrl();
-        const res = await callApifetch({
-            action: 'getLoginUrl',
-            redirectUrl: redirectUrl  // 將回跳網址作為參數傳遞給後端
-        });
-        if (res.url) {
-            // CSRF 防護：記住本次授權的 state，callback 時比對
-            // 改用 localStorage（含時效）：iOS Safari / LINE 等環境在 OAuth 跳轉回來時
-            // 常會開新分頁或新 webview，sessionStorage（只活在原分頁）會遺失而誤判 state mismatch。
-            // localStorage 跨分頁共享、能撐過跳轉，搭配 10 分鐘時效仍維持一次性 + CSRF 防護。
-            if (res.state) {
-                try {
-                    // 以 state 值本身當鍵，支援多分頁同時登入（各自的 state 不會互相覆蓋）；
-                    // value 存時間戳供 callback 端做 10 分鐘時效檢查。
-                    localStorage.setItem('lineLoginState:' + res.state, String(Date.now()));
-                } catch (_) { /* ignore */ }
+        // 防連點：弱網下 getLoginUrl 可能慢，避免使用者狂點連發多個請求
+        if (loginBtn.disabled) return;
+        const _originalLabel = loginBtn.textContent;
+        loginBtn.disabled = true;
+        loginBtn.style.opacity = '0.7';
+        loginBtn.textContent = t('LOADING') || '處理中...';
+        try {
+            // 根據當前環境動態決定登入後的回跳網址
+            const redirectUrl = getRedirectUrl();
+            const res = await callApifetch({
+                action: 'getLoginUrl',
+                redirectUrl: redirectUrl  // 將回跳網址作為參數傳遞給後端
+            });
+            if (res && res.url) {
+                // CSRF 防護：記住本次授權的 state，callback 時比對
+                // 用 localStorage（含時效）：iOS Safari / LINE 在 OAuth 跳轉回來時常開新分頁/webview，
+                // sessionStorage（只活在原分頁）會遺失而誤判 state mismatch。以 state 值當鍵支援多分頁併發。
+                if (res.state) {
+                    try {
+                        localStorage.setItem('lineLoginState:' + res.state, String(Date.now()));
+                    } catch (_) { /* ignore */ }
+                }
+                window.location.href = res.url; // 導向 LINE 授權（頁面即將離開）
+                return;
             }
-            window.location.href = res.url;
+            // 後端沒回 url → 明確回饋，而非默默無反應
+            showNotification(t('CONNECTION_FAILED') || '無法取得登入連結，請稍後再試', 'error');
+        } catch (err) {
+            // callApifetch 內部已對網路錯誤顯示通知；這裡確保按鈕還原
+            console.error('getLoginUrl 失敗:', err);
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.style.opacity = '';
+            loginBtn.textContent = _originalLabel;
         }
     };
 
     logoutBtn.onclick = () => {
-        localStorage.removeItem("sessionToken");
-        // 🌟 修正點 (問題1.2)：已移除對 localStorage "isAdmin" 的操作
-        // localStorage.removeItem("isAdmin"); // ❌ 已移除
-        localStorage.removeItem("sessionUserId"); // 清除用戶ID
+        // 清除所有登入/身分快取：避免降權後仍保有管理員 UI，或換帳號後殘留舊姓名/頭像
+        ['sessionToken', 'sessionUserId', 'userDept', 'userName', 'userPicture', 'userId', 'isAdmin']
+            .forEach((k) => { try { localStorage.removeItem(k); } catch (_) { /* ignore */ } });
         window.location.href = "/index.html";
     };
 
@@ -256,18 +270,19 @@ function bindEvents() {
     });
 
     // === 月曆按鈕事件 (員工自己的月曆) ===
+    // ⚠️ 用 new Date(年, 月±1, 1) 重建，而非 setMonth：
+    // setMonth 會保留當前「日」，在 31 號往 2 月切會溢位成 3 月（月底跳錯月）。
     document.getElementById('prev-month').addEventListener('click', () => {
-        currentMonthDate.setMonth(currentMonthDate.getMonth() - 1);
+        currentMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() - 1, 1);
         renderCalendar(currentMonthDate); // 來自 ui.js
     });
 
     document.getElementById('next-month').addEventListener('click', () => {
-        currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
+        currentMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 1);
         renderCalendar(currentMonthDate); // 來自 ui.js
     });
     document.getElementById('refresh-month').addEventListener('click', () => {
-        currentMonthDate.setMonth(currentMonthDate.getMonth());
-        renderCalendar(currentMonthDate, true); // 來自 ui.js
+        renderCalendar(currentMonthDate, true); // 來自 ui.js（強制重抓當月）
     });
     // === 語系切換事件 ===
     document.getElementById('language-switcher').addEventListener('change', (e) => {
