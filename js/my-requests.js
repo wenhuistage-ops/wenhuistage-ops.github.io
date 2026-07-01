@@ -63,11 +63,9 @@
                 return;
             }
 
-            // 只看「補打卡」的（過濾掉 系統請假記錄 之類）
-            // remark === '補打卡' 是 adjustmentType 的字串
-            _cachedItems = (res.reviewRequest || []).filter((r) =>
-                r.remark === '補打卡' || r.adjustmentType === '補打卡' || /補打卡/.test(r.remark || '')
-            );
+            // 顯示員工自己的所有申請：補打卡 + 請假/休假。
+            // 後端 getReviewRequest 已只回傳補打卡與假單兩類，並帶 kind 欄位供前端區分。
+            _cachedItems = (res.reviewRequest || []);
 
             if (loading) loading.style.display = 'none';
             renderMyRequests();
@@ -118,12 +116,24 @@
 
             const safeId = String(r.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
 
+            // 區分假單（請假/休假）與補打卡：假單標題顯示類型＋原因，且不提供修改/刪除
+            // （updateAdjustRequest/deleteAdjustRequest 僅適用補打卡）。
+            // kind 來自新版後端；未部署前用 type（請假/休假）當後備判斷，確保前後端部署順序無關
+            const isLeave = r.kind === 'leave' || r.type === '請假' || r.type === '休假';
+            const titleText = isLeave
+                ? (typeText + (r.remark ? '：' + r.remark : ''))
+                : tt('PUNCH_' + (typeText === '上班' ? 'IN' : 'OUT'), typeText);
+            const canEdit = isPending && !isLeave;
+            const rejectReasonHtml = (audit === 'x' && r.rejectReason)
+                ? `<p class="text-xs text-red-600 dark:text-red-300 mt-1">${tt('MY_REQUESTS_REJECT_REASON', '退回原因：')}${r.rejectReason}</p>`
+                : '';
+
             // XSS safe: 透過 DOMPurify
             const html = `
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
-                            <span class="text-base font-bold text-gray-800 dark:text-white">${tt('PUNCH_' + (typeText === '上班' ? 'IN' : 'OUT'), typeText)}</span>
+                            <span class="text-base font-bold text-gray-800 dark:text-white">${titleText}</span>
                             ${statusInfo}
                         </div>
                         <p class="text-sm text-gray-700 dark:text-gray-200">
@@ -133,8 +143,9 @@
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             ${tt('MY_REQUESTS_APPLY_TIME', '申請時間：')}${appTime}
                         </p>
+                        ${rejectReasonHtml}
                     </div>
-                    ${isPending ? `
+                    ${canEdit ? `
                         <div class="flex flex-col gap-1 shrink-0">
                             <button class="my-req-edit-btn px-3 py-1 text-xs font-medium rounded
                                            bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200

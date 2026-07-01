@@ -87,7 +87,12 @@ module.exports = onCall(
           userId: d.userId || "",
           name: d.name || "",
           type: d.type || "",
+          // 明確標示種類，前端不必再靠 remark 字串猜（補打卡 vs 請假/休假）
+          kind: isLeave ? "leave" : "adjust",
+          adjustmentType: adjustmentType,
           remark: isLeave ? d.reason || d.locationName || "" : adjustmentType,
+          note: d.note || "", // 備註（假單說明等），供員工端顯示
+          rejectReason: d.rejectReason || "", // 退回原因（audit==='x' 時顯示給員工）
           applicationTime: formatTaipei(applicationTime),
           targetTime: formatTaipei(punchDate),
           audit: d.audit || "?", // Phase 4：給前端 tab 分群用

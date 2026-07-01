@@ -249,9 +249,14 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     const existingTotalRows = calendarGrid.parentNode.querySelectorAll('.total-hours-row');
     existingTotalRows.forEach(row => row.remove());
 
-    // 計算本月累計時數
+    // 計算本月累計時數：毛時（含休息）與淨時（扣休息，與薪資/週圖一致）都算
     const currentMonthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-    let totalHours = 0;
+    let totalHours = 0;      // 毛時（punchOut − punchIn，未扣休息）
+    let totalNetHours = 0;   // 淨時（扣除休息時間）
+    const _breakTimes = (typeof window !== 'undefined' && typeof window.getCachedBreakTimes === 'function')
+        ? window.getCachedBreakTimes() : [];
+    const _enrichFn = (typeof window !== 'undefined' && typeof window.enrichDayWithLaborStats === 'function')
+        ? window.enrichDayWithLaborStats : null;
 
     // 🚀 P4-2 優化：提前建立 recordsByDate Map
     const recordsByDate = {};
@@ -260,10 +265,20 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         recordsByDate[r.date].push(r);
         // 同時計算時數（避免第二次循環）
         if (r.date.startsWith(currentMonthKey)) {
-            totalHours += parseFloat(r.hours || 0);
+            const gross = parseFloat(r.hours || 0);
+            totalHours += gross;
+            // 淨時：優先用已 enriched 的 laborStats.net，否則即時 enrich（與 weekly-chart 一致）
+            let net = null;
+            if (r.laborStats && typeof r.laborStats.net === 'number') net = r.laborStats.net;
+            else if (_enrichFn) {
+                const e = _enrichFn(r, _breakTimes);
+                net = (e && e.laborStats && typeof e.laborStats.net === 'number') ? e.laborStats.net : null;
+            }
+            totalNetHours += (typeof net === 'number' ? net : gross); // 無 break 資料時退回毛時
         }
     });
     totalHours = totalHours.toFixed(2);
+    totalNetHours = totalNetHours.toFixed(2);
 
     // 取得該月第一天是星期幾
     const firstDayOfMonth = new Date(year, month, 1).getDay();
@@ -435,7 +450,10 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
 
     const hourValue = document.createElement('span');
     const hoursUnit = (typeof t === 'function' && t('UNIT_HOURS')) || '小時';
-    hourValue.textContent = totalHours + ' ' + hoursUnit;
+    // 淨時為主（與薪資一致），毛時（含休息）括號附註
+    const netLabel = (typeof t === 'function' && t('LABEL_NET_HOURS')) || '淨時';
+    const grossLabel = (typeof t === 'function' && t('LABEL_GROSS_HOURS')) || '毛時';
+    hourValue.textContent = `${totalNetHours} ${hoursUnit}（${netLabel}）／ ${totalHours} ${hoursUnit}（${grossLabel}）`;
 
     totalRow.appendChild(hourLabel);
     totalRow.appendChild(hourValue);

@@ -1120,13 +1120,21 @@ async function handleReviewAction(button, id, action) {
     const endpoint = action === 'approve' ? 'approveReview' : 'rejectReview';
     const loadingText = t('LOADING') || '處理中...';
 
-    // 🌟 修正點 (問題8.6)：添加確認對話框
-    const actionText = t(action === 'approve' ? 'ACTION_APPROVE' : 'ACTION_REJECT');
-    const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
-    const confirmed = await showConfirmDialog(confirmMsg);
-
-    if (!confirmed) {
-        return; // 用戶取消操作
+    // 退回：詢問原因（員工會在「我的申請」看到）；核准：一般二次確認
+    let rejectReason = '';
+    if (action === 'reject') {
+        const input = window.prompt(t('ENTER_REJECTION_REASON') || '請輸入退回原因（員工會看到，可留空）：', '');
+        if (input === null) {
+            return; // 取消退回
+        }
+        rejectReason = String(input).trim();
+    } else {
+        const actionText = t('ACTION_APPROVE');
+        const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
+        const confirmed = await showConfirmDialog(confirmMsg);
+        if (!confirmed) {
+            return; // 用戶取消操作
+        }
     }
 
     // generalButtonState 來自 ui.js
@@ -1135,7 +1143,8 @@ async function handleReviewAction(button, id, action) {
     try {
         const res = await callApifetch({
             action: endpoint,
-            id: recordId
+            id: recordId,
+            reason: action === 'reject' ? rejectReason : undefined
         });
         if (res.ok) {
             const translationKey = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
@@ -1199,12 +1208,10 @@ async function loadEmployeeList() {
             allEmployeeList = employees;
 
             // Phase 1：合併員工選擇器，只填充唯一的 mgmt select
-            // 2026-05-06：選單只顯示「啟用」狀態的正式員工
-            // 過濾掉：'停用'、'未啟用'、'已離職'
-            // → admin 想 reactivate 已離職員工時，目前需直接改 Firestore Console
-            //   或之後可在此處加 toggle「顯示所有員工」
+            // 啟用員工放在最上面；停用/未啟用/已離職員工放進一個 optgroup 並標註狀態，
+            // 讓 admin 能在 App 內選取他們並於員工設定頁「重新啟用」（免進 Firestore Console）。
             const activeEmployees = employees.filter((e) => (e.status || '啟用') === '啟用');
-            const hiddenCount = employees.length - activeEmployees.length;
+            const inactiveEmployees = employees.filter((e) => (e.status || '啟用') !== '啟用');
 
             // ✅ XSS防護：使用 DOM API 代替 innerHTML
             adminSelectEmployeeMgmt.replaceChildren();
@@ -1220,8 +1227,18 @@ async function loadEmployeeList() {
                 adminSelectEmployeeMgmt.appendChild(option);
             });
 
-            if (hiddenCount > 0) {
-                console.log(`員工選單：顯示 ${activeEmployees.length} 位啟用員工（已隱藏 ${hiddenCount} 位停用 / 未啟用 / 已離職）`);
+            if (inactiveEmployees.length > 0) {
+                const group = document.createElement('optgroup');
+                group.label = t('OPTGROUP_INACTIVE_EMPLOYEES') || '停用 / 已離職員工';
+                inactiveEmployees.forEach(employee => {
+                    const option = document.createElement('option');
+                    option.value = employee.userId;
+                    const st = employee.status ? `（${employee.status}）` : '';
+                    option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)${st}`;
+                    group.appendChild(option);
+                });
+                adminSelectEmployeeMgmt.appendChild(group);
+                console.log(`員工選單：${activeEmployees.length} 位啟用 + ${inactiveEmployees.length} 位停用/離職（可於設定頁重新啟用）`);
             }
         } else {
             const errorMessage = data?.message || data?.code || t("FAILED_TO_LOAD_EMPLOYEES");
