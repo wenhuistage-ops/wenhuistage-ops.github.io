@@ -146,8 +146,9 @@ async function enrichAbnormalRecordsWithApplicationStatus(records) {
             // 為每個異常記錄檢查是否有對應的待審核申請
             const applicationsByDate = {};
             res.reviewRequest.forEach(app => {
-                // 日期格式可能是 YYYY-MM-DD 或其他格式
-                const appDate = app.date || app.displayDate;
+                // 優先用後端的 date 欄位；舊版後端沒有時從 targetTime（YYYY-MM-DD HH:mm）取日期部分
+                const appDate = app.date || String(app.targetTime || '').slice(0, 10);
+                if (!appDate) return; // 沒有日期無從比對，跳過避免聚到 'undefined' key
                 if (!applicationsByDate[appDate]) {
                     applicationsByDate[appDate] = [];
                 }

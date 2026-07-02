@@ -707,6 +707,10 @@ function _refreshCalendarAfterMakeup() {
 function refreshAbnormalAfterApplication() {
     try {
         if (typeof cacheManager !== 'undefined' && cacheManager?.clear) {
+            // 必須連 month 一起清：checkAbnormal 內部走 loadMonthDetailData，
+            // 若 month 快取還是送出前的舊資料，會把舊狀態重算成異常清單再快取 5 分鐘，
+            // 員工看不到「審核中」而重複申請
+            cacheManager.clear('month');
             cacheManager.clear('abnormal');
         }
     } catch (_) { /* cache 失敗不影響流程 */ }

@@ -56,9 +56,9 @@ async function renderAdminCalendar(userId, date) {
     const month = date.getMonth();
     const today = new Date();
 
-    // 統一格式：YYYY-MM (API用) 與 UserId-YYYY-MM (快取用)
+    // 統一格式：YYYY-MM (API用)；快取 key 一律走 adminMonthCacheKey
     const apiMonthParam = `${year}-${monthStr}`;
-    const cacheKey = `${userId}-${year}-${monthStr}`;
+    const cacheKey = adminMonthCacheKey(userId, apiMonthParam);
 
     // 定義一個內部函式來執行 UI 更新 (避免重複程式碼)
     const updateCalendarUI = (records) => {
@@ -153,6 +153,37 @@ async function renderAdminCalendar(userId, date) {
 
 function formatAdminMonthKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * 統一的 admin 月曆快取 key。
+ * 曾因兩種格式並存（`${userId}-${YYYY-MM}` vs `${YYYY-MM}-${userId}`）導致
+ * mutation 後刪錯 key：月曆顯示舊資料、同月資料被 getCalendarSummary 重抓兩次。
+ * 所有 adminMonthDataCache 的讀寫/失效都必須走這個 helper。
+ */
+function adminMonthCacheKey(userId, monthKey) {
+    return `${monthKey}-${userId}`;
+}
+
+/**
+ * mutation 後的統一快取失效入口：月曆聚合、月詳情、admin 月曆快取、enriched 薪資快取。
+ * 漏掉任何一個都會讓管理員看到舊資料（月曆卡舊紀錄／薪資 Excel 匯出修正前數字）。
+ * @param {string} [userId] 只清該員工的 enriched 快取；不傳 = 清全部員工
+ */
+function _invalidateAdminCaches(userId) {
+    if (typeof cacheManager !== 'undefined') {
+        cacheManager.invalidate('month');
+        cacheManager.invalidate('monthDetail');
+    }
+    if (typeof adminMonthDataCache !== 'undefined') {
+        Object.keys(adminMonthDataCache).forEach((k) => delete adminMonthDataCache[k]);
+    }
+    if (typeof adminMonthCacheOrder !== 'undefined') {
+        adminMonthCacheOrder.length = 0;
+    }
+    if (typeof invalidateEnrichedMonthCache === 'function') {
+        invalidateEnrichedMonthCache(userId);
+    }
 }
 
 function cacheAdminMonthData(monthkey, data) {
@@ -533,13 +564,7 @@ function _initAdminAttendanceActions() {
  */
 function _refreshAdminAfterMutation() {
     if (adminSelectedUserId && adminCurrentDate) {
-        const monthKey = `${adminCurrentDate.getFullYear()}-${String(adminCurrentDate.getMonth() + 1).padStart(2, '0')}`;
-        if (typeof adminMonthDataCache !== 'undefined') {
-            delete adminMonthDataCache[`${monthKey}-${adminSelectedUserId}`];
-        }
-        if (typeof cacheManager !== 'undefined') {
-            cacheManager.invalidate('month');
-        }
+        _invalidateAdminCaches(adminSelectedUserId);
         renderAdminCalendar(adminSelectedUserId, adminCurrentDate).catch(console.error);
     }
 }
@@ -858,12 +883,9 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
             }
 
             close();
-            // 清快取重 render
+            // 清快取重 render（含 enriched 薪資快取，否則匯出 Excel 拿到補卡前舊數據）
             if (adminCurrentDate) {
-                const monthKey = `${adminCurrentDate.getFullYear()}-${String(adminCurrentDate.getMonth() + 1).padStart(2, '0')}`;
-                if (typeof adminMonthDataCache !== 'undefined') {
-                    delete adminMonthDataCache[`${monthKey}-${targetUserId}`];
-                }
+                _invalidateAdminCaches(targetUserId);
                 renderAdminCalendar(targetUserId, adminCurrentDate).catch(console.error);
             }
         } catch (err) {
@@ -1136,12 +1158,8 @@ async function handleReviewAction(button, index, action) {
             // 列表已變更，清快取讓重抓拿到新狀態
             cacheManager.invalidate('reviewRequest');
             // 2026-06-10：審核會改變該日 reason（如 STATUS_LEAVE_APPROVED），
-            // 月曆相關快取也要清，否則月曆顯示舊狀態直到 reload
-            cacheManager.invalidate('month');
-            cacheManager.invalidate('monthDetail');
-            if (typeof adminMonthDataCache !== 'undefined') {
-                Object.keys(adminMonthDataCache).forEach((k) => delete adminMonthDataCache[k]);
-            }
+            // 月曆/enriched 薪資快取也要清，否則月曆與薪資 Excel 顯示舊狀態直到 reload
+            _invalidateAdminCaches();
             await new Promise(resolve => setTimeout(resolve, 500));
             // 成功後重新整理列表
             fetchAndRenderReviewRequests();
@@ -3910,8 +3928,9 @@ async function handleEmployeeRequestAction(button, userId, currentAudit) {
         if (res && res.ok) {
             const key = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
             showNotification(t(key) || (action === 'approve' ? '已批准' : '已拒絕'), 'success');
-            // 列表已變更，清快取讓重抓拿到新狀態
+            // 列表已變更，清快取讓重抓拿到新狀態（含月曆與 enriched 薪資快取）
             cacheManager.invalidate('reviewRequest');
+            _invalidateAdminCaches(userId);
             await renderEmployeeRequestHistory(userId, currentAudit);
         } else {
             showNotification(t('REVIEW_FAILED', { msg: (res && res.msg) || '' }) || '審核失敗', 'error');

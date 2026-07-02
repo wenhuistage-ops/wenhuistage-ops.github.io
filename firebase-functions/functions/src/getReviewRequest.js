@@ -90,6 +90,9 @@ module.exports = onCall(
           remark: isLeave ? d.reason || d.locationName || "" : adjustmentType,
           applicationTime: formatTaipei(applicationTime),
           targetTime: formatTaipei(punchDate),
+          // 申請目標日（YYYY-MM-DD，台北時區）：前端異常列表用來比對「該日已有申請
+          // 審核中」，缺這個欄位會使審核中徽章永遠不顯示（員工誤以為失敗重複申請）
+          date: formatTaipei(punchDate).slice(0, 10),
           audit: d.audit || "?", // Phase 4：給前端 tab 分群用
           // 2026-06-10：病假證明照片旗標（只帶 boolean，照片本體由 getLeaveProof 按需取）
           hasProof: !!d.proofPhoto,

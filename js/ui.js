@@ -135,8 +135,8 @@ async function loadMonthDetailData(monthkey, targetUserId = null) {
     // 完全相同的 dailyStatus；不再呼叫 getAttendanceDetails，改從既有月曆快取取，
     // 沒有再呼叫 getCalendarSummary 補上。
     if (targetUserId) {
-        // admin 模式：先看 admin 月曆快取（key = `${monthkey}-${userId}`）
-        const adminKey = `${monthkey}-${targetUserId}`;
+        // admin 模式：先看 admin 月曆快取（key 統一走 adminMonthCacheKey，定義在 admin.js）
+        const adminKey = adminMonthCacheKey(targetUserId, monthkey);
         if (typeof adminMonthDataCache !== 'undefined' && adminMonthDataCache[adminKey]) {
             return adminMonthDataCache[adminKey];
         }
@@ -164,7 +164,7 @@ async function loadMonthDetailData(monthkey, targetUserId = null) {
             const details = res.records.dailyStatus || [];
             // 寫回對應的月曆快取，下次切月份就能直接命中
             if (targetUserId && typeof adminMonthDataCache !== 'undefined') {
-                adminMonthDataCache[`${monthkey}-${targetUserId}`] = details;
+                adminMonthDataCache[adminMonthCacheKey(targetUserId, monthkey)] = details;
             } else {
                 cacheManager.set('month', monthkey, details);
             }
