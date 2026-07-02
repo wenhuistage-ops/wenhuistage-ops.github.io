@@ -941,10 +941,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                         <!-- Panel: 帳號權限 -->
                         <div data-panel="account" class="emp-setting-panel">
-                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
-                                data-i18n="PERMISSION_ACCOUNT_SETTINGS">
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center">
                                 <i class="fas fa-shield-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                權限設定與帳號控制
+                                <!-- data-i18n 放內層 span，避免 renderTranslations 覆寫 textContent 抹掉圖示 -->
+                                <span data-i18n="PERMISSION_ACCOUNT_SETTINGS">權限設定與帳號控制</span>
                             </h5>
                             <div id="employee-settings-container" class="space-y-3">
                                 <!-- Toggle settings 由 JS 動態生成 -->
@@ -961,10 +961,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                         <!-- Panel: 打卡政策 -->
                         <div data-panel="punch" class="emp-setting-panel" hidden>
-                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center"
-                                data-i18n="PUNCH_POLICY_SETTINGS">
+                            <h5 class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center">
                                 <i class="fas fa-map-marker-alt mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                                打卡政策設定
+                                <!-- data-i18n 放內層 span，避免 renderTranslations 覆寫 textContent 抹掉圖示 -->
+                                <span data-i18n="PUNCH_POLICY_SETTINGS">打卡政策設定</span>
                             </h5>
                             <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

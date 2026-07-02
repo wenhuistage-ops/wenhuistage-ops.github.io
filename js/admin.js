@@ -378,7 +378,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     const recordHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}${sourceBadge}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${locationDisplay}</p>
-                        <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="RECORD_NOTE_PREFIX">備註：</span>${r.note}</p>
                         ${actionBtnsHtml}
                     `;
                     li.innerHTML = DOMPurify.sanitize(recordHtml);

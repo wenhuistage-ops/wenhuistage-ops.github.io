@@ -607,14 +607,15 @@ async function renderDailyRecords(dateKey) {
                     if (r.note === "系統請假記錄") {
                         // 請假/休假特殊處理：不顯示時間，只顯示申請狀態
                         const isApproved = r.audit === "v";
-                        const leaveType = r.type || "請假";
-                        const statusText = isApproved ? "已批准" : "審核中";
+                        // '請假'/'休假' 已是語系檔 key，t() 會翻成使用者語言
+                        const leaveType = t(r.type || "請假");
+                        const statusText = t(isApproved ? "STATUS_APPROVED" : "STATUS_PENDING");
 
                         li.classList.add('bg-orange-50', 'dark:bg-orange-700'); // 請假/休假顏色（橙色系）
                         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                         const leaveHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${leaveType} - <span style="color: ${isApproved ? 'green' : 'orange'}; font-weight: bold;">${statusText}</span></p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">請假申請記錄</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${t('LEAVE_REQUEST_RECORD')}</p>
                     `;
                         li.innerHTML = DOMPurify.sanitize(leaveHtml);
                     } else {
@@ -646,7 +647,7 @@ async function renderDailyRecords(dateKey) {
                         const punchHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}${sourceBadge}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">${locationDisplay}</p>
-                        <p data-i18n="RECORD_NOTE_PREFIX" class="text-sm text-gray-500 dark:text-gray-400">備註：${r.note}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="RECORD_NOTE_PREFIX">備註：</span>${r.note}</p>
                     `;
                         li.innerHTML = DOMPurify.sanitize(punchHtml);
                     }
@@ -928,7 +929,7 @@ function appendTodayPunch(type, when = new Date()) {
     li.innerHTML = `
         <span class="${typeColor} font-semibold">
             <i class="fas fa-${type === '上班' ? 'sign-in-alt' : 'sign-out-alt'} mr-1"></i>
-            ${type}
+            ${t(type)}
         </span>
         <span class="text-gray-700 dark:text-gray-200 font-mono">${hh}:${mm}</span>
     `;
@@ -968,12 +969,12 @@ async function renderTodayPunches() {
             li.className = 'flex items-center justify-between p-2 rounded bg-white dark:bg-gray-800';
             const isIn = r.type === '上班';
             const typeColor = isIn ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400';
-            const audit = r.audit === '?' ? ' <span class="text-xs text-yellow-600">(審核中)</span>'
-                : (r.audit === 'x' ? ' <span class="text-xs text-red-600">(已拒絕)</span>' : '');
+            const audit = r.audit === '?' ? ` <span class="text-xs text-yellow-600">(${t('STATUS_PENDING')})</span>`
+                : (r.audit === 'x' ? ` <span class="text-xs text-red-600">(${t('STATUS_REJECTED')})</span>` : '');
             li.innerHTML = `
                 <span class="${typeColor} font-semibold">
                     <i class="fas fa-${isIn ? 'sign-in-alt' : 'sign-out-alt'} mr-1"></i>
-                    ${r.type || '?'}${audit}
+                    ${r.type ? t(r.type) : '?'}${audit}
                 </span>
                 <span class="text-gray-700 dark:text-gray-200 font-mono">${hhmm}</span>
             `;
