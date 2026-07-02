@@ -406,7 +406,7 @@
   "LABOR_PLAINDAY_OT2": "Tăng ca (1.67×)",
   "LABOR_REST_OT1": "2h đầu (1.34×)",
   "LABOR_REST_OT2": "2~8h (1.67×)",
-  "LABOR_REST_OT3": "8h+ (2,67×)",
+  "LABOR_REST_OT3": "8h+ (2.67×)",
   "LABOR_PUBLIC_BASE": "Đảm bảo 8h",
   "LABOR_PUBLIC_OT1": "Tăng ca (1.34×)",
   "LABOR_PUBLIC_OT2": "Tăng ca (1.67×)",
@@ -534,8 +534,10 @@
   "ERR_LINE_PROFILE_MISSING": "Không lấy được hồ sơ LINE của bạn. Vui lòng thử lại.",
   "ERR_INVALID_TOKEN": "Thông tin đăng nhập không hợp lệ. Vui lòng đăng nhập lại.",
   "LEAVE_REQUEST_RECORD": "Hồ sơ xin nghỉ",
-  "上班": "vào ca",
-  "下班": "tan ca",
+  "上班": "Vào ca",
+  "下班": "Tan ca",
   "請假": "Nghỉ phép",
-  "休假": "Ngày nghỉ"
+  "休假": "Ngày nghỉ",
+  "ERR_INVALID_RADIUS": "Bán kính phải từ 10 đến 10000 mét",
+  "EMPLOYEE_STATUS_INACTIVE": "Chưa kích hoạt"
 }

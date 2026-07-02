@@ -1210,12 +1210,13 @@ async function loadEmployeeList() {
             allEmployeeList = employees;
 
             // Phase 1：合併員工選擇器，只填充唯一的 mgmt select
-            // 2026-05-06：選單只顯示「啟用」狀態的正式員工
-            // 過濾掉：'停用'、'未啟用'、'已離職'
-            // → admin 想 reactivate 已離職員工時，目前需直接改 Firestore Console
-            //   或之後可在此處加 toggle「顯示所有員工」
-            const activeEmployees = employees.filter((e) => (e.status || '啟用') === '啟用');
-            const hiddenCount = employees.length - activeEmployees.length;
+            // 2026-07-02：選單顯示「啟用」+「未啟用」員工——後端 verifySession 已改為
+            // 擋非啟用帳號，新員工 LINE 首次登入預設「未啟用」，選單若看不到他，
+            // 管理員就沒有任何產品內路徑能按啟用開關（onboarding 死鎖）。
+            // 仍隱藏：'停用'、'已離職'（reactivate 需直接改 Firestore Console，
+            // 或之後可在此處加 toggle「顯示所有員工」）
+            const visibleEmployees = employees.filter((e) => ['啟用', '未啟用'].includes(e.status || '啟用'));
+            const hiddenCount = employees.length - visibleEmployees.length;
 
             // ✅ XSS防護：使用 DOM API 代替 innerHTML
             adminSelectEmployeeMgmt.replaceChildren();
@@ -1224,15 +1225,17 @@ async function loadEmployeeList() {
             mgmtOption0.textContent = t('OPT_SELECT_EMPLOYEE') || '-- 請選擇一位員工 --';
             adminSelectEmployeeMgmt.appendChild(mgmtOption0);
 
-            activeEmployees.forEach(employee => {
+            visibleEmployees.forEach(employee => {
                 const option = document.createElement('option');
                 option.value = employee.userId;
-                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)`;
+                const inactiveTag = (employee.status || '啟用') === '未啟用'
+                    ? `（${t('EMPLOYEE_STATUS_INACTIVE')}）` : '';
+                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)${inactiveTag}`;
                 adminSelectEmployeeMgmt.appendChild(option);
             });
 
             if (hiddenCount > 0) {
-                console.log(`員工選單：顯示 ${activeEmployees.length} 位啟用員工（已隱藏 ${hiddenCount} 位停用 / 未啟用 / 已離職）`);
+                console.log(`員工選單：顯示 ${visibleEmployees.length} 位員工（已隱藏 ${hiddenCount} 位停用 / 已離職）`);
             }
         } else {
             const errorMessage = data?.message || data?.code || t("FAILED_TO_LOAD_EMPLOYEES");
@@ -1600,7 +1603,9 @@ function initAdminEvents() {
                 getLocationBtn.disabled = false;
                 addLocationBtn.disabled = true;
             } else {
-                showNotification(t("MSG_ADD_LOCATION_FAILED", { msg: res.msg || "" }), "error");
+                // 優先用錯誤碼的翻譯（t() 對 param 值是翻譯 key 時會自動翻），
+                // 沒有 code 才退回後端英文 msg
+                showNotification(t("MSG_ADD_LOCATION_FAILED", { msg: res.code || res.msg || "" }), "error");
             }
         } catch (err) {
             console.error(err);

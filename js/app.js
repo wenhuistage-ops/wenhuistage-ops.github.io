@@ -215,6 +215,12 @@ function bindEvents() {
         }
     };
 
+    // 從 LINE 授權頁按「返回」時，頁面常從 bfcache 原樣還原，
+    // 登入按鈕會停留在 disabled+處理中——pageshow 時復原
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) generalButtonState(loginBtn, 'idle');
+    });
+
     logoutBtn.onclick = () => {
         localStorage.removeItem("sessionToken");
         // 🌟 修正點 (問題1.2)：已移除對 localStorage "isAdmin" 的操作

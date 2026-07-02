@@ -42,7 +42,9 @@ module.exports = onCall(
     const note = clampText(request.data?.note);
 
     if (!date || !type || !reason) {
-      return { ok: false, code: "ERR_MISSING_PARAMS", msg: "缺少必要參數" };
+      // 不帶 msg：前端顯示邏輯是 `res.msg || t(res.code)`，帶中文 msg 會
+      // 永遠蓋掉五語系翻譯，外籍員工看不懂
+      return { ok: false, code: "ERR_MISSING_PARAMS" };
     }
 
     // 回傳真實錯誤碼（ERR_SESSION_MISSING/INVALID/EXPIRED、ERR_ACCOUNT_INACTIVE），

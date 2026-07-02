@@ -534,8 +534,10 @@
   "ERR_LINE_PROFILE_MISSING": "Tidak dapat mengambil profil LINE Anda. Silakan coba lagi.",
   "ERR_INVALID_TOKEN": "Kredensial masuk tidak valid. Silakan masuk kembali.",
   "LEAVE_REQUEST_RECORD": "Catatan pengajuan izin",
-  "上班": "masuk",
-  "下班": "pulang",
+  "上班": "Masuk",
+  "下班": "Pulang",
   "請假": "Izin",
-  "休假": "Cuti"
+  "休假": "Cuti",
+  "ERR_INVALID_RADIUS": "Radius harus antara 10 hingga 10000 meter",
+  "EMPLOYEE_STATUS_INACTIVE": "Belum diaktifkan"
 }

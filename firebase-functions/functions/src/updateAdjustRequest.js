@@ -27,7 +27,7 @@
 
 const admin = require("firebase-admin");
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession } = require("./_helpers");
+const { db, COLLECTIONS, verifySession, clampText } = require("./_helpers");
 const { applyEventToMonthly, invalidateMonthlyCacheForDate } = require("./_attendance");
 
 module.exports = onCall(
@@ -39,7 +39,9 @@ module.exports = onCall(
 
     const id = String(request.data?.id || "").trim();
     const datetime = request.data?.datetime;
-    const rawNote = request.data?.note;
+    // 與 punch/adjustPunch/submitLeave 同樣截斷：漏這條路徑就能繞過 clampText
+    // 把超長 note 寫進聚合 doc 撐爆 1MiB 上限
+    const rawNote = clampText(request.data?.note);
 
     if (!id) return { ok: false, code: "ERR_MISSING_ID", msg: "缺少申請 id" };
     if (!datetime) return { ok: false, code: "ERR_INVALID_DATETIME", msg: "缺少 datetime" };

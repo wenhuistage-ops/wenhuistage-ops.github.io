@@ -537,5 +537,7 @@
   "上班": "Clock-in",
   "下班": "Clock-out",
   "請假": "Leave",
-  "休假": "Vacation"
+  "休假": "Vacation",
+  "ERR_INVALID_RADIUS": "Radius must be between 10 and 10000 meters",
+  "EMPLOYEE_STATUS_INACTIVE": "Not activated"
 }
