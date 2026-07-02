@@ -2367,20 +2367,12 @@ function setupAdminExport() {
             return;
         }
 
-        // 解析目前顯示的月份
-        const monthText = (adminCurrentMonthDisplay && adminCurrentMonthDisplay.textContent)
-            ? adminCurrentMonthDisplay.textContent.trim()
-            : '';
-        let year, month;
-        const m = monthText.match(/(\d{4}).*?(\d{1,2})/);
-        if (m) {
-            year = parseInt(m[1], 10);
-            month = parseInt(m[2], 10) - 1;
-        } else {
-            const d = new Date();
-            year = d.getFullYear();
-            month = d.getMonth();
-        }
+        // 直接讀權威狀態 adminCurrentDate（月份切換時即時維護）。
+        // 不從翻譯後的 UI 文字反解析：vi/en/id 的月份模板年份在末尾，
+        // 舊 regex 必定匹配失敗 fallback 到今天，導致靜默匯出錯誤月份。
+        const exportDate = adminCurrentDate || new Date();
+        const year = exportDate.getFullYear();
+        const month = exportDate.getMonth();
 
         const monthParam = `${year}-${pad(month + 1)}`;
 
@@ -3169,20 +3161,10 @@ function setupDetailedPayrollExport() {
             return;
         }
 
-        // 解析目前顯示的月份
-        const monthText = (adminCurrentMonthDisplay && adminCurrentMonthDisplay.textContent)
-            ? adminCurrentMonthDisplay.textContent.trim()
-            : '';
-        let year, month;
-        const m = monthText.match(/(\d{4}).*?(\d{1,2})/);
-        if (m) {
-            year = parseInt(m[1], 10);
-            month = parseInt(m[2], 10) - 1;
-        } else {
-            const d = adminCurrentDate || new Date();
-            year = d.getFullYear();
-            month = d.getMonth();
-        }
+        // 直接讀權威狀態 adminCurrentDate，理由同 setupAdminExport
+        const exportDate = adminCurrentDate || new Date();
+        const year = exportDate.getFullYear();
+        const month = exportDate.getMonth();
 
         if (typeof XLSX === 'undefined') {
             showNotification(t('MSG_EXPORT_FAILED') || '匯出失敗：XLSX 未載入', 'error');

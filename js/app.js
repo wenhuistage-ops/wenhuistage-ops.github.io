@@ -188,17 +188,30 @@ function bindEvents() {
     loginBtn.onclick = async () => {
         // 根據當前環境動態決定登入後的回跳網址
         const redirectUrl = getRedirectUrl();
-        const res = await callApifetch({
-            action: 'getLoginUrl',
-            redirectUrl: redirectUrl  // 將回跳網址作為參數傳遞給後端
-        });
-        if (res.url) {
-            // CSRF 防護：記住本次授權的 state，callback 時比對
-            // 用 sessionStorage（分頁關閉即清，不跨分頁），比 localStorage 更貼近一次性
-            if (res.state) {
-                try { sessionStorage.setItem('lineLoginState', res.state); } catch (_) { /* ignore */ }
+        // 防連點 + Cloud Functions 冷啟動可達數秒，期間給處理中回饋
+        generalButtonState(loginBtn, 'processing', t('LOADING') || '處理中...');
+        try {
+            const res = await callApifetch({
+                action: 'getLoginUrl',
+                redirectUrl: redirectUrl  // 將回跳網址作為參數傳遞給後端
+            });
+            if (res && res.url) {
+                // CSRF 防護：記住本次授權的 state，callback 時比對
+                // 用 sessionStorage（分頁關閉即清，不跨分頁），比 localStorage 更貼近一次性
+                if (res.state) {
+                    try { sessionStorage.setItem('lineLoginState', res.state); } catch (_) { /* ignore */ }
+                }
+                window.location.href = res.url;
+            } else {
+                // callFirestoreFunction 失敗不 throw 而是回 {ok:false}——
+                // 沒有 else 分支時登入失敗畫面會毫無反應，使用者卡在登入頁
+                showNotification(t('ERROR_LOGIN_FAILED', { msg: (res && res.code) || '' }), 'error');
+                generalButtonState(loginBtn, 'idle');
             }
-            window.location.href = res.url;
+        } catch (err) {
+            console.error('getLoginUrl 失敗:', err);
+            showNotification(t('ERROR_LOGIN_FAILED', { msg: err?.message || '' }), 'error');
+            generalButtonState(loginBtn, 'idle');
         }
     };
 
