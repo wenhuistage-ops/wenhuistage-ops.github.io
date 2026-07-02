@@ -25,6 +25,7 @@ const {
   db,
   COLLECTIONS,
   verifySession,
+  clampText,
   validateCoordinates,
   getDistanceMeters,
   getAllLocations,
@@ -42,6 +43,12 @@ module.exports = onCall(
 
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const { type, lat, lng, note } = request.data || {};
+
+    // type 白名單（與 punchWithoutLocation / updateAttendanceAsAdmin 一致）：
+    // 員工端不得寫入 '請假'/'休假' 等其他類型，那些只能走 submitLeave 審核流程
+    if (!["上班", "下班"].includes(type)) {
+      return { ok: false, code: "ERR_INVALID_PUNCH_TYPE" };
+    }
 
     // 1. 驗 session
     const t1 = Date.now();
@@ -108,12 +115,12 @@ module.exports = onCall(
       userId: user.userId,
       dept: user.dept || "",
       name: user.name || "",
-      type: type || "",
+      type,
       coords: `(${latNum},${lngNum})`,
       lat: latNum,
       lng: lngNum,
       locationName,
-      note: note || "",
+      note: clampText(note),
       audit: "",
       adjustmentType: "", // 補打卡類型，空白代表正常打卡
       createdAt: admin.firestore.FieldValue.serverTimestamp(),

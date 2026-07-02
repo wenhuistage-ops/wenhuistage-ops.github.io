@@ -125,6 +125,7 @@
   "ADJUST_PUNCH_SUCCESS": "✅{type} 補打卡成功",
   "ERR_SESSION_INVALID": "🔄 登入憑證-已失效「請重新登入」",
   "ERR_SESSION_EXPIRED": "Session 已過期",
+  "ERR_ACCOUNT_INACTIVE": "⛔ 帳號未啟用或已停用，請聯絡管理員",
   "ERR_SESSION_TOKEN": "無效的 sessionToken",
   "MISSING_SESSION_TOKEN": "缺少 sessionToken",
   "SESSION_SHEET_NOT_FOUND": "找不到 Session 工作表",

@@ -125,6 +125,7 @@
   "ADJUST_PUNCH_SUCCESS": "✅ {type}の修正打刻に成功しました",
   "ERR_SESSION_INVALID": "🔄 ログイン資格情報が無効です。「再ログインしてください」",
   "ERR_SESSION_EXPIRED": "セッションの有効期限が切れました",
+  "ERR_ACCOUNT_INACTIVE": "⛔ アカウントが未有効化または無効化されています。管理者にお問い合わせください。",
   "ERR_SESSION_TOKEN": "無効な sessionToken",
   "MISSING_SESSION_TOKEN": "sessionTokenがありません",
   "SESSION_SHEET_NOT_FOUND": "Sessionシートが見つかりません",

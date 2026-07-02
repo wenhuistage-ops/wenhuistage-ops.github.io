@@ -10,7 +10,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { verifySession } = require("./_helpers");
+const { verifySession, isValidMonth } = require("./_helpers");
 const { getMonthlyDailyStatus } = require("./_attendance");
 
 module.exports = onCall(
@@ -22,7 +22,8 @@ module.exports = onCall(
     const session = await verifySession(sessionToken);
     if (!session.ok) return { ok: false, code: session.code };
 
-    if (!month) return { ok: false, code: "ERR_MISSING_MONTH" };
+    // 驗格式（month 會拼進聚合 doc id，垃圾字串會產生垃圾 doc、含 '/' 直接 500）
+    if (!isValidMonth(month)) return { ok: false, code: "ERR_MISSING_MONTH" };
 
     // 權限：一般員工只能看自己；管理員可查指定 userId
     const effectiveUserId =

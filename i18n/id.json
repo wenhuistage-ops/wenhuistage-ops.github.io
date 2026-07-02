@@ -125,6 +125,7 @@
   "ADJUST_PUNCH_SUCCESS": "✅ Absen susulan {type} berhasil",
   "ERR_SESSION_INVALID": "🔄 Kredensial masuk tidak valid, silakan masuk kembali.",
   "ERR_SESSION_EXPIRED": "Sesi telah kedaluwarsa",
+  "ERR_ACCOUNT_INACTIVE": "⛔ Akun belum diaktifkan atau telah dinonaktifkan. Silakan hubungi administrator.",
   "ERR_SESSION_TOKEN": "sessionToken tidak valid",
   "MISSING_SESSION_TOKEN": "sessionToken tidak ditemukan",
   "SESSION_SHEET_NOT_FOUND": "Lembar Sesi tidak ditemukan",

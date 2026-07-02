@@ -111,6 +111,7 @@
   "ADJUST_PUNCH_SUCCESS": "✅ Chấm công bổ sung {type} thành công",
   "ERR_SESSION_INVALID": "🔄 Thông tin đăng nhập không hợp lệ. Vui lòng đăng nhập lại.",
   "ERR_SESSION_EXPIRED": "Phiên làm việc đã hết hạn",
+  "ERR_ACCOUNT_INACTIVE": "⛔ Tài khoản chưa được kích hoạt hoặc đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.",
   "ERR_SESSION_TOKEN": "sessionToken không hợp lệ",
   "MISSING_SESSION_TOKEN": "Thiếu sessionToken",
   "SESSION_SHEET_NOT_FOUND": "Không tìm thấy bảng tính Phiên làm việc",

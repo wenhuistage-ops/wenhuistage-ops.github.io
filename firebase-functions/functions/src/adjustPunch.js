@@ -9,6 +9,7 @@ const {
   db,
   COLLECTIONS,
   verifySession,
+  clampText,
   notifyAdmins,
   formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
@@ -25,6 +26,11 @@ module.exports = onCall(
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const { type, lat, lng, note, datetime } = request.data || {};
 
+    // type 白名單：員工端補打卡只能是上下班，不得偽造 '請假'/'休假' 類型紀錄
+    if (!["上班", "下班"].includes(type)) {
+      return { ok: false, code: "ERR_INVALID_PUNCH_TYPE" };
+    }
+
     const session = await verifySession(sessionToken);
     if (!session.ok) return { ok: false, code: session.code };
 
@@ -37,14 +43,14 @@ module.exports = onCall(
     const applicationTime = new Date();
     // 2026-05-15：在 note 加 [員工補卡] prefix，UI / Firestore Console 一眼能識別來源
     const noteWithTag = note
-      ? `[員工補卡] ${note}`
+      ? `[員工補卡] ${clampText(note)}`
       : "[員工補卡]";
     await db.collection(COLLECTIONS.ATTENDANCE).add({
       timestamp: admin.firestore.Timestamp.fromDate(punchDate),
       userId: user.userId,
       dept: user.dept || "",
       name: user.name || "",
-      type: type || "",
+      type,
       lat: lat !== undefined ? Number(lat) : null,
       lng: lng !== undefined ? Number(lng) : null,
       coords: `申請時間: ${applicationTime.toISOString()}`,

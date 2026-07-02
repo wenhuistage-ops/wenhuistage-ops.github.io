@@ -8,7 +8,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { verifySession } = require("./_helpers");
+const { verifySession, isValidMonth } = require("./_helpers");
 const { getMonthlyAttendance, detectAbnormal } = require("./_attendance");
 
 module.exports = onCall(
@@ -20,7 +20,7 @@ module.exports = onCall(
     const session = await verifySession(sessionToken);
     if (!session.ok) return { ok: false, code: session.code };
 
-    if (!month) return { ok: false, code: "ERR_MISSING_MONTH" };
+    if (!isValidMonth(month)) return { ok: false, code: "ERR_MISSING_MONTH" };
 
     const effectiveUserId =
       session.user.dept === "管理員" && userId ? userId : session.user.userId;

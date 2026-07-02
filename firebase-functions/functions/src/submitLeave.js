@@ -23,6 +23,7 @@ const {
   db,
   COLLECTIONS,
   verifySession,
+  clampText,
   notifyAdmins,
   LINE_CHANNEL_ACCESS_TOKEN,
 } = require("./_helpers");
@@ -36,14 +37,18 @@ module.exports = onCall(
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
-    const { date, type, reason, note, photo } = request.data || {};
+    const { date, type, photo } = request.data || {};
+    const reason = clampText(request.data?.reason);
+    const note = clampText(request.data?.note);
 
     if (!date || !type || !reason) {
       return { ok: false, code: "ERR_MISSING_PARAMS", msg: "缺少必要參數" };
     }
 
+    // 回傳真實錯誤碼（ERR_SESSION_MISSING/INVALID/EXPIRED、ERR_ACCOUNT_INACTIVE），
+    // 與其他端點一致，前端 i18n 才有對應翻譯
     const session = await verifySession(sessionToken);
-    if (!session.ok) return { ok: false, code: "ERR_INVALID_SESSION" };
+    if (!session.ok) return { ok: false, code: session.code };
 
     const user = session.user;
     const punchDate = new Date(date);

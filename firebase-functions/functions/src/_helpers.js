@@ -130,7 +130,18 @@ async function verifySession(sessionToken) {
     return result;
   }
 
-  const result = { ok: true, user: { userId: session.userId, ...userSnap.data() } };
+  const userData = userSnap.data();
+
+  // 帳號狀態檢查：與 admin UI / 排程任務同一慣例——空值視為啟用（相容舊資料），
+  // '未啟用'（新帳號待管理員啟用）/ '停用' / '已離職' 一律擋下。
+  // 快取失敗結果，status 變更後最多 60 秒生效（見上方 SESSION_CACHE 註解）。
+  if ((userData.status || "啟用") !== "啟用") {
+    const result = { ok: false, code: "ERR_ACCOUNT_INACTIVE" };
+    setSessionCache(sessionToken, result);
+    return result;
+  }
+
+  const result = { ok: true, user: { userId: session.userId, ...userData } };
   setSessionCache(sessionToken, result);
   return result;
 }
@@ -145,6 +156,29 @@ async function verifyAdmin(sessionToken) {
     return { ok: false, code: "ERR_NO_PERMISSION" };
   }
   return res;
+}
+
+// ===================================
+// 輸入驗證
+// ===================================
+
+/**
+ * 驗證月份參數格式（YYYY-MM）。
+ * month 會被拼進 attendanceMonthly 的 doc id（`${userId}_${month}`），
+ * 垃圾字串會產生垃圾聚合 doc、含 '/' 會直接 500，故所有接收 month 的端點都須先驗。
+ */
+function isValidMonth(month) {
+  return typeof month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
+}
+
+/**
+ * 截斷自由文字欄位（note / reason 等）。
+ * 無上限的字串會撐爆 attendanceMonthly 聚合 doc（Firestore 1MiB 上限），
+ * 導致月曆 500 或聚合永久失效。500 字對正當用途綽綽有餘，靜默截斷即可。
+ */
+const MAX_TEXT_FIELD_CHARS = 500;
+function clampText(value) {
+  return String(value || "").slice(0, MAX_TEXT_FIELD_CHARS);
 }
 
 // ===================================
@@ -437,6 +471,8 @@ module.exports = {
   LINE_CHANNEL_ACCESS_TOKEN,
   verifySession,
   verifyAdmin,
+  isValidMonth,
+  clampText,
   validateCoordinates,
   getDistanceMeters,
   getAllLocations,

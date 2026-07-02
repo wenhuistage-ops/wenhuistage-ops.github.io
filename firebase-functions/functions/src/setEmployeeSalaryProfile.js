@@ -156,7 +156,14 @@ module.exports = onCall(
       return { ok: false, code: "ERR_NO_FIELDS", msg: "no salary fields provided" };
     }
 
-    await db.collection("employees").doc(userId).set(update, { merge: true });
+    // 確認目標員工存在（set merge 對不存在的 doc 會創建幽靈員工）
+    const empRef = db.collection("employees").doc(userId);
+    const empSnap = await empRef.get();
+    if (!empSnap.exists) {
+      return { ok: false, code: "ERR_USER_NOT_FOUND", msg: "target employee not found" };
+    }
+
+    await empRef.set(update, { merge: true });
 
     return { ok: true, updatedFields: writableKeys };
   }

@@ -125,6 +125,7 @@
   "ADJUST_PUNCH_SUCCESS": "✅ {type} make-up punch successful",
   "ERR_SESSION_INVALID": "🔄 Login expired. Please log in again.",
   "ERR_SESSION_EXPIRED": "Session has expired",
+  "ERR_ACCOUNT_INACTIVE": "⛔ Account is inactive or disabled. Please contact your administrator.",
   "ERR_SESSION_TOKEN": "Invalid sessionToken",
   "MISSING_SESSION_TOKEN": "Missing sessionToken",
   "SESSION_SHEET_NOT_FOUND": "Session sheet not found",

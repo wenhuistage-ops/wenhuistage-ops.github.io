@@ -19,11 +19,17 @@ module.exports = onCall(
     const validation = validateCoordinates(lat, lng);
     if (!validation.valid) return { ok: false, code: validation.error };
 
+    // radius 範圍驗證：NaN/負數/超大半徑會直接影響所有員工的打卡判定
+    const radiusNum = radius === undefined || radius === "" ? 100 : Number(radius);
+    if (isNaN(radiusNum) || radiusNum < 10 || radiusNum > 10000) {
+      return { ok: false, code: "ERR_INVALID_RADIUS", msg: "radius must be 10–10000 (meters)" };
+    }
+
     const ref = await db.collection(COLLECTIONS.LOCATIONS).add({
       name: String(name).trim(),
       lat: validation.lat,
       lng: validation.lng,
-      radius: Number(radius || 100),
+      radius: radiusNum,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: auth.user.userId,
     });
