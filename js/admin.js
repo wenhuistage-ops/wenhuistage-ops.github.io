@@ -1046,8 +1046,8 @@ function renderReviewRequests(requests) {
 
             <div class="flex space-x-2">
                 ${req.hasProof ? `<button data-i18n="BTN_VIEW_PROOF" data-proof-id="${(req.id || '').replace(/[^a-zA-Z0-9_-]/g, '')}" class="view-proof-btn px-3 py-1 rounded-md text-sm font-bold bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-800 dark:text-purple-100">📎 查看證明</button>` : ''}
-                <button data-i18n="ADMIN_APPROVE_BUTTON" data-index="${index}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
-                <button data-i18n="ADMIN_REJECT_BUTTON" data-index="${index}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
+                <button data-i18n="ADMIN_APPROVE_BUTTON" data-id="${(req.id || '').replace(/[^a-zA-Z0-9_-]/g, '')}" class="approve-btn px-3 py-1 rounded-md text-sm font-bold btn-primary">核准</button>
+                <button data-i18n="ADMIN_REJECT_BUTTON" data-id="${(req.id || '').replace(/[^a-zA-Z0-9_-]/g, '')}" class="reject-btn px-3 py-1 rounded-md text-sm font-bold btn-warning">拒絕</button>
             </div>
         </div>
     `;
@@ -1058,11 +1058,11 @@ function renderReviewRequests(requests) {
 
     // 事件綁定 (審批動作)
     listEl.querySelectorAll('.approve-btn').forEach(button => {
-        button.addEventListener('click', (e) => handleReviewAction(e.currentTarget, e.currentTarget.dataset.index, 'approve'));
+        button.addEventListener('click', (e) => handleReviewAction(e.currentTarget, e.currentTarget.dataset.id, 'approve'));
     });
 
     listEl.querySelectorAll('.reject-btn').forEach(button => {
-        button.addEventListener('click', (e) => handleReviewAction(e.currentTarget, e.currentTarget.dataset.index, 'reject'));
+        button.addEventListener('click', (e) => handleReviewAction(e.currentTarget, e.currentTarget.dataset.id, 'reject'));
     });
 
     // 2026-06-10：查看病假證明照片（按需呼叫 getLeaveProof，不在清單預載）
@@ -1120,7 +1120,7 @@ async function _showLeaveProofLightbox(docId) {
  * 🌟 修正點 (問題1.1)：在執行操作前驗證管理員權限
  * 🌟 修正點 (問題8.6)：添加二次確認對話框
  */
-async function handleReviewAction(button, index, action) {
+async function handleReviewAction(button, id, action) {
     // 🌟 驗證管理員權限
     const isAdmin = await verifyAdminPermission();
     if (!isAdmin) {
@@ -1128,20 +1128,35 @@ async function handleReviewAction(button, index, action) {
         return;
     }
 
-    const request = pendingRequests[index]; // 來自 state.js
-    // ... (錯誤檢查與 API 呼叫邏輯與您提供的相同) ...
+    // ⚠️ 依 id 尋找（而非陣列 index）：清單若在點擊前被背景重整/重排，
+    // 用 index 會指到不同的申請而誤審他人。
+    const request = (pendingRequests || []).find(
+        (r) => r && String(r.id).replace(/[^a-zA-Z0-9_-]/g, '') === String(id)
+    );
+    if (!request) {
+        showNotification(t('REVIEW_FAILED', { msg: 'record not found' }) || '找不到該申請，請重新整理', 'error');
+        return;
+    }
 
     const recordId = request.id;
     const endpoint = action === 'approve' ? 'approveReview' : 'rejectReview';
     const loadingText = t('LOADING') || '處理中...';
 
-    // 🌟 修正點 (問題8.6)：添加確認對話框
-    const actionText = t(action === 'approve' ? 'ACTION_APPROVE' : 'ACTION_REJECT');
-    const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
-    const confirmed = await showConfirmDialog(confirmMsg);
-
-    if (!confirmed) {
-        return; // 用戶取消操作
+    // 退回：詢問原因（員工會在「我的申請」看到）；核准：一般二次確認
+    let rejectReason = '';
+    if (action === 'reject') {
+        const input = window.prompt(t('ENTER_REJECTION_REASON') || '請輸入退回原因（員工會看到，可留空）：', '');
+        if (input === null) {
+            return; // 取消退回
+        }
+        rejectReason = String(input).trim();
+    } else {
+        const actionText = t('ACTION_APPROVE');
+        const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
+        const confirmed = await showConfirmDialog(confirmMsg);
+        if (!confirmed) {
+            return; // 用戶取消操作
+        }
     }
 
     // generalButtonState 來自 ui.js
@@ -1150,7 +1165,8 @@ async function handleReviewAction(button, index, action) {
     try {
         const res = await callApifetch({
             action: endpoint,
-            id: recordId
+            id: recordId,
+            reason: action === 'reject' ? rejectReason : undefined
         });
         if (res.ok) {
             const translationKey = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
@@ -1210,13 +1226,12 @@ async function loadEmployeeList() {
             allEmployeeList = employees;
 
             // Phase 1：合併員工選擇器，只填充唯一的 mgmt select
-            // 2026-07-02：選單顯示「啟用」+「未啟用」員工——後端 verifySession 已改為
-            // 擋非啟用帳號，新員工 LINE 首次登入預設「未啟用」，選單若看不到他，
-            // 管理員就沒有任何產品內路徑能按啟用開關（onboarding 死鎖）。
-            // 仍隱藏：'停用'、'已離職'（reactivate 需直接改 Firestore Console，
-            // 或之後可在此處加 toggle「顯示所有員工」）
-            const visibleEmployees = employees.filter((e) => ['啟用', '未啟用'].includes(e.status || '啟用'));
-            const hiddenCount = employees.length - visibleEmployees.length;
+            // 啟用員工放在最上面；停用/未啟用/已離職員工放進一個 optgroup 並標註狀態，
+            // 讓 admin 能在 App 內選取他們並於員工設定頁「重新啟用」（免進 Firestore Console）。
+            // 這同時解掉 onboarding 死鎖：verifySession 擋非啟用帳號後，新員工
+            // （LINE 首次登入預設「未啟用」）必須能在選單中被選到才有路徑可啟用。
+            const activeEmployees = employees.filter((e) => (e.status || '啟用') === '啟用');
+            const inactiveEmployees = employees.filter((e) => (e.status || '啟用') !== '啟用');
 
             // ✅ XSS防護：使用 DOM API 代替 innerHTML
             adminSelectEmployeeMgmt.replaceChildren();
@@ -1225,17 +1240,25 @@ async function loadEmployeeList() {
             mgmtOption0.textContent = t('OPT_SELECT_EMPLOYEE') || '-- 請選擇一位員工 --';
             adminSelectEmployeeMgmt.appendChild(mgmtOption0);
 
-            visibleEmployees.forEach(employee => {
+            activeEmployees.forEach(employee => {
                 const option = document.createElement('option');
                 option.value = employee.userId;
-                const inactiveTag = (employee.status || '啟用') === '未啟用'
-                    ? `（${t('EMPLOYEE_STATUS_INACTIVE')}）` : '';
-                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)${inactiveTag}`;
+                option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)`;
                 adminSelectEmployeeMgmt.appendChild(option);
             });
 
-            if (hiddenCount > 0) {
-                console.log(`員工選單：顯示 ${visibleEmployees.length} 位員工（已隱藏 ${hiddenCount} 位停用 / 已離職）`);
+            if (inactiveEmployees.length > 0) {
+                const group = document.createElement('optgroup');
+                group.label = t('OPTGROUP_INACTIVE_EMPLOYEES') || '停用 / 已離職員工';
+                inactiveEmployees.forEach(employee => {
+                    const option = document.createElement('option');
+                    option.value = employee.userId;
+                    const st = employee.status ? `（${employee.status}）` : '';
+                    option.textContent = `${ employee.name } (${ employee.userId.substring(0, 8) }...)${st}`;
+                    group.appendChild(option);
+                });
+                adminSelectEmployeeMgmt.appendChild(group);
+                console.log(`員工選單：${activeEmployees.length} 位啟用 + ${inactiveEmployees.length} 位停用/離職（可於設定頁重新啟用）`);
             }
         } else {
             const errorMessage = data?.message || data?.code || t("FAILED_TO_LOAD_EMPLOYEES");
@@ -1666,10 +1689,18 @@ async function ensureWeeklyChartLoaded() {
  * @param {HTMLInputElement} checkbox 來源 checkbox（用於 rollback 與暫時 disable）
  * @param {object} updates 成功後要套回 currentManagingEmployee 的 patch
  */
-async function _setEmployeeStatusField(userId, field, value, checkbox, updates) {
+async function _setEmployeeStatusField(userId, field, value, checkbox, updates, confirmMsg) {
     if (!userId) {
         if (checkbox) checkbox.checked = !value;
         return;
+    }
+    // 授權/停用是敏感操作 → 二次確認；取消則還原開關
+    if (confirmMsg) {
+        const ok = await showConfirmDialog(confirmMsg);
+        if (!ok) {
+            if (checkbox) checkbox.checked = !value;
+            return;
+        }
     }
     if (checkbox) checkbox.disabled = true;
     try {
@@ -1707,19 +1738,25 @@ async function _setEmployeeStatusField(userId, field, value, checkbox, updates) 
  * 切換管理員權限
  */
 async function toggleAdminStatus(userId, value, checkbox) {
+    const confirmMsg = value
+        ? (t('CONFIRM_GRANT_ADMIN') || '確定要將此員工設為「管理員」？對方將擁有完整管理權限。')
+        : (t('CONFIRM_REVOKE_ADMIN') || '確定要移除此員工的管理員權限？');
     return _setEmployeeStatusField(userId, 'isAdmin', value, checkbox, {
         isAdmin: value,
         dept: value ? '管理員' : '一般員工',
-    });
+    }, confirmMsg);
 }
 
 /**
  * 切換帳號啟用狀態
  */
 async function toggleAccountStatus(userId, value, checkbox) {
+    const confirmMsg = value
+        ? (t('CONFIRM_ENABLE_ACCOUNT') || '確定要啟用此帳號？')
+        : (t('CONFIRM_DISABLE_ACCOUNT') || '確定要停用此帳號？停用後對方將無法登入與打卡。');
     return _setEmployeeStatusField(userId, 'active', value, checkbox, {
         status: value ? '啟用' : '停用',
-    });
+    }, confirmMsg);
 }
 
 /**
@@ -2294,8 +2331,8 @@ const switchAdminSubTab = (subTabId) => {
 
     // 6. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
     console.log(`切換到管理員子頁籤: ${ subTabId } `);
-    if (subTabId === 'review-requests') {
-        fetchAndRenderReviewRequests(); // 載入表單
+    if (subTabId === 'form-review-view') {
+        fetchAndRenderReviewRequests(); // 切到表單審核就重抓，避免顯示過時清單而漏審/重複審
     } else if (subTabId === 'employee-settings-view') {
         // 切到員工設定 tab：依當前選擇狀態同步顯示
         syncEmployeeSettingsVisibility();

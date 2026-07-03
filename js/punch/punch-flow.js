@@ -72,7 +72,8 @@ async function doPunch(type) {
     const hasPermission = await requestGeolocationPermission();
     if (!hasPermission) {
         // 權限被拒絕，提供降級方案
-        await handleLocationPermissionDenied(button);
+        _clearProgress(); // 解除「處理中」flag，避免按鈕卡住
+        await handleLocationPermissionDenied(button, type);
         return;
     }
 
@@ -148,11 +149,20 @@ async function doPunch(type) {
     const geoStart = performance.now();
 
     // 獲取新位置
-    await getAccurateLocation(async (lat, lng, accuracy) => {
-        const geoEnd = performance.now();
-        const geoTime = geoEnd - geoStart;
-        await submitPunch(lat, lng, accuracy, geoTime);
-    }, button);
+    // ⚠️ 必須 try/catch：GPS 逾時/抓不到時 getAccurateLocation 會 reject，
+    // 此時 submitPunch 的 finally 不會執行，若不在這裡補 _clearProgress()，
+    // _punchInProgress[type] 會卡住到 30 秒保險才解除（期間無法重試打卡）。
+    try {
+        await getAccurateLocation(async (lat, lng, accuracy) => {
+            const geoEnd = performance.now();
+            const geoTime = geoEnd - geoStart;
+            await submitPunch(lat, lng, accuracy, geoTime);
+        }, button);
+    } catch (err) {
+        // getAccurateLocation 內部已顯示錯誤並將按鈕重置為 idle，這裡只需解除進行中 flag
+        console.warn('打卡定位失敗:', err);
+        _clearProgress();
+    }
 }
 
 // ===================================
@@ -160,34 +170,29 @@ async function doPunch(type) {
 // ===================================
 
 // 處理地理位置權限被拒絕的情況
-async function handleLocationPermissionDenied(button) {
-    // 顯示權限被拒絕的通知
-    const permissionMsg = t('LOCATION_PERMISSION_DENIED_DETAIL') ||
-        '地理位置權限已被拒絕。請在瀏覽器設定中允許此網站存取您的位置，或聯繫管理員進行手動打卡。';
+async function handleLocationPermissionDenied(button, type) {
+    generalButtonState(button, 'idle');
 
-    showNotification(permissionMsg, "warning");
-
-    // 提供重新請求權限的選項
-    const retryPermission = confirm(t('RETRY_LOCATION_PERMISSION') ||
-        '是否要重新請求地理位置權限？');
-
-    if (retryPermission) {
-        // 清除權限快取並重試
-        geolocationPermissionStatus = null;
-        // 重新載入頁面來重置權限狀態（某些瀏覽器需要）
-        window.location.reload();
+    // 友善引導：跳出平台對應的「如何開啟定位」步驟 + 「重新嘗試」，
+    // 並保留管理員手動打卡（無定位）為次要選項。
+    if (typeof showLocationPermissionHelp === 'function') {
+        showLocationPermissionHelp({
+            onRetry: () => {
+                geolocationPermissionStatus = null; // 清權限快取再試
+                if (typeof type === 'string') doPunch(type);
+            },
+            secondary: {
+                label: t('PROCEED_WITHOUT_LOCATION_BTN') || '管理員手動打卡（無定位）',
+                onClick: () => submitPunchWithoutLocation(button)
+            }
+        });
         return;
     }
 
-    // 詢問是否要進行無定位打卡（管理員功能）
-    const proceedWithoutLocation = confirm(t('PROCEED_WITHOUT_LOCATION') ||
-        '是否要進行無定位打卡？（需要管理員權限）');
-
-    if (proceedWithoutLocation) {
-        await submitPunchWithoutLocation(button);
-    } else {
-        generalButtonState(button, 'idle');
-    }
+    // 後備（理論上 geolocation.js 已載入，不會走到這）：純文字通知
+    const permissionMsg = t('LOCATION_PERMISSION_DENIED_DETAIL') ||
+        '地理位置權限已被拒絕。請在瀏覽器設定中允許此網站存取您的位置，或聯繫管理員進行手動打卡。';
+    showNotification(permissionMsg, "warning");
 }
 
 // ===================================

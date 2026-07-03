@@ -186,46 +186,47 @@ function getDOMElements() {
 function bindEvents() {
     // 登入/登出事件
     loginBtn.onclick = async () => {
-        // 根據當前環境動態決定登入後的回跳網址
-        const redirectUrl = getRedirectUrl();
-        // 防連點 + Cloud Functions 冷啟動可達數秒，期間給處理中回饋
-        generalButtonState(loginBtn, 'processing', t('LOADING') || '處理中...');
+        // 防連點：弱網下 getLoginUrl 可能慢，避免使用者狂點連發多個請求
+        if (loginBtn.disabled) return;
+        const _originalLabel = loginBtn.textContent;
+        loginBtn.disabled = true;
+        loginBtn.style.opacity = '0.7';
+        loginBtn.textContent = t('LOADING') || '處理中...';
         try {
+            // 根據當前環境動態決定登入後的回跳網址
+            const redirectUrl = getRedirectUrl();
             const res = await callApifetch({
                 action: 'getLoginUrl',
                 redirectUrl: redirectUrl  // 將回跳網址作為參數傳遞給後端
             });
             if (res && res.url) {
                 // CSRF 防護：記住本次授權的 state，callback 時比對
-                // 用 sessionStorage（分頁關閉即清，不跨分頁），比 localStorage 更貼近一次性
+                // 用 localStorage（含時效）：iOS Safari / LINE 在 OAuth 跳轉回來時常開新分頁/webview，
+                // sessionStorage（只活在原分頁）會遺失而誤判 state mismatch。以 state 值當鍵支援多分頁併發。
                 if (res.state) {
-                    try { sessionStorage.setItem('lineLoginState', res.state); } catch (_) { /* ignore */ }
+                    try {
+                        localStorage.setItem('lineLoginState:' + res.state, String(Date.now()));
+                    } catch (_) { /* ignore */ }
                 }
-                window.location.href = res.url;
-            } else {
-                // callFirestoreFunction 失敗不 throw 而是回 {ok:false}——
-                // 沒有 else 分支時登入失敗畫面會毫無反應，使用者卡在登入頁
-                showNotification(t('ERROR_LOGIN_FAILED', { msg: (res && res.code) || '' }), 'error');
-                generalButtonState(loginBtn, 'idle');
+                window.location.href = res.url; // 導向 LINE 授權（頁面即將離開）
+                return;
             }
+            // 後端沒回 url → 明確回饋，而非默默無反應
+            showNotification(t('CONNECTION_FAILED') || '無法取得登入連結，請稍後再試', 'error');
         } catch (err) {
+            // callApifetch 內部已對網路錯誤顯示通知；這裡確保按鈕還原
             console.error('getLoginUrl 失敗:', err);
-            showNotification(t('ERROR_LOGIN_FAILED', { msg: err?.message || '' }), 'error');
-            generalButtonState(loginBtn, 'idle');
+        } finally {
+            loginBtn.disabled = false;
+            loginBtn.style.opacity = '';
+            loginBtn.textContent = _originalLabel;
         }
     };
 
-    // 從 LINE 授權頁按「返回」時，頁面常從 bfcache 原樣還原，
-    // 登入按鈕會停留在 disabled+處理中——pageshow 時復原
-    window.addEventListener('pageshow', (e) => {
-        if (e.persisted) generalButtonState(loginBtn, 'idle');
-    });
-
     logoutBtn.onclick = () => {
-        localStorage.removeItem("sessionToken");
-        // 🌟 修正點 (問題1.2)：已移除對 localStorage "isAdmin" 的操作
-        // localStorage.removeItem("isAdmin"); // ❌ 已移除
-        localStorage.removeItem("sessionUserId"); // 清除用戶ID
+        // 清除所有登入/身分快取：避免降權後仍保有管理員 UI，或換帳號後殘留舊姓名/頭像
+        ['sessionToken', 'sessionUserId', 'userDept', 'userName', 'userPicture', 'userId', 'isAdmin']
+            .forEach((k) => { try { localStorage.removeItem(k); } catch (_) { /* ignore */ } });
         window.location.href = "/index.html";
     };
 
@@ -269,18 +270,19 @@ function bindEvents() {
     });
 
     // === 月曆按鈕事件 (員工自己的月曆) ===
+    // ⚠️ 用 new Date(年, 月±1, 1) 重建，而非 setMonth：
+    // setMonth 會保留當前「日」，在 31 號往 2 月切會溢位成 3 月（月底跳錯月）。
     document.getElementById('prev-month').addEventListener('click', () => {
-        currentMonthDate.setMonth(currentMonthDate.getMonth() - 1);
+        currentMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() - 1, 1);
         renderCalendar(currentMonthDate); // 來自 ui.js
     });
 
     document.getElementById('next-month').addEventListener('click', () => {
-        currentMonthDate.setMonth(currentMonthDate.getMonth() + 1);
+        currentMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 1);
         renderCalendar(currentMonthDate); // 來自 ui.js
     });
     document.getElementById('refresh-month').addEventListener('click', () => {
-        currentMonthDate.setMonth(currentMonthDate.getMonth());
-        renderCalendar(currentMonthDate, true); // 來自 ui.js
+        renderCalendar(currentMonthDate, true); // 來自 ui.js（強制重抓當月）
     });
     // === 語系切換事件 ===
     document.getElementById('language-switcher').addEventListener('change', (e) => {
@@ -344,15 +346,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 不一致 = 這個 authorization code 不是本瀏覽器發起的授權（login CSRF），丟棄
     if (otoken) {
         const returnedState = params.get('state');
-        let storedState = null;
-        try { storedState = sessionStorage.getItem('lineLoginState'); } catch (_) { /* ignore */ }
-        if (!storedState || returnedState !== storedState) {
-            console.warn('OAuth state 驗證失敗，丟棄 authorization code（可能為 CSRF 或過期分頁）');
+        const STATE_TTL_MS = 10 * 60 * 1000; // state 僅在 10 分鐘內有效
+        const stateKey = returnedState ? 'lineLoginState:' + returnedState : null;
+        let storedAt = 0;
+        try { if (stateKey) storedAt = Number(localStorage.getItem(stateKey)) || 0; } catch (_) { /* ignore */ }
+        // 僅接受「本瀏覽器發起、且未過期」的 state：未知 state（CSRF）或過期一律拒絕
+        const valid = !!storedAt && (Date.now() - storedAt) <= STATE_TTL_MS;
+        // 清掉本次用過的 state（維持一次性），並順手清掉所有過期殘留鍵（含舊版扁平鍵）
+        const clearStoredState = () => {
+            try {
+                if (stateKey) localStorage.removeItem(stateKey);
+                localStorage.removeItem('lineLoginState');   // 舊版遺留鍵
+                localStorage.removeItem('lineLoginStateAt'); // 舊版遺留鍵
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const k = localStorage.key(i);
+                    if (k && k.indexOf('lineLoginState:') === 0) {
+                        const ts = Number(localStorage.getItem(k)) || 0;
+                        if (!ts || (Date.now() - ts) > STATE_TTL_MS) localStorage.removeItem(k);
+                    }
+                }
+            } catch (_) { /* ignore */ }
+        };
+        if (!valid) {
+            console.warn('OAuth state 驗證失敗，丟棄 authorization code（可能為 CSRF 或過期）');
             showNotification(t('ERROR_LOGIN_FAILED', { msg: 'state mismatch' }) || '登入驗證失敗，請重新登入', 'error');
             history.replaceState({}, '', window.location.pathname);
+            clearStoredState();
             otoken = null;
         } else {
-            try { sessionStorage.removeItem('lineLoginState'); } catch (_) { /* ignore */ }
+            clearStoredState();
         }
     }
 

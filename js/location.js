@@ -25,6 +25,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // 延遲初始化標誌
 let _mapInitialized = false;
 
+// 地圖容器尺寸觀察器（重試時先斷開舊的，避免累積洩漏）
+let _mapResizeObserver = null;
+
 /**
  * 確保地圖已初始化，如果未初始化則進行初始化
  * 供其他模塊調用（如 ui.js 的 switchTab）
@@ -160,12 +163,15 @@ function initLocationMap(forceReload = false) {
 
     // 🐛 P2-1 修複：在地圖容器變為可見時重新計算大小
     // 因為初始化時容器可能還是 display:none，導致 Leaflet 無法正確計算大小
+    // 先斷開上一次的 observer，避免 initLocationMap(true) 重試時累積洩漏
+    if (_mapResizeObserver) { try { _mapResizeObserver.disconnect(); } catch (_) { /* ignore */ } }
     const observer = new MutationObserver(() => {
         if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
             mapInstance.invalidateSize();
             console.log('✅ 地圖容器尺寸已重新計算');
         }
     });
+    _mapResizeObserver = observer;
     if (mapContainer) {
         observer.observe(mapContainer, {
             attributes: true,
@@ -219,27 +225,40 @@ function initLocationMap(forceReload = false) {
 
             },
             (error) => {
-                // 處理定位失敗
-                statusEl.textContent = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
+                // 處理定位失敗：依「實際」錯誤類型顯示訊息（先前一律寫死成「拒絕」會誤導診斷）
                 console.error("Geolocation failed:", error);
 
                 let message;
                 switch (error.code) {
-                    case error.PERMISSION_DENIED:
+                    case error.PERMISSION_DENIED:   // 1：使用者/系統拒絕
                         message = t('ERROR_GEOLOCATION_PERMISSION_DENIED');
                         break;
-                    case error.POSITION_UNAVAILABLE:
+                    case error.POSITION_UNAVAILABLE: // 2：抓不到定位（GPS 訊號不足 / 定位服務未開）
                         message = t('ERROR_GEOLOCATION_UNAVAILABLE');
                         break;
-                    case error.TIMEOUT:
+                    case error.TIMEOUT:              // 3：逾時
                         message = t('ERROR_GEOLOCATION_TIMEOUT');
                         break;
-                    case error.UNKNOWN_ERROR:
+                    default:
                         message = t('ERROR_GEOLOCATION_UNKNOWN');
                         break;
                 }
-                showNotification(t("MSG_GEOLOCATION_FAILED", { message: message || "" }), "error");
-            }
+                // 狀態列顯示真正的錯誤，而非一律「拒絕」
+                statusEl.textContent = message;
+                // 被拒絕（code 1）→ 跳出平台對應的「如何開啟定位」引導，體驗較佳
+                if (error.code === error.PERMISSION_DENIED &&
+                    typeof showLocationPermissionHelp === 'function') {
+                    showLocationPermissionHelp({ onRetry: () => initLocationMap(true) });
+                } else {
+                    // 其他錯誤（抓不到 / 逾時）：附上代碼方便排查
+                    showNotification(
+                        t("MSG_GEOLOCATION_FAILED", { message: `${message || ""}（code ${error.code}）` }),
+                        "error"
+                    );
+                }
+            },
+            // 加上定位選項：避免無限等待，逾時後可回報；高精度失敗時系統仍會回退
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 }
         );
         // 成功取得使用者位置後，載入所有打卡地點
         fetchAndRenderLocationsOnMap();

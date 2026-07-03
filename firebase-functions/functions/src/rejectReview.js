@@ -17,6 +17,9 @@ module.exports = onCall(
     const id = request.data?.id;
     if (!id) return { ok: false, msg: "缺少審核 ID" };
 
+    // 退回原因（可選）：讓員工在「我的申請」看到為何被退。上限 500 字。
+    const rejectReason = String(request.data?.reason || "").trim().slice(0, 500);
+
     const ref = db.collection(COLLECTIONS.ATTENDANCE).doc(id);
     const snap = await ref.get();
     if (!snap.exists) return { ok: false, msg: "記錄不存在" };
@@ -24,6 +27,7 @@ module.exports = onCall(
 
     await ref.update({
       audit: "x",
+      rejectReason: rejectReason,
       reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
       reviewedBy: auth.user.userId,
     });
