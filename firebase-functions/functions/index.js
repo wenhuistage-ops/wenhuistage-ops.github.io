@@ -23,6 +23,7 @@ exports.adjustPunch = require("./src/adjustPunch");
 exports.adjustPunchAsAdmin = require("./src/adjustPunchAsAdmin"); // admin 代員工補卡
 exports.deleteAttendance = require("./src/deleteAttendance"); // admin 刪除任意 attendance（含虛擬卡）
 exports.updateAttendanceAsAdmin = require("./src/updateAttendanceAsAdmin"); // admin 修改任意 attendance
+exports.updateLeaveAsAdmin = require("./src/updateLeaveAsAdmin"); // admin 修改請假記錄的假別
 exports.updateAdjustRequest = require("./src/updateAdjustRequest"); // 員工修改自己待審的補卡
 exports.deleteAdjustRequest = require("./src/deleteAdjustRequest"); // 員工刪除自己待審的補卡
 

@@ -387,6 +387,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                                         data-record-note="${safeNote}"
                                         data-record-audit="${safeAudit}"
                                         data-record-location="${safeLocation}"
+                                        data-record-adjtype="${adjType.replace(/"/g, '&quot;')}"
                                         data-i18n="BTN_EDIT">
                                     <i class="fas fa-pen mr-1"></i>編輯
                                 </button>
@@ -544,6 +545,7 @@ function _initAdminAttendanceActions() {
                 note: btn.dataset.recordNote || '',
                 audit: btn.dataset.recordAudit || '',
                 locationName: btn.dataset.recordLocation || '',
+                adjustmentType: btn.dataset.recordAdjtype || '',
             });
             return;
         }
@@ -582,6 +584,12 @@ function _openAdminEditModal(rec) {
     // 組裝 datetime-local 預填值
     const datetimeVal = (rec.date && rec.time) ? `${rec.date}T${rec.time}` : '';
 
+    // 請假記錄：以「假別」編輯取代「上班/下班 類型」與「地點」欄
+    const isLeave = rec.adjustmentType === '系統請假記錄';
+    const LEAVE_KINDS = { '請假': ['病假', '事假', '其他'], '休假': ['年假', '特休', '補休'] };
+    const curGroup = isLeave ? (rec.type === '休假' ? '休假' : '請假') : '';
+    const curKind = isLeave ? String(rec.locationName || '') : '';
+
     modal = document.createElement('div');
     modal.id = modalId;
     modal.className = 'fixed inset-0 z-[1200] flex items-center justify-center bg-black/50 p-4';
@@ -599,6 +607,25 @@ function _openAdminEditModal(rec) {
             </div>
 
             <div class="space-y-3">
+                ${isLeave ? `
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ${tt('ADMIN_EDIT_LEAVE_GROUP', '假別群組')}
+                    </label>
+                    <select id="admin-edit-leave-group" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                        ${selOpt('請假', tt('LEAVE_GROUP_LEAVE', '請假'), curGroup)}
+                        ${selOpt('休假', tt('LEAVE_GROUP_VACATION', '休假'), curGroup)}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ${tt('ADMIN_EDIT_LEAVE_KIND', '假別')}
+                    </label>
+                    <select id="admin-edit-leave-kind" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                        ${(LEAVE_KINDS[curGroup] || []).map((k) => selOpt(k, k, curKind)).join('')}
+                    </select>
+                </div>
+                ` : `
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         ${tt('LABEL_TYPE', '類型')}
@@ -609,6 +636,7 @@ function _openAdminEditModal(rec) {
                         ${selOpt('下班', tt('PUNCH_OUT', '下班'), rec.type)}
                     </select>
                 </div>
+                `}
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -619,6 +647,7 @@ function _openAdminEditModal(rec) {
                            class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 </div>
 
+                ${isLeave ? '' : `
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         ${tt('LABEL_LOCATION', '地點')}
@@ -628,6 +657,7 @@ function _openAdminEditModal(rec) {
                            placeholder="${tt('ADMIN_EDIT_LOCATION_PLACEHOLDER', '地點名稱（可空白）')}"
                            class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 </div>
+                `}
 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -670,41 +700,76 @@ function _openAdminEditModal(rec) {
     document.getElementById('admin-edit-close').addEventListener('click', close);
     document.getElementById('admin-edit-cancel').addEventListener('click', close);
 
+    // 請假記錄：切換假別群組時重填該群組的假別選項
+    if (isLeave) {
+        const grpSel = document.getElementById('admin-edit-leave-group');
+        const kindSel = document.getElementById('admin-edit-leave-kind');
+        if (grpSel && kindSel) {
+            grpSel.addEventListener('change', () => {
+                const opts = LEAVE_KINDS[grpSel.value] || [];
+                kindSel.innerHTML = opts.map((k) => `<option value="${k}">${k}</option>`).join('');
+            });
+        }
+    }
+
     document.getElementById('admin-edit-submit').addEventListener('click', async () => {
         const submitBtn = document.getElementById('admin-edit-submit');
         const tt2 = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
 
-        const newType = document.getElementById('admin-edit-type').value;
         const newDatetime = document.getElementById('admin-edit-datetime').value;
-        const newLocation = document.getElementById('admin-edit-location').value;
         const newAudit = document.getElementById('admin-edit-audit').value;
         const newNote = document.getElementById('admin-edit-note').value;
 
-        const payload = { action: 'updateAttendanceAsAdmin', id: rec.id };
-        // 只送有變更的欄位（empty 表示「不變更」）
-        if (newType) payload.type = newType;
+        let tsIso = null;
         if (newDatetime) {
             const d = new Date(newDatetime);
             if (isNaN(d.getTime())) {
                 showNotification(tt2('ERR_INVALID_DATETIME', '時間格式錯誤'), 'error');
                 return;
             }
-            payload.timestamp = d.toISOString();
+            tsIso = d.toISOString();
         }
-        // locationName 與 note 是字串型 always-send（用戶可清空）
-        payload.locationName = newLocation;
-        payload.note = newNote;
-        if (newAudit) payload.audit = newAudit;
 
         submitBtn.disabled = true;
         submitBtn.textContent = tt2('LOADING', '處理中...');
         try {
-            const res = await callApifetch(payload);
-            if (!res || !res.ok) {
-                showNotification(tt2(res?.code || 'UNKNOWN_ERROR', res?.msg || '修改失敗'), 'error');
-                submitBtn.disabled = false;
-                submitBtn.textContent = tt2('BTN_SAVE', '儲存');
-                return;
+            // 請假記錄：假別有變更就先改假別（updateLeaveAsAdmin 一致更新 type/reason/locationName）
+            if (isLeave) {
+                const grp = document.getElementById('admin-edit-leave-group').value;
+                const kind = document.getElementById('admin-edit-leave-kind').value;
+                if (grp && kind && (grp !== curGroup || kind !== curKind)) {
+                    const lr = await callApifetch({ action: 'updateLeaveAsAdmin', id: rec.id, leaveGroup: grp, leaveKind: kind });
+                    if (!lr || !lr.ok) {
+                        showNotification(tt2(lr?.code || 'UNKNOWN_ERROR', lr?.msg || '假別修改失敗'), 'error');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = tt2('BTN_SAVE', '儲存');
+                        return;
+                    }
+                }
+            }
+
+            // 時間 / 審核 / 備註走 updateAttendanceAsAdmin（請假記錄不送 type、locationName）
+            const payload = { action: 'updateAttendanceAsAdmin', id: rec.id };
+            if (!isLeave) {
+                const newType = document.getElementById('admin-edit-type').value;
+                const newLocation = document.getElementById('admin-edit-location').value;
+                if (newType) payload.type = newType;
+                payload.locationName = newLocation; // 字串型 always-send（可清空）
+            }
+            if (tsIso) payload.timestamp = tsIso;
+            payload.note = newNote;
+            if (newAudit) payload.audit = newAudit;
+
+            // 非請假一律呼叫；請假只有 時間/審核/備註 真的有變更才呼叫（避免多餘 mutation）
+            const needAttUpdate = !isLeave || tsIso || newAudit || (newNote !== (rec.note || ''));
+            if (needAttUpdate) {
+                const res = await callApifetch(payload);
+                if (!res || !res.ok) {
+                    showNotification(tt2(res?.code || 'UNKNOWN_ERROR', res?.msg || '修改失敗'), 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = tt2('BTN_SAVE', '儲存');
+                    return;
+                }
             }
             showNotification(tt2('UPDATE_ATTENDANCE_SUCCESS', '紀錄已更新'), 'success');
             close();
