@@ -64,6 +64,10 @@ async function getLineUserInfo(tokenJson) {
   const profile = await profileResp.json();
 
   let email = "";
+  // ⚠️ L1：此處只 base64 解 id_token payload、未驗 RS256 簽章/iss/aud/exp。
+  // 之所以可接受：id_token 是本函式剛從 LINE token 端點經 server-to-server TLS
+  // 取得（可信來源），且 email 僅寫入 employees 供顯示、【不得用於任何授權判斷】。
+  // 若未來要以 email 做身分/授權，務必改用 LINE verify 端點或 JWKS 驗簽後再採用。
   if (tokenJson.id_token) {
     try {
       const parts = tokenJson.id_token.split(".");
