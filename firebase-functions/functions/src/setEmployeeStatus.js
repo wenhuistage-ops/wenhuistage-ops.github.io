@@ -20,7 +20,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifyAdmin, invalidateAdminListCache } = require("./_helpers");
+const { admin, db, COLLECTIONS, verifyAdmin, invalidateAdminListCache, invalidateSessionCacheByUserId } = require("./_helpers");
 
 module.exports = onCall(
   {
@@ -90,6 +90,10 @@ module.exports = onCall(
     }
 
     await empRef.set(update, { merge: true });
+
+    // M1：降權/停用/離職後主動清該員工的 session 快取，讓權限變更盡快生效，
+    // 避免被降級者在 60 秒快取窗口內仍持舊管理員權（其他容器仍待 TTL）。
+    invalidateSessionCacheByUserId(userId);
 
     // 改 dept 會影響 getAdminList 結果，清同容器 cache（其他容器待 5 分鐘 TTL）
     if (field === "isAdmin") {

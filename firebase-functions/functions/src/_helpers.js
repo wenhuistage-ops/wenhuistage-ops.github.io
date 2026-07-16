@@ -78,16 +78,39 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
 //   - 員工權限變更（dept 改成/取消管理員、status 改未啟用）最多 60 秒後生效
 //   - 容器冷啟時快取空的，第一次仍要 read
 //   - 失敗結果也快取（避免 token 爆破測試燒 reads）
-const SESSION_CACHE = new Map();
+// 正向（成功）與負向（失敗）分開快取（L3）：
+// 若共用一個 FIFO 上限，攻擊者丟大量偽 token 的失敗結果會把合法成功項擠出，
+// 迫使合法使用者每次多付 2 次 reads。分離後失敗快取有獨立小容量與更短 TTL，
+// 無法污染成功快取。
+const SESSION_CACHE = new Map(); // 成功
+const SESSION_NEG_CACHE = new Map(); // 失敗
 const SESSION_CACHE_TTL_MS = 60 * 1000;
+const SESSION_NEG_TTL_MS = 10 * 1000;
 const SESSION_CACHE_MAX = 500;
+const SESSION_NEG_MAX = 200;
+
+function _capMap(map, max) {
+  if (map.size > max) map.delete(map.keys().next().value); // FIFO 淘汰最舊
+}
 
 function setSessionCache(token, result) {
-  SESSION_CACHE.set(token, { result, expiry: Date.now() + SESSION_CACHE_TTL_MS });
-  if (SESSION_CACHE.size > SESSION_CACHE_MAX) {
-    // Map 迭代依插入順序，最舊的 key 即第一個
-    const oldest = SESSION_CACHE.keys().next().value;
-    SESSION_CACHE.delete(oldest);
+  if (result.ok) {
+    SESSION_CACHE.set(token, { result, expiry: Date.now() + SESSION_CACHE_TTL_MS });
+    _capMap(SESSION_CACHE, SESSION_CACHE_MAX);
+  } else {
+    SESSION_NEG_CACHE.set(token, { result, expiry: Date.now() + SESSION_NEG_TTL_MS });
+    _capMap(SESSION_NEG_CACHE, SESSION_NEG_MAX);
+  }
+}
+
+/**
+ * 主動失效某員工的成功 session 快取（M1）。
+ * setEmployeeStatus 降權/停用/離職後呼叫，讓權限變更盡快生效。
+ * 注意：只清同一容器；跨容器仍需等 60 秒 TTL 過期（warm 容器的既有取捨）。
+ */
+function invalidateSessionCacheByUserId(userId) {
+  for (const [token, entry] of SESSION_CACHE) {
+    if (entry?.result?.user?.userId === userId) SESSION_CACHE.delete(token);
   }
 }
 
@@ -102,8 +125,8 @@ async function verifySession(sessionToken) {
     return { ok: false, code: "ERR_SESSION_MISSING" };
   }
 
-  // 命中快取直接回（省 2 reads）
-  const cached = SESSION_CACHE.get(sessionToken);
+  // 命中快取直接回（省 2 reads）——成功或失敗快取皆檢查
+  const cached = SESSION_CACHE.get(sessionToken) || SESSION_NEG_CACHE.get(sessionToken);
   if (cached && cached.expiry > Date.now()) {
     return cached.result;
   }
@@ -353,22 +376,33 @@ async function createOneTimeToken(userId) {
  */
 async function consumeOneTimeToken(oneTimeToken) {
   const ref = db.collection(COLLECTIONS.ONE_TIME_TOKENS).doc(oneTimeToken);
-  const snap = await ref.get();
-  if (!snap.exists) return null;
-  const data = snap.data();
-  if (data.used) return null;
-
-  const expiredAt = data.expiredAt?.toMillis?.() ?? data.expiredAt ?? 0;
-  if (expiredAt > 0 && Date.now() > expiredAt) return null;
-
   const sessionToken = db.collection(COLLECTIONS.SESSIONS).doc().id;
-  await db.collection(COLLECTIONS.SESSIONS).doc(sessionToken).set({
-    userId: data.userId,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    expiredAt: new Date(Date.now() + SESSION_TTL_MS),
-  });
-  await ref.update({ used: true, consumedAt: admin.firestore.FieldValue.serverTimestamp() });
-  return sessionToken;
+
+  // 用 transaction 讓「檢查 used → 標記 used」原子化（L2）：
+  // 原本 get 與 update 分離，兩個併發請求可同時通過 used 檢查各換一個 session，
+  // 破壞一次性語意。交易內若 used 已被搶先標記則放棄。
+  try {
+    const ok = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return false;
+      const data = snap.data();
+      if (data.used) return false;
+      const expiredAt = data.expiredAt?.toMillis?.() ?? data.expiredAt ?? 0;
+      if (expiredAt > 0 && Date.now() > expiredAt) return false;
+
+      tx.set(db.collection(COLLECTIONS.SESSIONS).doc(sessionToken), {
+        userId: data.userId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiredAt: new Date(Date.now() + SESSION_TTL_MS),
+      });
+      tx.update(ref, { used: true, consumedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return true;
+    });
+    return ok ? sessionToken : null;
+  } catch (err) {
+    console.error("consumeOneTimeToken 交易失敗:", err?.message);
+    return null;
+  }
 }
 
 /**
@@ -502,6 +536,7 @@ module.exports = {
   LINE_CHANNEL_ACCESS_TOKEN,
   verifySession,
   verifyAdmin,
+  invalidateSessionCacheByUserId,
   isValidMonth,
   isReasonableAttendanceDate,
   clampText,
