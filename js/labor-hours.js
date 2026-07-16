@@ -184,6 +184,14 @@ function enrichDayWithLaborStats(day, breakTimes) {
         illegalHours: 0,
     };
 
+    // M4「請假為準」：當日已核准請假/休假時，一律不計工時（避免請假與出勤雙重給付）。
+    // 請假為整日單位，其給付另循請假規則，不在此列工時/加班。
+    if (day.reason === 'STATUS_LEAVE_APPROVED' || day.reason === 'STATUS_VACATION_APPROVED') {
+        stats.gross = 0;
+        stats.net = 0;
+        return { ...day, laborStats: stats };
+    }
+
     if (net <= 0 && kind !== 'public' && kind !== 'regular') {
         // 沒實際打卡，且非國定/例假日（後者只要當日是該類型，就算保證 8h?
         // 依規則 4.3/4.4：要「出勤」才有給；沒打卡→不給

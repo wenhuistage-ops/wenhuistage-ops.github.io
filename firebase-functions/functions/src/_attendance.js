@@ -332,6 +332,12 @@ function summarizeByDay(records) {
       (p) => p.adjustmentType === "系統虛擬卡"
     );
 
+    // M4「請假為準」：當日已核准請假/休假時，工時歸零（避免請假與出勤雙重給付）。
+    // 請假為整日單位，其給付另循請假規則，不再疊算出勤工時/加班。
+    if (reason === "STATUS_LEAVE_APPROVED" || reason === "STATUS_VACATION_APPROVED") {
+      hours = 0;
+    }
+
     days.push({
       date: day.date,
       reason,
