@@ -188,6 +188,20 @@ function isValidMonth(month) {
 }
 
 /**
+ * 驗證打卡/請假日期落在合理範圍。
+ * 員工端 datetime/date 只驗 isNaN 不夠：new Date('+275760-09-13') 等極端日期可被解析，
+ * 經 applyEventToMonthly 為任意遠期月份建立 attendanceMonthly 聚合 doc（每個新月 ~50 reads），
+ * 可被腳本濫用灌爆讀取。限 2020-01-01 起、且不超過現在 +400 天。
+ */
+function isReasonableAttendanceDate(d) {
+  const t = d instanceof Date ? d.getTime() : new Date(d).getTime();
+  if (isNaN(t)) return false;
+  const MIN = Date.UTC(2020, 0, 1);
+  const MAX = Date.now() + 400 * 24 * 60 * 60 * 1000;
+  return t >= MIN && t <= MAX;
+}
+
+/**
  * 截斷自由文字欄位（note / reason 等）。
  * 無上限的字串會撐爆 attendanceMonthly 聚合 doc（Firestore 1MiB 上限），
  * 導致月曆 500 或聚合永久失效。500 字對正當用途綽綽有餘，靜默截斷即可。
@@ -489,6 +503,7 @@ module.exports = {
   verifySession,
   verifyAdmin,
   isValidMonth,
+  isReasonableAttendanceDate,
   clampText,
   validateCoordinates,
   getDistanceMeters,

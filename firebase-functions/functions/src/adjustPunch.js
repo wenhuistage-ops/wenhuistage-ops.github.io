@@ -11,6 +11,7 @@ const {
   verifySession,
   clampText,
   validateCoordinates,
+  isReasonableAttendanceDate,
   notifyAdmins,
   formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
@@ -37,7 +38,7 @@ module.exports = onCall(
 
     const user = session.user;
     const punchDate = datetime ? new Date(datetime) : new Date();
-    if (isNaN(punchDate.getTime())) {
+    if (!isReasonableAttendanceDate(punchDate)) {
       return { ok: false, code: "ERR_INVALID_DATETIME" };
     }
 

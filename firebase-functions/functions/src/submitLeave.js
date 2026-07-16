@@ -24,6 +24,7 @@ const {
   COLLECTIONS,
   verifySession,
   clampText,
+  isReasonableAttendanceDate,
   notifyAdmins,
   LINE_CHANNEL_ACCESS_TOKEN,
 } = require("./_helpers");
@@ -54,7 +55,7 @@ module.exports = onCall(
 
     const user = session.user;
     const punchDate = new Date(date);
-    if (isNaN(punchDate.getTime())) {
+    if (!isReasonableAttendanceDate(punchDate)) {
       return { ok: false, code: "ERR_INVALID_DATE" };
     }
 

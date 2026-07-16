@@ -27,7 +27,7 @@
 
 const admin = require("firebase-admin");
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession, clampText } = require("./_helpers");
+const { db, COLLECTIONS, verifySession, clampText, isReasonableAttendanceDate } = require("./_helpers");
 const { applyEventToMonthly, invalidateMonthlyCacheForDate } = require("./_attendance");
 
 module.exports = onCall(
@@ -47,7 +47,7 @@ module.exports = onCall(
     if (!datetime) return { ok: false, code: "ERR_INVALID_DATETIME", msg: "缺少 datetime" };
 
     const newDate = new Date(datetime);
-    if (isNaN(newDate.getTime())) {
+    if (!isReasonableAttendanceDate(newDate)) {
       return { ok: false, code: "ERR_INVALID_DATETIME" };
     }
 
