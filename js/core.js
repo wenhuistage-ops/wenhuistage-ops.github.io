@@ -50,85 +50,13 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
  * @returns {Promise<object>}
  */
 async function callApifetch(params, loadingId = "loading") {
-    // 🔀 後端分流：若切到 Firestore 則改用 Cloud Functions
-    if (typeof API_CONFIG !== "undefined" && API_CONFIG.useFirestore
-        && typeof callFirestoreFunction === "function") {
-        return await callFirestoreFunction(params, loadingId);
+    // 後端固定走 Cloud Functions（Firestore）。舊 GAS 後端（含 JSONP 呼叫）已下線並移除，
+    // 不再保留任何降級/回退路徑，避免殘留可被利用的弱後端呼叫碼。
+    if (typeof callFirestoreFunction !== "function") {
+        showNotification(t("CONNECTION_FAILED"), "error");
+        throw new Error("callFirestoreFunction 未載入");
     }
-
-    // 以下為 GAS 原有實作
-    const token = localStorage.getItem("sessionToken");
-
-    // 1. 構造 URLSearchParams 物件（用於 POST body）
-    const searchParams = new URLSearchParams(params);
-
-    // ✅ 改進：將 token 放在 body 中，不在 URL 中
-    searchParams.set("token", token);
-
-    // 2. 加入 callback 參數以使用 JSONP 避免 CORS 問題
-    const callback = 'callback' + Date.now() + Math.random().toString(36).substr(2, 9);
-    searchParams.set("callback", callback);
-
-    // 3. 構造 API URL（不包含任何參數）
-    const url = API_CONFIG.apiUrl;
-
-    // 顯示指定的 loading 元素
-    const loadingEl = document.getElementById(loadingId);
-    if (loadingEl) loadingEl.style.display = "block";
-
-    // 🚀 P5-2 優化：添加請求超時控制（打卡等關鍵操作設 5 秒）
-    const API_TIMEOUT = params.action === 'punch' ? 10000 : 15000; // 打卡 5 秒，其他 10 秒
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-
-    try {
-        // ✅ 改進：改用 POST 請求，避免 token 在 URL 中洩露
-        const response = await fetch(url, {
-            method: 'POST',  // 🌟 改為 POST
-            mode: 'cors',
-            body: searchParams.toString(),  // 參數放在 body 中
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            signal: controller.signal  // 🚀 P5-2 優化：添加超時信號
-        });
-
-        // 檢查 HTTP 狀態碼
-        if (!response.ok) {
-            throw new Error(`HTTP 錯誤: ${response.status}`);
-        }
-
-        // 解析 JSON 回應
-        let text = await response.text();
-        try {
-            return JSON.parse(text);
-        } catch (jsonError) {
-            // 若回傳類似 callback({...}) 的 JSONP，嘗試抽取 JSON
-            const match = text.match(/^[^(]*\((.*)\)\s*;?\s*$/s);
-            if (match && match[1]) {
-                return JSON.parse(match[1]);
-            }
-            throw jsonError;
-        }
-    } catch (error) {
-        // 🚀 P5-2 優化：區分超時和其他錯誤
-        if (error.name === 'AbortError') {
-            const timeoutMsg = `API 請求超時 (${API_TIMEOUT}ms)，請檢查網路連接或稍後重試`;
-            showNotification(timeoutMsg, "error");
-            console.error("API 超時:", timeoutMsg);
-        } else {
-            // 處理網路或其他錯誤
-            showNotification(t("CONNECTION_FAILED"), "error");
-            console.error("API 呼叫失敗:", error);
-        }
-        // 拋出錯誤以便外部捕獲
-        throw error;
-    } finally {
-        clearTimeout(timeoutId);  // 清除超時計時器
-        // 不論成功或失敗，都隱藏 loading 元素
-        if (loadingEl) loadingEl.style.display = "none";
-    }
+    return await callFirestoreFunction(params, loadingId);
 }
 
 // #endregion

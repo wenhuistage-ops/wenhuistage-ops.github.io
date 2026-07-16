@@ -20,8 +20,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // config.js
 
 const API_CONFIG = {
-  // 正式環境的 API URL（GAS 後端）
-  apiUrl: "https://script.google.com/macros/s/AKfycby28KblKy-ICEGstB7L-UK5rQ1awPokRiIIdqpJ49_7nVmS_oHYiA9qapWtOVo_UnEHbQ/exec",
+  // 舊 GAS 後端已下線，apiUrl 一併移除（前端固定走 Cloud Functions）。
   // 預設回呼網址（正式環境）
   redirectUrl: "https://wenhuistage-ops.github.io/",
 
