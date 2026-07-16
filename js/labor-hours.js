@@ -132,6 +132,40 @@ function calcWorkHoursFromShifts(record, breakTimes) {
 }
 
 /**
+ * 單日「缺勤 / 請假倒扣」日數（月薪制薪資用；一日薪水 = 月薪 ÷ 30）。
+ *
+ * 規則（經業主確認）：只有「平日應上班日」才可能倒扣：
+ *   - 已核准病假                    → 0.5（普通傷病假半薪）
+ *   - 已核准事假 / 其他請假         → 1
+ *   - 無故缺勤（未出勤且無核准請假） → 1（曠職）
+ *   - 已核准休假（年假/特休/補休）  → 0（全薪）
+ *   - 有實際出勤（含虛擬卡/已核准補卡）→ 0
+ * 假別存於請假記錄的 location 欄（submitLeave 以 locationName 存 reason）。
+ *
+ * @param {Object} day dailyStatus（需含 laborStats.kind 與 record[]）
+ * @returns {number} 0 / 0.5 / 1
+ */
+function leaveDeductionUnits(day) {
+    const st = (day && day.laborStats) || {};
+    if (st.kind !== 'workday') return 0;               // 僅平日應上班日
+    const recs = (day && day.record) || [];
+    const approvedLeave = recs.find(
+        (rr) => rr.adjustmentType === '系統請假記錄' && rr.audit === 'v');
+    if (approvedLeave) {
+        const grp = String(approvedLeave.type || '');      // '請假' / '休假'
+        const kind = String(approvedLeave.location || '');  // 假別
+        if (grp === '休假' || /特休|年假|補休/.test(kind)) return 0;  // 休假群組全薪
+        if (/病假/.test(kind)) return 0.5;                            // 病假半天
+        return 1;                                                     // 事假 / 其他 全天
+    }
+    const worked = recs.some(
+        (rr) => /上班|下班|IN|OUT/i.test(rr.type || '') &&
+                (rr.adjustmentType !== '補打卡' || rr.audit === 'v'));
+    if (worked) return 0;
+    return 1;  // 曠職：平日、無出勤、無核准請假 → 扣全天
+}
+
+/**
  * 將單日 dailyStatus 補上勞基法分段工時
  *
  * @param {Object} day            dailyStatus 元素（含 date / punchInTime / punchOutTime / hours / record）
@@ -400,6 +434,7 @@ if (typeof window !== 'undefined') {
     window.calcWorkHours = calcWorkHours;
     window.calcWorkHoursFromShifts = calcWorkHoursFromShifts;
     window.enrichDayWithLaborStats = enrichDayWithLaborStats;
+    window.leaveDeductionUnits = leaveDeductionUnits;
     window.aggregateMonthLaborStats = aggregateMonthLaborStats;
     window.monthlyToHourly = monthlyToHourly;
     window.LABOR_INSURANCE_GRADES = LABOR_INSURANCE_GRADES;
@@ -415,6 +450,7 @@ if (typeof module !== 'undefined' && module.exports) {
         calcWorkHoursFromShifts,
         _pairShiftRanges,
         enrichDayWithLaborStats,
+        leaveDeductionUnits,
         aggregateMonthLaborStats,
         monthlyToHourly,
         LABOR_INSURANCE_GRADES,

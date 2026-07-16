@@ -2672,8 +2672,8 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const incomeTaxRate = Math.max(0, Math.min(30, Number(employee.incomeTaxRate || 0)));
     const incomeTaxDed = Math.round(grossTotal * (incomeTaxRate / 100));
 
-    const totalDed = ded.total + housingDed + incomeTaxDed;
-    const netPay = grossTotal - totalDed;
+    // 非缺勤扣款小計；缺勤/請假倒扣需待 fullDays 建立後才算，故 totalDed/netPay 延後。
+    const baseDed = ded.total + housingDed + incomeTaxDed;
 
     // 2026-04-27 補：dailyStatusRaw 只含有打卡的日子，國定假日 / 例假日員工
     // 沒上班就會缺列。逐日掃整月補空 stub（laborStats 全 0，但 kind 標示
@@ -2692,6 +2692,26 @@ async function handleDetailedPayrollExport(userId, year, month) {
         }
         fullDays.push(day);
     }
+
+    // ===== 缺勤 / 請假倒扣（僅月薪制）=====
+    // 規則（經確認）：日薪 = 月薪 ÷ 30。只針對「平日應上班日」倒扣：
+    //   - 已核准病假           → 扣 0.5 日（普通傷病假半薪）
+    //   - 已核准事假 / 其他請假 → 扣 1 日
+    //   - 無故缺勤（未出勤且無核准假）→ 扣 1 日（曠職）
+    //   - 已核准休假（年假/特休/補休）→ 不扣（全薪）
+    //   - 有實際出勤 → 不扣
+    // 假別存於請假記錄的 location 欄（submitLeave 以 locationName 存 reason）。
+    // 時薪制本就按實際工時給薪，不做倒扣。規則抽在 labor-hours.js leaveDeductionUnits（可測）。
+    const _leaveDeductUnits = (typeof window.leaveDeductionUnits === 'function')
+        ? window.leaveDeductionUnits
+        : () => 0;
+    const absenceDeductDays = (salaryType === 'monthly')
+        ? Math.round(fullDays.reduce((acc, day) => acc + _leaveDeductUnits(day), 0) * 100) / 100
+        : 0;
+    const absenceDed = Math.round(monthlySalary / 30 * absenceDeductDays);
+
+    const totalDed = baseDed + absenceDed;
+    const netPay = grossTotal - totalDed;
 
     // ===== Sheet 1: 個人薪資詳細（對齊用戶範本 A~R 欄結構）=====
     // 'HH:MM' → Excel 時間值 (一日 = 1)
@@ -2934,6 +2954,10 @@ async function handleDetailedPayrollExport(userId, year, month) {
     if (incomeTaxRate > 0 && incomeTaxDed > 0) {
         personalRows.push(['', `所得稅 ${incomeTaxRate}%`, '', -incomeTaxDed]);
     }
+    // 缺勤 / 請假倒扣（月薪制；日薪 = 月薪/30）
+    if (salaryType === 'monthly' && absenceDed > 0) {
+        personalRows.push(['', `缺勤/請假扣薪 ${absenceDeductDays} 天`, '', -absenceDed]);
+    }
     personalRows.push([]);
     personalRows.push(['', '合計', '', -totalDed]);
     personalRows.push([]);
@@ -3128,6 +3152,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
         if (incomeTaxRate > 0 && incomeTaxDed > 0) {
             // 所得稅 = -應發總額 × 稅率
             setF(`D${curRow}`, `-H${deductTitleRow}*${incomeTaxRate}/100`); curRow++;
+        }
+        // 缺勤/請假倒扣（月薪制）：日薪 = 月薪(T1)/30 × 扣薪日數。與 personalRows 同條件、
+        // 同位置，維持 aoa 與公式列對齊。
+        if (salaryType === 'monthly' && absenceDed > 0) {
+            setF(`D${curRow}`, `-ROUND(T1/30*${absenceDeductDays},0)`); curRow++;
         }
 
         // 應扣合計（curRow 是空白行的下一行）

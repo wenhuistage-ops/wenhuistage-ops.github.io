@@ -6,7 +6,7 @@
  * 對應 js/labor-hours.js _pairShiftRanges 與 firebase-functions .../_attendance.js。
  */
 
-const { _pairShiftRanges, enrichDayWithLaborStats } = require('../js/labor-hours.js');
+const { _pairShiftRanges, enrichDayWithLaborStats, leaveDeductionUnits } = require('../js/labor-hours.js');
 
 describe('工時計算 - 補打卡審核狀態過濾', () => {
   const inAt = (time, extra = {}) => ({ time, type: '上班', ...extra });
@@ -95,5 +95,47 @@ describe('工時計算 - M4 請假為準（已核准請假日不計工時）', (
     };
     const { laborStats } = enrichDayWithLaborStats(day, breakTimes);
     expect(laborStats.net).toBeGreaterThan(0);
+  });
+});
+
+describe('薪資倒扣 - 缺勤/請假扣薪日數（月薪制，日薪=月薪/30）', () => {
+  const workday = (record) => ({ date: '2026-07-15', laborStats: { kind: 'workday' }, record });
+  const leave = (grp, type, audit = 'v') =>
+    ({ adjustmentType: '系統請假記錄', type: grp, location: type, audit });
+
+  test('平日無故缺勤（無出勤、無核准假）→ 扣 1 天', () => {
+    expect(leaveDeductionUnits(workday([]))).toBe(1);
+  });
+  test('已核准病假 → 扣 0.5 天', () => {
+    expect(leaveDeductionUnits(workday([leave('請假', '病假')]))).toBe(0.5);
+  });
+  test('已核准事假 → 扣 1 天', () => {
+    expect(leaveDeductionUnits(workday([leave('請假', '事假')]))).toBe(1);
+  });
+  test('已核准其他請假 → 扣 1 天', () => {
+    expect(leaveDeductionUnits(workday([leave('請假', '其他')]))).toBe(1);
+  });
+  test('已核准年假/特休/補休 → 不扣', () => {
+    expect(leaveDeductionUnits(workday([leave('休假', '年假')]))).toBe(0);
+    expect(leaveDeductionUnits(workday([leave('休假', '特休')]))).toBe(0);
+    expect(leaveDeductionUnits(workday([leave('休假', '補休')]))).toBe(0);
+  });
+  test('未核准病假（PENDING）不算已核准 → 視同曠職扣 1 天', () => {
+    expect(leaveDeductionUnits(workday([leave('請假', '病假', '?')]))).toBe(1);
+  });
+  test('有實際出勤 → 不扣', () => {
+    expect(leaveDeductionUnits(workday([
+      { time: '09:00', type: '上班' }, { time: '18:00', type: '下班' },
+    ]))).toBe(0);
+  });
+  test('未核准補卡不算出勤 → 仍扣 1 天', () => {
+    expect(leaveDeductionUnits(workday([
+      { time: '09:00', type: '上班', adjustmentType: '補打卡', audit: '?' },
+    ]))).toBe(1);
+  });
+  test('休息日/例假日/國定假日不上班 → 不扣（非應上班日）', () => {
+    expect(leaveDeductionUnits({ laborStats: { kind: 'rest' }, record: [] })).toBe(0);
+    expect(leaveDeductionUnits({ laborStats: { kind: 'regular' }, record: [] })).toBe(0);
+    expect(leaveDeductionUnits({ laborStats: { kind: 'public' }, record: [] })).toBe(0);
   });
 });
