@@ -309,46 +309,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         }
     </style>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const toggleButton = document.getElementById('theme-toggle');
-            const htmlElement = document.documentElement; // 指向 <html> 標籤
-            const themeIcon = document.getElementById('theme-icon'); // 取得圖標的元素
-
-            // --- 核心函式：根據主題更新圖標 ---
-            function updateThemeIcon() {
-                if (htmlElement.classList.contains('dark')) {
-                    themeIcon.textContent = '☀️';
-                } else {
-                    themeIcon.textContent = '🌙';
-                }
-            }
-
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'dark') {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-            updateThemeIcon();
-
-            // --- 2. 處理點擊事件 ---
-            toggleButton.addEventListener('click', () => {
-                // 切換 <html> 標籤上的 'dark' class
-                htmlElement.classList.toggle('dark');
-
-                // 將新的主題偏好保存到 localStorage
-                if (htmlElement.classList.contains('dark')) {
-                    localStorage.setItem('theme', 'dark');
-                } else {
-                    localStorage.setItem('theme', 'light');
-                }
-
-                // 💡 點擊後更新圖標狀態
-                updateThemeIcon();
-            });
-        });
-    </script>
+    <!-- 主題初始化 + 事件綁定改為外部同源腳本（配合 CSP 移除 inline script）-->
+    <script src="js/theme-init.js"></script>
     <!-- 🚀 P4-1 優化：預連接 Google Fonts，加快加載 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -692,7 +654,6 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <div class="flex items-center pb-4 mb-4 border-b border-gray-200 dark:border-gray-700">
                                     <img id="mgmt-employee-avatar"
                                         src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
-                                        onerror="this.onerror=null;this.src='https://placehold.co/80x80/E0F2FE/1E3A8A?text=User'"
                                         alt="Employee Avatar"
                                         style="width:64px;height:64px;flex-shrink:0;"
                                         class="rounded-full object-cover mr-4 border-2 border-indigo-300 dark:border-indigo-500">
@@ -979,7 +940,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <!-- data-i18n 放內層 span，避免 renderTranslations 覆寫 textContent 抹掉圖示 -->
                                 <span data-i18n="PUNCH_POLICY_SETTINGS">打卡政策設定</span>
                             </h5>
-                            <form id="form-punch-policy" onsubmit="handlePunchPolicyUpdate(event)">
+                            <form id="form-punch-policy">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div class="flex items-center p-4 rounded-xl bg-gray-50 dark:bg-gray-700">
                                         <input type="checkbox" id="require-gps" name="requireGps"
@@ -1011,7 +972,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <span data-i18n="EMPLOYEE_TAB_SALARY">薪資與勞保</span>
                             </h5>
 
-                            <form id="form-salary-profile" onsubmit="return handleSalaryProfileSubmit(event)" class="space-y-4">
+                            <form id="form-salary-profile" class="space-y-4">
                                 <!-- 國籍 radio（影響勞退提繳資格） -->
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
