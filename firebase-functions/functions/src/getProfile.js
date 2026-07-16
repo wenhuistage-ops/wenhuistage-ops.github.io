@@ -23,6 +23,7 @@ const {
   LINE_CHANNEL_ID,
   LINE_CHANNEL_SECRET,
   DEFAULT_LINE_REDIRECT_URL,
+  safeRedirectUrl,
   upsertEmployee,
   createOneTimeToken,
 } = require("./_helpers");
@@ -92,7 +93,9 @@ module.exports = onCall(
   },
   async (request) => {
     const code = request.data?.otoken || request.data?.code;
-    const redirectUrl = request.data?.redirectUrl || DEFAULT_LINE_REDIRECT_URL;
+    // redirect_uri 必須與 getLoginUrl 送給 LINE 的一致；同樣過白名單，
+    // 不接受前端任意值（防授權碼被導向攻擊者頁面）。
+    const redirectUrl = safeRedirectUrl(request.data?.redirectUrl || DEFAULT_LINE_REDIRECT_URL);
 
     if (!code) {
       return { ok: false, code: "ERR_MISSING_CODE" };

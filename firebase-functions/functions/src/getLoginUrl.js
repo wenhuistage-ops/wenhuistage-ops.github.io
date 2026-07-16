@@ -17,7 +17,7 @@
 
 const crypto = require("crypto");
 const { onCall } = require("firebase-functions/v2/https");
-const { LINE_CHANNEL_ID, DEFAULT_LINE_REDIRECT_URL } = require("./_helpers");
+const { LINE_CHANNEL_ID, DEFAULT_LINE_REDIRECT_URL, safeRedirectUrl } = require("./_helpers");
 
 module.exports = onCall(
   {
@@ -26,7 +26,7 @@ module.exports = onCall(
     secrets: [LINE_CHANNEL_ID],
   },
   async (request) => {
-    const redirectUrl = request.data?.redirectUrl || DEFAULT_LINE_REDIRECT_URL;
+    const redirectUrl = safeRedirectUrl(request.data?.redirectUrl || DEFAULT_LINE_REDIRECT_URL);
     const state = crypto.randomUUID();
     const scope = encodeURIComponent("openid profile email");
     const redirect = encodeURIComponent(redirectUrl);

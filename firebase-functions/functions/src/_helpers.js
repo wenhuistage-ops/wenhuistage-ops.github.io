@@ -32,8 +32,24 @@ const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
 const LINE_CHANNEL_SECRET = defineSecret("LINE_CHANNEL_SECRET");
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
 
-// LINE OAuth 預設回跳（可由前端參數覆寫）
+// LINE OAuth 預設回跳（可由前端參數覆寫，但須通過白名單）
 const DEFAULT_LINE_REDIRECT_URL = "https://wenhuistage-ops.github.io/";
+
+/**
+ * 回跳網址白名單。前端可傳 redirectUrl，但只接受正式站與本機開發，
+ * 避免攻擊者把 LINE authorization code 導向自己控制的已登記回跳頁（授權碼竊取）。
+ * 不在白名單即回退為 DEFAULT_LINE_REDIRECT_URL。
+ */
+function safeRedirectUrl(url) {
+  if (
+    typeof url === "string" &&
+    (url.startsWith("https://wenhuistage-ops.github.io") ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url))
+  ) {
+    return url;
+  }
+  return DEFAULT_LINE_REDIRECT_URL;
+}
 
 // 集合名稱常數（對應 GS/Constants.gs 的 SHEET_* 命名）
 const COLLECTIONS = {
@@ -466,6 +482,7 @@ module.exports = {
   COLLECTIONS,
   SESSION_TTL_MS,
   DEFAULT_LINE_REDIRECT_URL,
+  safeRedirectUrl,
   LINE_CHANNEL_ID,
   LINE_CHANNEL_SECRET,
   LINE_CHANNEL_ACCESS_TOKEN,
