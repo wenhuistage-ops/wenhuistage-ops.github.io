@@ -43,34 +43,13 @@ const API_CONFIG = {
 };
 
 // --------------------------------------------------------------------------
-// Runtime override：?backend=firestore|gas 或 localStorage.setItem('backend', ...)
-// 方便開發時 A/B 測試，優先級高於 API_CONFIG.useFirestore 預設值
+// ⚠️ 安全：不再提供 ?backend=gas / localStorage 降級開關。
+// 舊版 GAS 後端缺少 Firestore 版的授權與 IDOR 修補，若允許前端切換過去，
+// 攻擊者只要傳一條 ?backend=gas 連結給登入者即可讓其瀏覽器走弱後端。
+// 正式環境一律鎖死走 Cloud Functions。
 // --------------------------------------------------------------------------
-(function applyBackendOverride() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const fromUrl = params.get("backend");
-    if (fromUrl === "firestore") {
-      API_CONFIG.useFirestore = true;
-    } else if (fromUrl === "gas") {
-      API_CONFIG.useFirestore = false;
-    } else {
-      const stored = localStorage.getItem("backend");
-      if (stored === "firestore") {
-        API_CONFIG.useFirestore = true;
-      } else if (stored === "gas") {
-        API_CONFIG.useFirestore = false;
-      }
-    }
-    if (API_CONFIG.useFirestore) {
-      console.log("🔥 後端模式：Firestore（Cloud Functions）");
-    } else {
-      console.log("📊 後端模式：Google Apps Script");
-    }
-  } catch (e) {
-    console.warn("後端切換 override 失敗，使用預設值：", e);
-  }
-})();
+API_CONFIG.useFirestore = true;
+console.log("🔥 後端模式：Firestore（Cloud Functions，已鎖定）");
 
 /**
  * 根據當前頁面位置動態決定登入後的重定向 URL
