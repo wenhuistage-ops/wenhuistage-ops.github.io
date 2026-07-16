@@ -81,8 +81,11 @@ function calcWorkHours(inTime, outTime, breakTimes) {
 function _pairShiftRanges(record) {
     const isOut = (t) => /下班|OUT/i.test(t || '');
     const isIn = (t) => !isOut(t) && /上班|IN/i.test(t || '');
+    // 工時只計「已核准」的補打卡：未核准（'?'）或已拒絕（'x'）的補打卡不得灌薪資工時
+    // （與後端 _attendance.js summarizeByDay 同一規則）。
+    const countable = (r) => !r || r.adjustmentType !== '補打卡' || r.audit === 'v';
     const arr = (record || [])
-        .filter((r) => r && r.time && (isIn(r.type) || isOut(r.type)))
+        .filter((r) => r && r.time && countable(r) && (isIn(r.type) || isOut(r.type)))
         .map((r) => ({ time: String(r.time), out: isOut(r.type) }))
         .sort((a, b) => a.time.localeCompare(b.time));
 

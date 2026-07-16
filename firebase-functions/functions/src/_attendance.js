@@ -251,8 +251,14 @@ function summarizeByDay(records) {
     // 去除相鄰同 type 的重複打卡（5 分鐘內），避免誤判
     day.record = _dedupeAdjacentSameType(day.record);
 
-    const hasIn = day.record.some((p) => /上班|IN|in/i.test(p.type));
-    const hasOut = day.record.some((p) => /下班|OUT|out/i.test(p.type));
+    // 工時只計「已核准」的補打卡：未核准（'?' 待審）或已拒絕（'x'）的補打卡
+    // 不得灌工時（否則審核流程對薪資計算形同虛設）。一般即時打卡與系統虛擬卡的
+    // adjustmentType 非 '補打卡'、admin 代補卡 audit 已是 'v'，維持納入。
+    const countable = day.record.filter(
+      (p) => p.adjustmentType !== "補打卡" || p.audit === "v"
+    );
+    const hasIn = countable.some((p) => /上班|IN|in/i.test(p.type));
+    const hasOut = countable.some((p) => /下班|OUT|out/i.test(p.type));
 
     const leaveRecord = day.record.find((p) => p.adjustmentType === "系統請假記錄" || /請假/.test(p.type));
     const vacationRecord = day.record.find((p) => /休假/.test(p.type));
@@ -280,10 +286,10 @@ function summarizeByDay(records) {
     let punchInTime = "";
     let punchOutTime = "";
     if (hasIn) {
-      punchInTime = day.record.find((p) => /上班|IN|in/i.test(p.type)).time;
+      punchInTime = countable.find((p) => /上班|IN|in/i.test(p.type)).time;
     }
     if (hasOut) {
-      const outRecs = day.record.filter((p) => /下班|OUT|out/i.test(p.type));
+      const outRecs = countable.filter((p) => /下班|OUT|out/i.test(p.type));
       punchOutTime = outRecs[outRecs.length - 1].time;
     }
     if (punchInTime && punchOutTime) {
@@ -292,7 +298,7 @@ function summarizeByDay(records) {
         return h * 60 + m;
       };
       // 配對班次：依時間排序，上班配下一筆下班；連續上班取最早、連續下班取最晚
-      const sorted = day.record
+      const sorted = countable
         .filter((p) => p.time && /上班|下班|IN|OUT/i.test(p.type || ""))
         .slice()
         .sort((a, b) => String(a.time).localeCompare(String(b.time)));
