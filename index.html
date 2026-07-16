@@ -354,8 +354,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Leaflet CSS & JS (從 CDN 加載，避免 GitHub Pages 部署問題) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+        integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+        integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous"></script>
 
 </head>
 
@@ -1384,7 +1386,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     </div>
 
     <!-- DOMPurify for XSS protection (從 CDN 加載) - 必須同步加載，不能 defer -->
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.1/dist/purify.min.js"></script>
+    <!-- DOMPurify 自我託管（同源，離線可用；供應鏈不再依賴第三方 CDN）-->
+    <script src="js/vendor/purify-3.4.1.min.js"></script>
 
     <!-- 基礎設施層 -->
     <!-- template-loader.js 已移除（模板機制未被使用），模板片段保留於 templates/ui-components.html -->
@@ -1423,7 +1426,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script defer src="js/location.js"></script>
 
     <!-- SheetJS for Excel export (從 CDN 加載) -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+        integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
     <script defer src="js/admin.js"></script>
 
     <!-- Floating LINE button (樣式與行為移到 compiled.css / js/app.js) -->

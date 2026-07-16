@@ -12,7 +12,7 @@
  *
  * 改版時請更新 CACHE_VERSION，activate 時會清掉舊快取。
  */
-const CACHE_VERSION = 'wh-v2';
+const CACHE_VERSION = 'wh-v3';
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
 // 離線備援的最小集合（首頁殼層）。其餘檔案改由執行時動態快取。
