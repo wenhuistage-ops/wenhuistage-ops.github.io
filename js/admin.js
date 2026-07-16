@@ -3918,7 +3918,10 @@ async function renderEmployeeRequestHistory(userId, audit = '?') {
         </li>`;
     }).join('');
 
-    body.outerHTML = `<ul id="employee-request-body" class="space-y-2">${itemsHtml}</ul>`;
+    // ✅ XSS 防護：itemsHtml 內插了員工可控的 req.remark / req.type / req.targetTime
+    // （submitLeave 的 reason/note 只 clampText 截長度、不做 HTML 轉義），
+    // 未消毒直接寫入會造成儲存型 XSS 竊取管理員 session。改由 DOMPurify 淨化。
+    body.outerHTML = DOMPurify.sanitize(`<ul id="employee-request-body" class="space-y-2">${itemsHtml}</ul>`);
     const newBody = card.querySelector('#employee-request-body');
     if (newBody) renderTranslations(newBody);
 
