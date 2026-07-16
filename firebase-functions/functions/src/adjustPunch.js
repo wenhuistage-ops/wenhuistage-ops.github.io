@@ -10,6 +10,7 @@ const {
   COLLECTIONS,
   verifySession,
   clampText,
+  validateCoordinates,
   notifyAdmins,
   formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
@@ -40,6 +41,17 @@ module.exports = onCall(
       return { ok: false, code: "ERR_INVALID_DATETIME" };
     }
 
+    // 補打卡座標僅供記錄（不做地理圍欄），但仍須驗證避免 NaN/Infinity 汙染紀錄
+    let vLat = null;
+    let vLng = null;
+    if (lat !== undefined && lng !== undefined) {
+      const v = validateCoordinates(lat, lng);
+      if (v.valid) {
+        vLat = v.lat;
+        vLng = v.lng;
+      }
+    }
+
     const applicationTime = new Date();
     // 2026-05-15：在 note 加 [員工補卡] prefix，UI / Firestore Console 一眼能識別來源
     const noteWithTag = note
@@ -51,8 +63,8 @@ module.exports = onCall(
       dept: user.dept || "",
       name: user.name || "",
       type,
-      lat: lat !== undefined ? Number(lat) : null,
-      lng: lng !== undefined ? Number(lng) : null,
+      lat: vLat,
+      lng: vLng,
       coords: `申請時間: ${applicationTime.toISOString()}`,
       locationName: "", // 補打卡不填地點
       note: noteWithTag,
