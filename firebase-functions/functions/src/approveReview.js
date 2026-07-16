@@ -18,15 +18,30 @@ module.exports = onCall(
     if (!id) return { ok: false, msg: "缺少審核 ID" };
 
     const ref = db.collection(COLLECTIONS.ATTENDANCE).doc(id);
-    const snap = await ref.get();
-    if (!snap.exists) return { ok: false, msg: "記錄不存在" };
-    const data = snap.data();
-
-    await ref.update({
-      audit: "v",
-      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-      reviewedBy: auth.user.userId,
-    });
+    // 用 transaction 包 read+檢查+write，避免 approve/reject 並發時後寫覆蓋；
+    // 並加狀態機：只允許審核「待審核（?）」的補卡/請假，防止復活已拒申請、
+    // 重複核准、或把一般打卡/系統虛擬卡硬改 audit（那些應走 updateAttendanceAsAdmin）。
+    let data;
+    try {
+      data = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw { _code: "ERR_NOT_FOUND" };
+        const d = snap.data();
+        if (d.audit !== "?") throw { _code: "ERR_ALREADY_REVIEWED" };
+        if (d.adjustmentType !== "補打卡" && d.adjustmentType !== "系統請假記錄") {
+          throw { _code: "ERR_NOT_REVIEWABLE" };
+        }
+        tx.update(ref, {
+          audit: "v",
+          reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+          reviewedBy: auth.user.userId,
+        });
+        return d;
+      });
+    } catch (e) {
+      if (e && e._code) return { ok: false, code: e._code };
+      throw e;
+    }
     // audit 變動會影響該月 dailyStatus reason，清月度快取
     const punchDate = data.timestamp?.toDate?.() || data.timestamp;
     if (punchDate) invalidateMonthlyCacheForDate(punchDate, data.userId);

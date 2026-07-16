@@ -21,16 +21,30 @@ module.exports = onCall(
     const rejectReason = String(request.data?.reason || "").trim().slice(0, 500);
 
     const ref = db.collection(COLLECTIONS.ATTENDANCE).doc(id);
-    const snap = await ref.get();
-    if (!snap.exists) return { ok: false, msg: "記錄不存在" };
-    const data = snap.data();
-
-    await ref.update({
-      audit: "x",
-      rejectReason: rejectReason,
-      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
-      reviewedBy: auth.user.userId,
-    });
+    // 同 approveReview：transaction + 狀態機，只允許退回「待審核（?）」的補卡/請假，
+    // 避免並發覆寫、重複退回、或把非審核類紀錄硬改 audit。
+    let data;
+    try {
+      data = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw { _code: "ERR_NOT_FOUND" };
+        const d = snap.data();
+        if (d.audit !== "?") throw { _code: "ERR_ALREADY_REVIEWED" };
+        if (d.adjustmentType !== "補打卡" && d.adjustmentType !== "系統請假記錄") {
+          throw { _code: "ERR_NOT_REVIEWABLE" };
+        }
+        tx.update(ref, {
+          audit: "x",
+          rejectReason: rejectReason,
+          reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+          reviewedBy: auth.user.userId,
+        });
+        return d;
+      });
+    } catch (e) {
+      if (e && e._code) return { ok: false, code: e._code };
+      throw e;
+    }
     const punchDate = data.timestamp?.toDate?.() || data.timestamp;
     if (punchDate) invalidateMonthlyCacheForDate(punchDate, data.userId);
 
