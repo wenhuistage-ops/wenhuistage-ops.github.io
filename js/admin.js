@@ -4325,7 +4325,10 @@ function setupBreakTimesEditor() {
 
     function render(breaks) {
         const safeHtml = (breaks || []).map(rowHtml).join('');
-        listEl.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(safeHtml) : safeHtml;
+        // DOMPurify 不可用時不回退為原始 HTML（避免注入未消毒內容）；改為不渲染，
+        // 管理員重新整理待 DOMPurify 載入即可（L7）。
+        if (typeof DOMPurify !== 'undefined') listEl.innerHTML = DOMPurify.sanitize(safeHtml);
+        else listEl.textContent = '';
     }
 
     function collect() {
