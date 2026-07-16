@@ -24,6 +24,7 @@ const {
   LINE_CHANNEL_SECRET,
   DEFAULT_LINE_REDIRECT_URL,
   safeRedirectUrl,
+  consumeOAuthState,
   upsertEmployee,
   createOneTimeToken,
 } = require("./_helpers");
@@ -99,6 +100,13 @@ module.exports = onCall(
 
     if (!code) {
       return { ok: false, code: "ERR_MISSING_CODE" };
+    }
+
+    // M5：後端一次性驗證 OAuth state，杜絕 curl 直呼 getProfile 繞過純前端 state 檢查
+    // （login CSRF / 授權碼注入）。state 由 getLoginUrl 產生並記錄。
+    const stateCheck = await consumeOAuthState(request.data?.state);
+    if (!stateCheck.valid) {
+      return { ok: false, code: "ERR_INVALID_STATE" };
     }
 
     try {

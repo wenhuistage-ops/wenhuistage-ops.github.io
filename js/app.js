@@ -385,7 +385,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(currentLang);
             // 獲取當前環境的 redirect URL，與登入時相同
             const redirectUrl = getRedirectUrl();
-            const res = await callApifetch({ action: 'getProfile', otoken: otoken, languag: currentLang, redirectUrl: redirectUrl });
+            // 帶回 LINE 回傳的 state，供後端一次性驗證（M5）
+            const res = await callApifetch({ action: 'getProfile', otoken: otoken, state: params.get('state') || '', languag: currentLang, redirectUrl: redirectUrl });
             if (res.ok && res.sToken) {
                 localStorage.setItem("sessionToken", res.sToken);
                 history.replaceState({}, '', window.location.pathname);

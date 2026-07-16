@@ -56,8 +56,10 @@ module.exports = onSchedule(
     const now = new Date();
     const sessionsDeleted = await cleanCollection(COLLECTIONS.SESSIONS, now);
     const oneTimeDeleted = await cleanCollection(COLLECTIONS.ONE_TIME_TOKENS, now);
+    // OAuth state（M5）同樣有 expiredAt，順手清掉已用/過期的，避免累積
+    const oauthDeleted = await cleanCollection(COLLECTIONS.OAUTH_STATES, now);
     console.log(
-      `cleanExpiredSessions: sessions=${sessionsDeleted}, oneTimeTokens=${oneTimeDeleted}`
+      `cleanExpiredSessions: sessions=${sessionsDeleted}, oneTimeTokens=${oneTimeDeleted}, oauthStates=${oauthDeleted}`
     );
   }
 );

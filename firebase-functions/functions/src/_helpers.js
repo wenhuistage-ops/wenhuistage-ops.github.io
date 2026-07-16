@@ -61,6 +61,7 @@ const COLLECTIONS = {
   LOCATIONS: "locations",
   SESSIONS: "sessions",
   ONE_TIME_TOKENS: "oneTimeTokens",
+  OAUTH_STATES: "oauthStates", // LINE OAuth state（後端一次性 CSRF 驗證，M5）
   REVIEW_REQUESTS: "reviewRequests",
   NOTIFICATION_QUEUE: "notificationQueue",
 };
@@ -406,6 +407,44 @@ async function consumeOneTimeToken(oneTimeToken) {
 }
 
 /**
+ * 儲存 LINE OAuth state（M5）：getLoginUrl 產生 state 時寫入，
+ * getProfile 於後端一次性比對，防止純前端 state 檢查被 curl 直呼 getProfile 繞過。
+ */
+async function saveOAuthState(state, redirectUrl) {
+  if (!state) return;
+  await db.collection(COLLECTIONS.OAUTH_STATES).doc(state).set({
+    redirectUrl: redirectUrl || "",
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    expiredAt: new Date(Date.now() + 10 * 60 * 1000), // 10 分鐘
+    used: false,
+  });
+}
+
+/**
+ * 一次性消費並驗證 OAuth state（M5）。交易確保不可重放。
+ * @returns {Promise<{valid:boolean, redirectUrl?:string}>}
+ */
+async function consumeOAuthState(state) {
+  if (!state || typeof state !== "string") return { valid: false };
+  const ref = db.collection(COLLECTIONS.OAUTH_STATES).doc(state);
+  try {
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return { valid: false };
+      const d = snap.data();
+      if (d.used) return { valid: false };
+      const exp = d.expiredAt?.toMillis?.() ?? d.expiredAt ?? 0;
+      if (exp > 0 && Date.now() > exp) return { valid: false };
+      tx.update(ref, { used: true, consumedAt: admin.firestore.FieldValue.serverTimestamp() });
+      return { valid: true, redirectUrl: d.redirectUrl || "" };
+    });
+  } catch (err) {
+    console.error("consumeOAuthState 交易失敗:", err?.message);
+    return { valid: false };
+  }
+}
+
+/**
  * 取得管理員清單（dept === '管理員'）— in-process cache，TTL 5 分鐘
  *
  * 為什麼快取：每次打卡 / 申請會 fire-and-forget notifyAdmins → getAdminList，
@@ -547,6 +586,8 @@ module.exports = {
   upsertEmployee,
   createOneTimeToken,
   consumeOneTimeToken,
+  saveOAuthState,
+  consumeOAuthState,
   getAdminList,
   invalidateAdminListCache,
   sendLinePush,

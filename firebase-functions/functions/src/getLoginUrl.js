@@ -17,7 +17,7 @@
 
 const crypto = require("crypto");
 const { onCall } = require("firebase-functions/v2/https");
-const { LINE_CHANNEL_ID, DEFAULT_LINE_REDIRECT_URL, safeRedirectUrl } = require("./_helpers");
+const { LINE_CHANNEL_ID, DEFAULT_LINE_REDIRECT_URL, safeRedirectUrl, saveOAuthState } = require("./_helpers");
 
 module.exports = onCall(
   {
@@ -28,6 +28,8 @@ module.exports = onCall(
   async (request) => {
     const redirectUrl = safeRedirectUrl(request.data?.redirectUrl || DEFAULT_LINE_REDIRECT_URL);
     const state = crypto.randomUUID();
+    // 後端記錄 state（M5），getProfile 一次性比對；純前端 localStorage 檢查為輔。
+    await saveOAuthState(state, redirectUrl);
     const scope = encodeURIComponent("openid profile email");
     const redirect = encodeURIComponent(redirectUrl);
     const clientId = encodeURIComponent(LINE_CHANNEL_ID.value());
