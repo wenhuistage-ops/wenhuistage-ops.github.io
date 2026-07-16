@@ -24,6 +24,9 @@ const { admin, db, verifyAdmin } = require("./_helpers");
 
 // 2026/01/01 起基本月薪 29,500（與 js/labor-hours.js 同步；每年元旦前手動更新）
 const MIN_MONTHLY_WAGE = 29500;
+// 單一金額欄位上限（防 Number('1e400')=Infinity 溢位與誤填數千萬）。
+// ponytail: 固定上限即可，真有超出者再調此常數。
+const MAX_MONEY = 10000000;
 
 module.exports = onCall(
   {
@@ -39,6 +42,11 @@ module.exports = onCall(
     const userId = String(data.userId || "").trim();
     if (!userId) {
       return { ok: false, code: "ERR_MISSING_USER_ID", msg: "userId required" };
+    }
+    // userId 直接拼進 employees/{userId} doc 路徑；含 '/' 的奇數段會讓 .doc() 拋錯 500，
+    // 且非法字元可指向非預期 doc。限白名單字元（LINE userId 為英數）。
+    if (!/^[A-Za-z0-9_-]+$/.test(userId)) {
+      return { ok: false, code: "ERR_MISSING_USER_ID", msg: "userId 格式不正確" };
     }
 
     const update = {
@@ -76,8 +84,8 @@ module.exports = onCall(
     // monthlySalary（≥ 基本工資；0 表示清空）
     if (data.monthlySalary !== undefined) {
       const s = Number(data.monthlySalary);
-      if (isNaN(s) || s < 0) {
-        return { ok: false, code: "ERR_INVALID_MONTHLY_SALARY", msg: "monthlySalary must be number ≥ 0" };
+      if (!Number.isFinite(s) || s < 0 || s > MAX_MONEY) {
+        return { ok: false, code: "ERR_INVALID_MONTHLY_SALARY", msg: "monthlySalary must be finite number 0..MAX_MONEY" };
       }
       if (s > 0 && s < MIN_MONTHLY_WAGE) {
         return {
@@ -92,8 +100,8 @@ module.exports = onCall(
     // hourlyRate
     if (data.hourlyRate !== undefined) {
       const r = Number(data.hourlyRate);
-      if (isNaN(r) || r < 0) {
-        return { ok: false, code: "ERR_INVALID_HOURLY_RATE", msg: "hourlyRate must be number ≥ 0" };
+      if (!Number.isFinite(r) || r < 0 || r > MAX_MONEY) {
+        return { ok: false, code: "ERR_INVALID_HOURLY_RATE", msg: "hourlyRate must be finite number 0..MAX_MONEY" };
       }
       update.hourlyRate = r;
     }
@@ -124,8 +132,8 @@ module.exports = onCall(
     // housingExpense（每月住宿費扣款，≥ 0）
     if (data.housingExpense !== undefined) {
       const h = Number(data.housingExpense);
-      if (isNaN(h) || h < 0) {
-        return { ok: false, code: "ERR_INVALID_HOUSING_EXPENSE", msg: "housingExpense must be number ≥ 0" };
+      if (!Number.isFinite(h) || h < 0 || h > MAX_MONEY) {
+        return { ok: false, code: "ERR_INVALID_HOUSING_EXPENSE", msg: "housingExpense must be finite number 0..MAX_MONEY" };
       }
       update.housingExpense = h;
     }
@@ -142,8 +150,8 @@ module.exports = onCall(
     // customInsuredSalary（自訂投保薪資；0 = 不啟用、> 0 覆寫 grade.salary）
     if (data.customInsuredSalary !== undefined) {
       const c = Number(data.customInsuredSalary);
-      if (isNaN(c) || c < 0) {
-        return { ok: false, code: "ERR_INVALID_CUSTOM_INSURED", msg: "customInsuredSalary must be number ≥ 0" };
+      if (!Number.isFinite(c) || c < 0 || c > MAX_MONEY) {
+        return { ok: false, code: "ERR_INVALID_CUSTOM_INSURED", msg: "customInsuredSalary must be finite number 0..MAX_MONEY" };
       }
       update.customInsuredSalary = c;
     }
