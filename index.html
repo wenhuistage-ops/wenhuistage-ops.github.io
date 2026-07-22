@@ -384,21 +384,25 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         <!-- Main App Content -->
         <div id="main-app" class="fade-in" style="display: none;">
             <!-- Tab Navigation -->
-            <div class="flex justify-center space-x-2 mb-6">
+            <!-- flex-wrap + nowrap：管理員可見 6 顆 tab，手機寬度換行成多列，避免文字被壓成直排（比照 admin 子分頁列寫法）-->
+            <div class="flex justify-center flex-wrap gap-2 mb-6">
                 <button id="tab-dashboard-btn" data-i18n="TAB_DASHBOARD"
-                    class="py-2 px-4 rounded-full font-bold text-sm text-white bg-indigo-600">儀表板</button>
+                    class="py-2 px-4 rounded-full font-bold text-sm text-white bg-indigo-600"
+                    style="white-space: nowrap;">儀表板</button>
                 <button id="tab-monthly-btn" data-i18n="TAB_MONTHLY"
-                    class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">月份檢視</button>
+                    class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                    style="white-space: nowrap;">月份檢視</button>
                 <button id="tab-my-requests-btn" data-i18n="TAB_MY_REQUESTS"
-                    class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">我的申請</button>
-                <button id="tab-Form-btn" data-i18n="TAB_FORM" style="display: none;"
+                    class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                    style="white-space: nowrap;">我的申請</button>
+                <button id="tab-Form-btn" data-i18n="TAB_FORM" style="display: none; white-space: nowrap;"
                     class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200">表單申請</button>
                 <button id="tab-location-btn" data-i18n="TAB_LOCATION"
                     class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
-                    style="display: none">定位</button>
+                    style="display: none; white-space: nowrap;">定位</button>
                 <button id="tab-admin-btn" data-i18n="TAB_ADMIN"
-                    class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200" style="display: none"
-                    ;>管理員</button>
+                    class="py-2 px-4 rounded-full font-bold text-sm text-gray-600 bg-gray-200"
+                    style="display: none; white-space: nowrap;">管理員</button>
             </div>
 
             <!-- Dashboard View -->
