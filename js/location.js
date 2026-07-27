@@ -264,7 +264,7 @@ function initLocationMap(forceReload = false) {
         fetchAndRenderLocationsOnMap();
     } else {
         showNotification(t('ERROR_BROWSER_NOT_SUPPORTED'), "error");
-        statusEl.textContent = '不支援定位';
+        statusEl.textContent = t('MSG_GEOLOCATION_UNSUPPORTED');
     }
 }
 

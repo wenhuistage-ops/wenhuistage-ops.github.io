@@ -198,6 +198,27 @@ function _closeGeoHelp() {
     _geoHelpEl = null;
 }
 
+// 定位引導步驟：[翻譯鍵, 中文 fallback]，i18n 未載入時仍可顯示
+const GEO_HELP_STEPS = {
+    ios: [
+        ['LOC_HELP_IOS_1', '開啟 iPhone 的「設定」App'],
+        ['LOC_HELP_IOS_2', '點「隱私權與安全性」→「定位服務」，確認最上方總開關為開啟'],
+        ['LOC_HELP_IOS_3', '往下找到 {app}，點進去選「使用 App 期間」，並開啟「精確位置」'],
+        ['LOC_HELP_IOS_4', '回到本頁，點下方「重新嘗試」'],
+    ],
+    android: [
+        ['LOC_HELP_ANDROID_1', '開啟手機「設定」→「位置」，確認定位已開啟'],
+        ['LOC_HELP_ANDROID_2', '在瀏覽器點網址列左側的鎖頭圖示 →「權限」→「位置」→ 改為「允許」'],
+        ['LOC_HELP_ANDROID_3', '（或：Chrome 選單 →「設定」→「網站設定」→「位置」→ 允許）'],
+        ['LOC_HELP_ANDROID_4', '回到本頁，點下方「重新嘗試」'],
+    ],
+    desktop: [
+        ['LOC_HELP_DESKTOP_1', '點瀏覽器網址列旁的鎖頭／資訊圖示'],
+        ['LOC_HELP_DESKTOP_2', '找到「位置」權限，改為「允許」'],
+        ['LOC_HELP_DESKTOP_3', '重新整理頁面後再試一次'],
+    ],
+};
+
 /**
  * 顯示「如何開啟定位權限」引導彈窗（平台對應步驟 + 重新嘗試）
  * @param {Object} [opts]
@@ -209,29 +230,11 @@ function showLocationPermissionHelp(opts) {
     if (_geoHelpEl) return; // 避免重複開啟
     const { isIOS, isAndroid, isStandalone } = _detectGeoPlatform();
 
-    let steps;
-    if (isIOS) {
-        const appName = isStandalone ? '「文輝考勤」' : '「Safari 網站」';
-        steps = [
-            '開啟 iPhone 的「設定」App',
-            '點「隱私權與安全性」→「定位服務」，確認最上方總開關為開啟',
-            `往下找到 ${appName}，點進去選「使用 App 期間」，並開啟「精確位置」`,
-            '回到本頁，點下方「重新嘗試」',
-        ];
-    } else if (isAndroid) {
-        steps = [
-            '開啟手機「設定」→「位置」，確認定位已開啟',
-            '在瀏覽器點網址列左側的鎖頭圖示 →「權限」→「位置」→ 改為「允許」',
-            '（或：Chrome 選單 →「設定」→「網站設定」→「位置」→ 允許）',
-            '回到本頁，點下方「重新嘗試」',
-        ];
-    } else {
-        steps = [
-            '點瀏覽器網址列旁的鎖頭／資訊圖示',
-            '找到「位置」權限，改為「允許」',
-            '重新整理頁面後再試一次',
-        ];
-    }
+    const appName = isStandalone
+        ? tr_geo('LOC_HELP_APP_STANDALONE', '「文輝考勤」')
+        : tr_geo('LOC_HELP_APP_SAFARI', '「Safari 網站」');
+    const platform = isIOS ? 'ios' : (isAndroid ? 'android' : 'desktop');
+    const steps = GEO_HELP_STEPS[platform].map(([key, zh]) => tr_geo(key, zh, { app: appName }));
 
     // 遮罩
     const overlay = document.createElement('div');
@@ -302,15 +305,19 @@ function showLocationPermissionHelp(opts) {
     _geoHelpEl = overlay;
 }
 
-// 取翻譯（無 i18n 時用中文 fallback）
-function tr_geo(key, fallback) {
+// 取翻譯（無 i18n 時用中文 fallback），params 用於 {app} 之類的變數替換
+function tr_geo(key, fallback, params) {
+    let text = fallback;
     try {
         if (typeof t === 'function') {
-            const v = t(key);
+            const v = t(key, params || {});
             if (v && v !== key) return v;
         }
     } catch (_) { /* ignore */ }
-    return fallback;
+    for (const k in (params || {})) {
+        text = text.replace(`{${k}}`, params[k]);
+    }
+    return text;
 }
 // #endregion
 
