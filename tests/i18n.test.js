@@ -3,7 +3,7 @@
  * 涵蓋基本翻譯、參數替換、舊版 GAS 錯誤字串向後相容解析
  */
 
-const { t } = require('../js/modules/i18n');
+const { t, renderTranslations } = require('../js/modules/i18n');
 
 describe('i18n - t() 真實函式', () => {
   beforeEach(() => {
@@ -56,6 +56,44 @@ describe('i18n - t() 真實函式', () => {
 
     it('純 ERR_OUT_OF_RANGE 不會誤觸發 fallback', () => {
       expect(t('ERR_OUT_OF_RANGE')).toBe('❌ 不在範圍內');
+    });
+  });
+
+  describe('renderTranslations - DOM 渲染', () => {
+    const render = (html) => {
+      const box = document.createElement('div');
+      box.innerHTML = html;
+      renderTranslations(box);
+      return box.firstElementChild;
+    };
+
+    it('翻譯時應保留元素內的圖示，只換文字', () => {
+      global.translations = { TITLE: 'Punch records' };
+      const el = render('<h3 data-i18n="TITLE"><i class="fas fa-table"></i>打卡紀錄</h3>');
+      expect(el.querySelector('i')).not.toBeNull();
+      expect(el.textContent).toContain('Punch records');
+      expect(el.textContent).not.toContain('打卡紀錄');
+    });
+
+    it('沒有子元素時直接換整段文字', () => {
+      global.translations = { BTN: 'Log out' };
+      expect(render('<button data-i18n="BTN">登出</button>').textContent).toBe('Log out');
+    });
+
+    it('應翻譯 title / aria-label / alt / placeholder 屬性', () => {
+      global.translations = { HELP: 'Calculation details', PH: 'Search…' };
+      const btn = render('<button data-i18n-title="HELP" data-i18n-aria-label="HELP" title="計算說明" aria-label="計算說明"></button>');
+      expect(btn.getAttribute('title')).toBe('Calculation details');
+      expect(btn.getAttribute('aria-label')).toBe('Calculation details');
+      const input = render('<input data-i18n-placeholder="PH" placeholder="搜尋">');
+      expect(input.getAttribute('placeholder')).toBe('Search…');
+    });
+
+    it('找不到鍵時不應改動原本的內容與屬性', () => {
+      global.translations = {};
+      const btn = render('<button data-i18n="NOPE" data-i18n-title="NOPE2" title="計算說明">登出</button>');
+      expect(btn.textContent).toBe('登出');
+      expect(btn.getAttribute('title')).toBe('計算說明');
     });
   });
 

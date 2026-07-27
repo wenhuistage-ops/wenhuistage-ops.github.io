@@ -155,14 +155,38 @@ function t(code, params = {}) {
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { t, loadTranslations, switchLanguage, preloadTranslations };
+  module.exports = { t, loadTranslations, switchLanguage, preloadTranslations, renderTranslations };
+}
+
+// 可翻譯的屬性：用 data-i18n-<屬性名>="KEY" 標記
+const TRANSLATABLE_ATTRS = ['title', 'aria-label', 'alt', 'placeholder'];
+
+/**
+ * 寫入翻譯文字，保留元素內既有的子元素（例如 <i> 圖示）
+ * 直接設 textContent 會把圖示一起刪掉，切換語言後圖示就消失了
+ * @param {HTMLElement} element
+ * @param {string} text
+ */
+function setTranslatedText(element, text) {
+  if (element.children.length) {
+    const textNode = Array.from(element.childNodes)
+      .find(n => n.nodeType === 3 && n.textContent.trim());
+    if (textNode) {
+      // 保留原本前後的空白，只換文字本身
+      // 用函式形式替換，避免翻譯文字中的 $& 等符號被當成特殊序列
+      textNode.textContent = textNode.textContent.replace(/\S[\s\S]*\S|\S/, () => text);
+      return;
+    }
+  }
+  element.textContent = text;
 }
 
 /**
  * 在 DOM 中渲染翻譯
- * 支持兩種方式：
+ * 支持三種方式：
  * 1. [data-i18n="KEY"] - 靜態翻譯
  * 2. [data-i18n-key="KEY"] - 動態翻譯
+ * 3. [data-i18n-attr="title=KEY,aria-label=KEY"] - 屬性翻譯
  * @param {HTMLElement} container - 容器元素，默認為 document
  */
 function renderTranslations(container = document) {
@@ -182,9 +206,19 @@ function renderTranslations(container = document) {
       if (element.tagName === 'INPUT') {
         element.placeholder = translatedText;
       } else {
-        element.textContent = translatedText;
+        setTranslatedText(element, translatedText);
       }
     }
+  });
+
+  // 處理屬性：[data-i18n-title]、[data-i18n-aria-label]、[data-i18n-alt]、[data-i18n-placeholder]
+  // textContent 翻不到這些屬性，需另外處理
+  TRANSLATABLE_ATTRS.forEach(attr => {
+    container.querySelectorAll(`[data-i18n-${attr}]`).forEach(element => {
+      const key = element.getAttribute(`data-i18n-${attr}`);
+      const translatedText = t(key);
+      if (translatedText !== key) element.setAttribute(attr, translatedText);
+    });
   });
 
   // 處理動態內容：[data-i18n-key]
@@ -196,7 +230,7 @@ function renderTranslations(container = document) {
 
       // 只有當翻譯結果不是原始鍵值時才進行更新
       if (translatedText !== key) {
-        element.textContent = translatedText;
+        setTranslatedText(element, translatedText);
       }
     }
   });

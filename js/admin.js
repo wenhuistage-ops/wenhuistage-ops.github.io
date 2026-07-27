@@ -4197,8 +4197,8 @@ async function renderEmployeeKpi(userId, date) {
             const illegalH = Number(sum.illegalHours || 0);
             const illegalD = Number(sum.illegalDays || 0);
             if (illegalH > 0) {
-                setVal('kpi-illegal-hours', illegalH.toFixed(1));
-                setVal('kpi-illegal-days', String(illegalD));
+                setVal('kpi-illegal-summary',
+                    t('KPI_ILLEGAL_SUMMARY', { hours: illegalH.toFixed(1), days: illegalD }));
                 warnEl.style.display = 'block';
             } else {
                 warnEl.style.display = 'none';

@@ -338,9 +338,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
             <div class="flex items-center space-x-3">
                 <img id="profile-img" src="https://placehold.co/40x40/e0e0e0/757575?text=U" alt="頭像"
-                    class="w-10 h-10 rounded-full">
+                    data-i18n-alt="ALT_PROFILE_PHOTO" class="w-10 h-10 rounded-full">
                 <div>
-                    <p id="user-name" class="font-semibold">使用者名稱</p>
+                    <p id="user-name" data-i18n="USER_NAME_LABEL" class="font-semibold">使用者名稱</p>
                     <p id="welcome-mes" data-i18n="WELCOME_BACK" class="text-xs text-gray-500">歡迎回來！</p>
                 </div>
             </div>
@@ -371,7 +371,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
         <!-- Login Section -->
         <section id="login-section" class="text-center p-8 card fade-in">
-            <img src="/0rigin.png" alt="打卡系統橫幅圖" class="main-image">
+            <img src="/0rigin.png" alt="打卡系統橫幅圖" data-i18n-alt="ALT_APP_BANNER" class="main-image">
             <h1 id="appTitle" data-i18n="SUBTITLE_LOGIN" class="text-2xl font-bold text-gray-800 mb-2 dark:text-white">
                 歡迎文輝考勤系統</h1>
             <p class="text-gray-600 mb-6" data-i18n="LOGIN_INFO" id="status">請點擊登入以繼續。</p>
@@ -711,7 +711,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                         <i class="fas fa-balance-scale mr-1"></i><span data-i18n="LABOR_DETAIL_TITLE">工時詳細（勞基法分段）</span>
                                         <button type="button" id="kpi-labor-help-btn"
                                             class="kpi-labor-help-btn"
-                                            data-i18n-title="LABOR_HELP_TITLE"
+                                            data-i18n-title="LABOR_CALC_HELP_LABEL"
+                                            data-i18n-aria-label="LABOR_CALC_HELP_LABEL"
                                             title="計算說明" aria-label="計算說明">?</button>
                                     </summary>
                                     <div class="kpi-labor-grid mt-3">
@@ -762,12 +763,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                         <div class="flex items-start gap-2">
                                             <i class="fas fa-exclamation-triangle text-amber-600 dark:text-amber-400 mt-0.5"></i>
                                             <div class="flex-1 text-sm">
-                                                <div class="font-semibold text-amber-700 dark:text-amber-300">
-                                                    本月偵測到突發事件工時
-                                                    <span id="kpi-illegal-hours" class="ml-1">--</span> 小時，
-                                                    分布於 <span id="kpi-illegal-days">--</span> 天
+                                                <div id="kpi-illegal-summary" class="font-semibold text-amber-700 dark:text-amber-300">
+                                                    本月偵測到突發事件工時 -- 小時，分布於 -- 天
                                                 </div>
-                                                <div class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                                <div class="text-xs text-amber-600 dark:text-amber-400 mt-1" data-i18n="KPI_ILLEGAL_LAW_NOTE">
                                                     勞基法 §32 §36：每日含加班最多 12 小時、例假日不得出勤。系統仍按實際工時計薪，請業主依 §40 判斷是否為天災／事變／突發事件之合法停假，或員工誤打卡。
                                                 </div>
                                             </div>
@@ -1103,7 +1102,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <label for="salary-housing-input"
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         <span data-i18n="LABOR_HOUSING_EXPENSE">住宿費</span>
-                                        <span class="text-xs text-gray-500">(NT$ / 月)</span>
+                                        <span class="text-xs text-gray-500" data-i18n="LABOR_UNIT_NTD_PER_MONTH">(NT$ / 月)</span>
                                     </label>
                                     <input type="number" id="salary-housing-input" name="housingExpense"
                                         min="0" step="100" value="0"
@@ -1115,7 +1114,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <label for="salary-tax-rate-input"
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         <span data-i18n="LABOR_INCOME_TAX_RATE">所得稅扣繳率</span>
-                                        <span class="text-xs text-gray-500">(% 外籍常用 6)</span>
+                                        <span class="text-xs text-gray-500" data-i18n="LABOR_TAX_RATE_HINT">(% 外籍常用 6)</span>
                                     </label>
                                     <input type="number" id="salary-tax-rate-input" name="incomeTaxRate"
                                         min="0" max="30" step="0.5" value="0"
@@ -1181,14 +1180,15 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             <label data-i18n="LABEL_SEARCH_LANDMARK" for="admin-map-search-input" class="sr-only">搜尋地標</label>
                             <div class="relative">
                                 <input id="admin-map-search-input" type="text" placeholder="搜尋地標或地址..."
-                                    autocomplete="off"
+                                    data-i18n-placeholder="MAP_SEARCH_PLACEHOLDER" autocomplete="off"
                                     class="w-full py-2 px-3 rounded-md border border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
                                 <button id="admin-map-search-clear"
                                     class="absolute right-2 top-1/2 transform -translate-y-1/2 text-sm text-gray-500"
+                                    data-i18n-aria-label="BTN_CLEAR_SEARCH"
                                     aria-label="清除搜尋" style="display:none">✕</button>
                             </div>
                             <ul id="admin-map-search-results" class="admin-map-search-results mt-1" role="listbox"
-                                aria-label="搜尋結果"></ul>
+                                data-i18n-aria-label="MAP_SEARCH_RESULTS" aria-label="搜尋結果"></ul>
                         </div>
 
                         <!-- Admin Add Location Map -->
@@ -1209,9 +1209,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <label data-i18n="COORDINATES_LAT_LNG_LABEL"
                                     class="block text-sm font-medium text-gray-700">經緯度 (Latitude / Longitude)</label>
                                 <div class="mt-1 flex space-x-2">
-                                    <input type="text" id="location-lat" placeholder="緯度" readonly class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm
+                                    <input type="text" id="location-lat" placeholder="緯度" readonly
+                                        data-i18n-placeholder="LATITUDE_PLACEHOLDER" class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm
                                         dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                                    <input type="text" id="location-lng" placeholder="經度" readonly class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm
+                                    <input type="text" id="location-lng" placeholder="經度" readonly
+                                        data-i18n-placeholder="LONGITUDE_PLACEHOLDER" class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm
                                         dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                 </div>
                             </div>
@@ -1342,7 +1344,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                 </h3>
                 <button type="button" id="kpi-labor-help-close-btn"
                     class="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl font-bold leading-none px-2"
-                    aria-label="關閉">×</button>
+                    data-i18n-aria-label="BTN_CLOSE" aria-label="關閉">×</button>
             </div>
             <div id="kpi-labor-help-body" class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed space-y-3">
                 <!-- 由 JS 渲染 i18n 內容 -->
@@ -1403,6 +1405,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
     <!-- Floating LINE button (樣式與行為移到 compiled.css / js/app.js) -->
     <button id="floating-line-btn" class="floating-line-btn" aria-label="加入員工 LINE 頻道" title="長按可隱藏"
+        data-i18n-aria-label="JOIN_LINE_CHANNEL_SHORT" data-i18n-title="HINT_LONG_PRESS_HIDE"
         data-line-url="https://lin.ee/Hos7UlA">
         💬
     </button>
@@ -1415,7 +1418,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 id="makeup-modal-title" data-i18n="MAKEUP_MODAL_TITLE"
                     class="text-lg font-bold text-gray-800 dark:text-white">補卡申請</h3>
-                <button id="makeup-modal-close" type="button" aria-label="關閉"
+                <button id="makeup-modal-close" type="button" aria-label="關閉" data-i18n-aria-label="BTN_CLOSE"
                     class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none">
                     &times;
                 </button>
