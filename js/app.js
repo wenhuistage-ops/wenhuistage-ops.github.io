@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             loginResult = { isLoggedIn: true, isAdmin: isUserAdmin };
 
             // 恢復用戶介面
-            document.getElementById("user-name").textContent = localStorage.getItem("userName") || "用戶";
+            document.getElementById("user-name").textContent = localStorage.getItem("userName") || t("DEFAULT_USER_NAME");
             document.getElementById("profile-img").src = localStorage.getItem("userPicture") || "";
             document.getElementById('login-section').style.display = 'none';
             document.getElementById('user-header').style.display = 'flex';

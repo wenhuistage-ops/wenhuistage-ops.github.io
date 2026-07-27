@@ -282,7 +282,7 @@ function showLocationPermissionHelp(opts) {
 
     if (opts.secondary && typeof opts.secondary.onClick === 'function') {
         const secBtn = document.createElement('button');
-        secBtn.textContent = opts.secondary.label || '其他方式';
+        secBtn.textContent = opts.secondary.label || tr_geo('LOC_HELP_SECONDARY_DEFAULT', '其他方式');
         secBtn.style.cssText = 'background:#f3f4f6;color:#374151;border:none;border-radius:12px;padding:11px;font-weight:600;font-size:14px;cursor:pointer';
         secBtn.onclick = () => { _closeGeoHelp(); opts.secondary.onClick(); };
         btnRow.appendChild(secBtn);

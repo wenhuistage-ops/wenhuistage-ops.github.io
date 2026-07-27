@@ -446,7 +446,7 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     // 使用 textContent 設置文本內容，避免 XSS 風險且性能更好
     const hourLabel = document.createElement('span');
     hourLabel.setAttribute('data-i18n', 'MONTH_TOTAL_HOURS_PREFIX');
-    hourLabel.textContent = '本月累計時數：';
+    hourLabel.textContent = t('MONTH_TOTAL_HOURS_PREFIX');
 
     const hourValue = document.createElement('span');
     const hoursUnit = (typeof t === 'function' && t('UNIT_HOURS')) || '小時';

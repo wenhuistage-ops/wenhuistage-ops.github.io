@@ -146,7 +146,8 @@ async function renderAdminCalendar(userId, date) {
             // 網路或系統錯誤
             console.error("System Error in renderAdminCalendar:", err);
             // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-            calendarGrid.innerHTML = DOMPurify.sanitize('<div class="col-span-full text-center text-red-500 py-4">發生系統錯誤</div>');
+            calendarGrid.innerHTML = DOMPurify.sanitize(
+                `<div class="col-span-full text-center text-red-500 py-4">${t('MSG_SYSTEM_ERROR')}</div>`);
         }
     }
 }
@@ -839,8 +840,8 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
                 <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">
                     <i class="fas fa-user-edit mr-2 text-amber-600"></i>${tt('BTN_MAKEUP_AS_ADMIN', '代員工補卡')}
                 </h3>
-                <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">員工：<span class="font-semibold">${empName}</span></p>
-                <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">日期：<span class="font-semibold">${dateKey}</span></p>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">${tt('LABEL_EMPLOYEE', '員工')}：<span class="font-semibold">${empName}</span></p>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">${tt('TABLE_HEADER_DATE', '日期')}：<span class="font-semibold">${dateKey}</span></p>
 
                 <div class="grid grid-cols-3 gap-1 mb-3 p-1 bg-gray-100 dark:bg-gray-900 rounded-lg">
                     <button type="button" data-admin-mode="in" class="admin-makeup-mode-btn px-2 py-1 rounded text-sm font-medium transition ${isIn ? activeCls : inactiveCls}">${tt('MAKEUP_MODE_IN_ONLY', '只補上班')}</button>
@@ -851,8 +852,8 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
                 <div class="space-y-3">
                     ${inputsHtml}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">備註（可選）</label>
-                        <input type="text" id="admin-makeup-note" placeholder="補卡原因 / 員工口述"
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${tt('NOTE_LABEL', '備註（可選）')}</label>
+                        <input type="text" id="admin-makeup-note" placeholder="${tt('ADMIN_MAKEUP_NOTE_PLACEHOLDER', '補卡原因 / 員工口述')}"
                                class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
                 </div>
@@ -902,24 +903,24 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
             inTime = document.getElementById('admin-makeup-in')?.value;
             outTime = document.getElementById('admin-makeup-out')?.value;
             if (!inTime || !outTime) {
-                showNotification('請填寫上下班時間', 'error');
+                showNotification(tt('MSG_FILL_PUNCH_TIMES', '請填寫上下班時間'), 'error');
                 return;
             }
             if (outTime <= inTime) {
-                showNotification('下班時間必須晚於上班時間', 'error');
+                showNotification(tt('MSG_OUT_MUST_BE_AFTER_IN', '下班時間必須晚於上班時間'), 'error');
                 return;
             }
         } else {
             const single = document.getElementById('admin-makeup-single')?.value;
             if (!single) {
-                showNotification('請填寫時間', 'error');
+                showNotification(tt('MSG_FILL_TIME', '請填寫時間'), 'error');
                 return;
             }
             if (isIn) inTime = single; else outTime = single;
         }
 
         submitBtn.disabled = true;
-        submitBtn.textContent = '送出中...';
+        submitBtn.textContent = tt('BTN_SUBMITTING', '送出中...');
 
         try {
             if (isFull) {
@@ -929,13 +930,13 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
                     action: 'adjustPunchAsAdmin', targetUserId, type: '上班',
                     datetime: inDateTime.toISOString(), note,
                 });
-                if (!r1 || !r1.ok) throw new Error(r1?.msg || r1?.code || '上班補卡失敗');
+                if (!r1 || !r1.ok) throw new Error(r1?.msg || r1?.code || tt('ERR_MAKEUP_IN_FAILED', '上班補卡失敗'));
                 const r2 = await callApifetch({
                     action: 'adjustPunchAsAdmin', targetUserId, type: '下班',
                     datetime: outDateTime.toISOString(), note,
                 });
-                if (!r2 || !r2.ok) throw new Error(r2?.msg || r2?.code || '下班補卡失敗');
-                showNotification('代員工補卡成功（上下班共 2 筆）', 'success');
+                if (!r2 || !r2.ok) throw new Error(r2?.msg || r2?.code || tt('ERR_MAKEUP_OUT_FAILED', '下班補卡失敗'));
+                showNotification(tt('MSG_ADMIN_MAKEUP_SUCCESS_FULL', '代員工補卡成功（上下班共 2 筆）'), 'success');
             } else {
                 const ts = isIn ? new Date(`${dateKey}T${inTime}:00`) : new Date(`${dateKey}T${outTime}:00`);
                 const r = await callApifetch({
@@ -943,8 +944,15 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
                     type: isIn ? '上班' : '下班',
                     datetime: ts.toISOString(), note,
                 });
-                if (!r || !r.ok) throw new Error(r?.msg || r?.code || (isIn ? '上班補卡失敗' : '下班補卡失敗'));
-                showNotification(`代員工補卡成功（${isIn ? '上班' : '下班'}一筆）`, 'success');
+                if (!r || !r.ok) {
+                    throw new Error(r?.msg || r?.code ||
+                        (isIn ? tt('ERR_MAKEUP_IN_FAILED', '上班補卡失敗') : tt('ERR_MAKEUP_OUT_FAILED', '下班補卡失敗')));
+                }
+                const typeLabel = isIn ? tt('PUNCH_IN', '上班') : tt('PUNCH_OUT', '下班');
+                showNotification(
+                    tt('MSG_ADMIN_MAKEUP_SUCCESS_SINGLE', '代員工補卡成功（{type}一筆）').replace('{type}', typeLabel),
+                    'success'
+                );
             }
 
             close();
@@ -955,7 +963,7 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
             }
         } catch (err) {
             console.error('admin makeup 失敗:', err);
-            showNotification(err.message || '補卡失敗', 'error');
+            showNotification(err.message || tt('MSG_MAKEUP_FAILED', '補卡失敗'), 'error');
             submitBtn.disabled = false;
             renderModal(); // 還原按鈕
         }
@@ -1555,14 +1563,15 @@ function initAdminEvents() {
                         'w-full px-4 py-2 text-sm font-medium text-red-700 dark:text-red-300 ' +
                         'bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 ' +
                         'border border-red-300 dark:border-red-700 rounded-lg transition';
-                    resignBtn.innerHTML = '<i class="fas fa-user-slash mr-2"></i>標記為離職';
+                    resignBtn.innerHTML = DOMPurify.sanitize(
+                        `<i class="fas fa-user-slash mr-2"></i>${t('BTN_MARK_RESIGNED')}`);
                     resignBtn.addEventListener('click', () =>
                         handleResignEmployee(currentManagingEmployee.userId, employee.name || '')
                     );
                     resignWrapper.appendChild(resignBtn);
                     const hint = document.createElement('p');
                     hint.className = 'mt-1 text-xs text-gray-500 dark:text-gray-400';
-                    hint.textContent = '離職後員工無法打卡與被通知，但 attendance 紀錄保留（勞基法 5 年）';
+                    hint.textContent = t('HINT_MARK_RESIGNED');
                     resignWrapper.appendChild(hint);
                 }
                 settingsContainer.appendChild(resignWrapper);
@@ -1687,7 +1696,7 @@ function initAdminEvents() {
                 locationLatInput.value = '';
                 locationLngInput.value = '';
                 // 重設按鈕狀態
-                getLocationBtn.textContent = '取得當前位置';
+                getLocationBtn.textContent = t('GET_LOCATION_BTN');
                 getLocationBtn.disabled = false;
                 addLocationBtn.disabled = true;
             } else {
@@ -1863,7 +1872,7 @@ async function handleResignEmployee(userId, employeeName) {
                 emp.resignedAt = new Date();
             }
             cacheManager.invalidate('employeeList');
-            showNotification(`已將 ${name} 標記為離職`, 'success');
+            showNotification(t('MSG_EMPLOYEE_RESIGNED', { name }), 'success');
             // 觸發員工選擇器的 change 事件 → 重新 render 詳情卡（按鈕會變成「已離職」提示）
             if (adminSelectEmployeeMgmt) {
                 adminSelectEmployeeMgmt.dispatchEvent(new Event('change'));
@@ -1948,7 +1957,7 @@ function _populateGradeOptions() {
     window.LABOR_INSURANCE_GRADES.forEach((g) => {
         const opt = document.createElement('option');
         opt.value = String(g.grade);
-        opt.textContent = `第 ${g.grade} 級 (${g.salary.toLocaleString()})`;
+        opt.textContent = t('LABOR_GRADE_OPTION', { grade: g.grade, salary: g.salary.toLocaleString() });
         sel.appendChild(opt);
     });
 }
@@ -1978,7 +1987,9 @@ function _refreshSalaryPreview() {
         const hourly = (typeof window.monthlyToHourly === 'function')
             ? window.monthlyToHourly(monthlyVal)
             : Math.round(monthlyVal / 240);
-        if (previewHourlyEl) previewHourlyEl.textContent = hourly > 0 ? `${hourly} 元/小時` : '--';
+        if (previewHourlyEl) {
+            previewHourlyEl.textContent = hourly > 0 ? t('LABOR_HOURLY_UNIT', { hourly }) : '--';
+        }
         if (minWageWarn) {
             minWageWarn.style.display = (monthlyVal > 0 && monthlyVal < MIN_MONTHLY_WAGE_2026) ? 'block' : 'none';
         }
@@ -3340,10 +3351,13 @@ function setupTestNotificationButton() {
             const res = await callApifetch({ action: 'testNotification' }, 'loadingMsg');
             if (res && res.ok) {
                 const adminCount = res.adminCount != null ? res.adminCount : '';
-                showNotification(`${res.msg || '測試通知發送成功'}（管理員 ${adminCount} 位）`, 'success');
+                showNotification(
+                    `${res.msg || t('TEST_NOTIFICATION_SUCCESS')}${t('TEST_NOTIFICATION_ADMIN_COUNT', { count: adminCount })}`,
+                    'success'
+                );
             } else {
                 const code = (res && res.code) || 'UNKNOWN_ERROR';
-                showNotification(t(code) || (res && res.msg) || '測試通知發送失敗', 'error');
+                showNotification(t(code) || (res && res.msg) || t('TEST_NOTIFICATION_FAILED'), 'error');
             }
         } catch (err) {
             console.error('testNotification 失敗', err);

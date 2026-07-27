@@ -532,7 +532,10 @@ function bindPunchEvents() {
                         }, "loadingMsg");
 
                         const msg = t(outRes.code || "UNKNOWN_ERROR", outRes.params || {});
-                        showNotification(outRes.ok ? "全日打卡補登成功" : "下班打卡失敗：" + msg, outRes.ok ? "success" : "error");
+                        showNotification(
+                            outRes.ok ? t("MSG_FULL_DAY_MAKEUP_SUCCESS") : t("MSG_PUNCH_OUT_FAILED", { msg }),
+                            outRes.ok ? "success" : "error"
+                        );
 
                         if (outRes.ok) {
                             hostContainer.replaceChildren();

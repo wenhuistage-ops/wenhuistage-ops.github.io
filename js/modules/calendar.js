@@ -58,7 +58,10 @@ function renderCalendar(year, month, records, container) {
 
   container.replaceChildren();
 
-  const weekDays = [t('SUN'), t('MON'), t('TUE'), t('WED'), t('THU'), t('FRI'), t('SAT')];
+  const weekDays = [
+    t('WEEK_SUNDAY'), t('WEEK_MONDAY'), t('WEEK_TUESDAY'), t('WEEK_WEDNESDAY'),
+    t('WEEK_THURSDAY'), t('WEEK_FRIDAY'), t('WEEK_SATURDAY'),
+  ];
 
   // 渲染週日標頭
   const headerRow = document.createElement('div');
@@ -66,7 +69,7 @@ function renderCalendar(year, month, records, container) {
   weekDays.forEach(day => {
     const dayEl = document.createElement('div');
     dayEl.className = 'text-center text-sm';
-    dayEl.textContent = day || '日';
+    dayEl.textContent = day;
     headerRow.appendChild(dayEl);
   });
   container.appendChild(headerRow);

@@ -70,7 +70,8 @@ async function fetchAndRenderLocationsOnMap() {
                     fillOpacity: 0.2,
                     radius: punchInRadius
                 });
-                locationCircle.bindPopup(`<b>${loc.name}</b><br>可打卡範圍：${punchInRadius}公尺`);
+                locationCircle.bindPopup(
+                    `<b>${loc.name}</b><br>${t('LOCATION_RADIUS_POPUP', { radius: punchInRadius })}`);
                 locationCircles.addLayer(locationCircle);
             });
 
