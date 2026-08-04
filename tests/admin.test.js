@@ -159,4 +159,24 @@ describe('管理員功能 - Admin Module', () => {
       expect(request.approvedAt).toBeDefined();
     });
   });
+
+  describe('打卡紀錄刪除白名單', () => {
+    // 規格需與 deleteAttendance.js（後端）+ admin.js canDelete（前端按鈕）兩處一致
+    const DELETABLE_TYPES = new Set(['', '補打卡', '系統虛擬卡']);
+    const canDelete = (adjustmentType) => DELETABLE_TYPES.has(adjustmentType || '');
+
+    it('應允許刪除一般打卡（員工按錯上/下班需 admin 修正）', () => {
+      expect(canDelete('')).toBe(true);
+      expect(canDelete(undefined)).toBe(true);
+    });
+
+    it('應允許刪除補打卡與系統虛擬卡', () => {
+      expect(canDelete('補打卡')).toBe(true);
+      expect(canDelete('系統虛擬卡')).toBe(true);
+    });
+
+    it('應拒絕刪除請假記錄（影響員工權益，改假別走編輯）', () => {
+      expect(canDelete('系統請假記錄')).toBe(false);
+    });
+  });
 });

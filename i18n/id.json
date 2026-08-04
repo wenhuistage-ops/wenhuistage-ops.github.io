@@ -343,7 +343,7 @@
   "MSG_ADMIN_DELETE_FAILED": "Hapus gagal",
   "UPDATE_ATTENDANCE_SUCCESS": "Catatan diperbarui",
   "DELETE_ATTENDANCE_SUCCESS": "Catatan dihapus",
-  "ERR_NOT_DELETABLE": "Hanya catatan penyesuaian / kartu virtual yang dapat dihapus. Absensi reguler / cuti harus diubah.",
+  "ERR_NOT_DELETABLE": "Catatan cuti tidak dapat dihapus. Gunakan \"Edit\" untuk mengubah jenis cuti.",
   "BADGE_SOURCE_NORMAL": "Normal",
   "BADGE_SOURCE_EMPLOYEE_MAKEUP": "Bantuan Sendiri",
   "BADGE_SOURCE_ADMIN_MAKEUP": "Admin Bantu",

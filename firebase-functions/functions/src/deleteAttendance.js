@@ -4,11 +4,10 @@
  * 對應前端：admin 後台月曆「點某天 → 詳情卡」上補打卡 / 虛擬卡的「刪除」按鈕
  *
  * 2026-05-15a：取消原本「只允許刪虛擬卡」白名單，admin 可刪任意 doc
- * 2026-05-15b：因實務考量重新加上白名單 — 一般打卡 / 請假記錄不可刪：
- *   · 一般打卡（adjustmentType=''）：員工親身按打卡按鈕送出，是 source of truth，
- *     誤刪會破壞 attendance 完整性，必須由員工自己作廢或申請補卡
- *   · 請假記錄（adjustmentType='系統請假記錄'）：影響員工權益，需由請假審核流程處理
- *   · 允許刪：補打卡（'補打卡'，員工自補 + Admin 代補同一 type）、系統虛擬卡（'系統虛擬卡'）
+ * 2026-05-15b：因實務考量重新加上白名單 — 一般打卡 / 請假記錄不可刪
+ * 2026-08-04c：一般打卡改回可刪（員工按錯上/下班的實務需求，見下方白名單註解）
+ *   · 允許刪：一般打卡（''）、補打卡（'補打卡'）、系統虛擬卡（'系統虛擬卡'）
+ *   · 不可刪：請假記錄（'系統請假記錄'）— 影響員工權益，改假別走 updateLeaveAsAdmin
  *
  * 流程：
  *   1. 驗 admin session
@@ -47,19 +46,29 @@ module.exports = onCall(
     }
     const data = snap.data();
 
-    // 2026-05-15b：白名單 — 只允許刪除「補打卡」或「系統虛擬卡」
-    //   一般打卡 / 請假記錄即使是 admin 也不可刪（保護員工權益 / source of truth）
-    const DELETABLE_TYPES = new Set(["補打卡", "系統虛擬卡"]);
+    // 2026-08-04c：白名單放寬 — 一般打卡（adjustmentType=''）改為可刪。
+    //   原因：60 秒冷卻只擋「同型」連點，員工按錯「下班」後馬上按「上班」不會被擋，
+    //   聚合層的 _dedupeAdjacentSameType 也只去重同型，這種誤打卡沒有任何自動修正路徑。
+    //   舊註解說「由員工自己作廢」，但系統從未實作作廢功能 → admin 刪除是唯一出路。
+    //   請假記錄仍不可刪：影響員工權益，改假別請走 updateLeaveAsAdmin（編輯）。
+    const DELETABLE_TYPES = new Set(["", "補打卡", "系統虛擬卡"]);
     if (!DELETABLE_TYPES.has(data.adjustmentType || "")) {
       return {
         ok: false,
         code: "ERR_NOT_DELETABLE",
-        msg: "僅能刪除補打卡或系統虛擬卡。一般打卡 / 請假記錄不可刪除（請改用編輯）",
+        msg: "請假記錄不可刪除，請改用編輯修改假別",
       };
     }
 
     const userId = data.userId;
     const punchDate = data.timestamp?.toDate?.() || data.timestamp;
+
+    // ponytail: 刪前把整筆內容寫進 log，誤刪可從 Cloud Logging 撈回手動重建。
+    //   比加 deleted 欄位做軟刪除便宜 — 那要改所有 attendance 查詢加 where 條件。
+    //   若誤刪頻繁到需要一鍵還原，再考慮軟刪除。
+    console.log(
+      `[admin-action] deleteAttendance-snapshot docId=${id} data=${JSON.stringify(data)}`
+    );
 
     await ref.delete();
 

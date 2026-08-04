@@ -350,8 +350,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         : r.location;
 
                     // 2026-05-15：admin CRUD — 編輯按鈕對所有 record 顯示，
-                    //   但「刪除」按鈕只對「補打卡 / 系統虛擬卡」顯示
-                    //   （一般打卡 / 請假記錄不可刪，避免破壞 source of truth 或影響員工權益）
+                    //   「刪除」按鈕除請假記錄外都顯示（與後端 deleteAttendance 白名單一致）
                     let actionBtnsHtml = '';
                     if (r.id) {
                         const safeId = String(r.id).replace(/[^a-zA-Z0-9_-]/g, '');
@@ -360,7 +359,9 @@ async function renderAdminDailyRecords(dateKey, userId) {
                         const safeAudit = r.audit || '';
                         const safeLocation = (r.location || '').replace(/"/g, '&quot;');
                         const adjType = r.adjustmentType || '';
-                        const canDelete = adjType === '補打卡' || adjType === '系統虛擬卡';
+                        // 2026-08-04c：一般打卡改為可刪（員工按錯上/下班需要 admin 修正）
+                        //   請假記錄仍不可刪 — 改假別走「編輯」的假別下拉
+                        const canDelete = adjType !== '系統請假記錄';
 
                         const deleteBtnHtml = canDelete ? `
                                 <button type="button"
@@ -370,6 +371,8 @@ async function renderAdminDailyRecords(dateKey, userId) {
                                                border border-rose-300 dark:border-rose-700 rounded transition"
                                         data-doc-id="${safeId}"
                                         data-adjustment-type="${adjType.replace(/"/g, '&quot;')}"
+                                        data-record-time="${r.time || ''}"
+                                        data-record-type="${safeType}"
                                         data-i18n="BTN_DELETE">
                                     <i class="fas fa-trash-alt mr-1"></i>刪除
                                 </button>` : '';
@@ -511,8 +514,14 @@ function _initAdminAttendanceActions() {
             const adjType = btn.dataset.adjustmentType || '';
             if (!docId) return;
             const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+            // 同一天可能有多筆同時間紀錄（如誤按下班後又按上班），確認訊息必須標明是哪一筆
+            const recLabel = [
+                btn.dataset.recordTime || '',
+                btn.dataset.recordType || '',
+                adjType || tt('BADGE_SOURCE_NORMAL', '正常打卡'),
+            ].filter(Boolean).join(' ');
             const confirmMsg = tt('MSG_ADMIN_DELETE_CONFIRM', '確定要刪除這筆紀錄？此操作無法復原。') +
-                (adjType ? `\n\n類型：${adjType}` : '');
+                (recLabel ? `\n\n${recLabel}` : '');
             const ok = typeof showConfirmDialog === 'function'
                 ? await showConfirmDialog(confirmMsg)
                 : window.confirm(confirmMsg);

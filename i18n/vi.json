@@ -327,7 +327,7 @@
   "MSG_ADMIN_DELETE_FAILED": "Xóa thất bại",
   "UPDATE_ATTENDANCE_SUCCESS": "Đã cập nhật bản ghi",
   "DELETE_ATTENDANCE_SUCCESS": "Đã xóa bản ghi",
-  "ERR_NOT_DELETABLE": "Chỉ có thể xóa chấm công bổ sung hoặc thẻ ảo. Chấm công thông thường / nghỉ phép phải chỉnh sửa.",
+  "ERR_NOT_DELETABLE": "Không thể xóa bản ghi nghỉ phép. Vui lòng dùng \"Sửa\" để đổi loại nghỉ phép.",
   "BADGE_SOURCE_NORMAL": "Bình thường",
   "BADGE_SOURCE_EMPLOYEE_MAKEUP": "Tự bổ sung",
   "BADGE_SOURCE_ADMIN_MAKEUP": "Admin bổ sung",

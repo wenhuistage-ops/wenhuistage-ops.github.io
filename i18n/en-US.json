@@ -343,7 +343,7 @@
   "MSG_ADMIN_DELETE_FAILED": "Delete failed",
   "UPDATE_ATTENDANCE_SUCCESS": "Record updated",
   "DELETE_ATTENDANCE_SUCCESS": "Record deleted",
-  "ERR_NOT_DELETABLE": "Only adjustment / virtual punches can be deleted. Regular punches and leave records must be edited instead.",
+  "ERR_NOT_DELETABLE": "Leave records cannot be deleted. Use Edit to change the leave type instead.",
   "BADGE_SOURCE_NORMAL": "Normal",
   "BADGE_SOURCE_EMPLOYEE_MAKEUP": "Self Adjust",
   "BADGE_SOURCE_ADMIN_MAKEUP": "Admin Adjust",
