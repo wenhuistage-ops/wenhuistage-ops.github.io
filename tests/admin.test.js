@@ -179,4 +179,36 @@ describe('管理員功能 - Admin Module', () => {
       expect(canDelete('系統請假記錄')).toBe(false);
     });
   });
+
+  describe('假別編輯下拉 - 保留非中文現值', () => {
+    // 對應 admin.js _openAdminEditModal 的 kindOptsWithCur
+    const LEAVE_KINDS = {
+      請假: ['病假', '事假', '其他'],
+      休假: ['年假', '特休', '補休', '颱風假'],
+    };
+    const buildOpts = (grp, curKind) => {
+      const opts = LEAVE_KINDS[grp] || [];
+      return (curKind && !opts.includes(curKind)) ? [curKind, ...opts] : opts;
+    };
+    // 前端只在假別真的變更時才送出（admin.js：kind !== curKind）
+    const wouldMutate = (opts, curKind) => opts[0] !== curKind;
+
+    it('中文假別應正常預選，不改動選項', () => {
+      expect(buildOpts('請假', '事假')).toEqual(['病假', '事假', '其他']);
+    });
+
+    it('越南文事假應補進選項，避免被靜默改成病假', () => {
+      const opts = buildOpts('請假', 'Nghỉ việc riêng');
+      expect(opts[0]).toBe('Nghỉ việc riêng');
+      expect(wouldMutate(opts, 'Nghỉ việc riêng')).toBe(false);
+    });
+
+    it('修復前的行為：非中文假別會落到第一項而觸發誤改', () => {
+      expect(wouldMutate(LEAVE_KINDS['請假'], 'Nghỉ việc riêng')).toBe(true);
+    });
+
+    it('無現值（非請假記錄）時選項維持白名單', () => {
+      expect(buildOpts('休假', '')).toEqual(['年假', '特休', '補休', '颱風假']);
+    });
+  });
 });

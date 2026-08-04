@@ -608,6 +608,15 @@ function _openAdminEditModal(rec) {
     const selOpt = (val, label, current) =>
         `<option value="${val}" ${val === current ? 'selected' : ''}>${label}</option>`;
 
+    // 員工以非中文介面提交時，假別存的是 i18n 翻譯值（make-up.js 的 option value
+    // 取 t()，如越南文事假存成 'Nghỉ việc riêng'），不在中文白名單內。
+    // 若不補進選項，下拉會找不到現值而預選第一項（請假組=病假），admin 只改
+    // 備註按儲存也會連假別一起被改掉，扣薪跟著算錯 → 必須保留現值。
+    const kindOpts = LEAVE_KINDS[curGroup] || [];
+    const kindOptsWithCur = (curKind && !kindOpts.includes(curKind))
+        ? [curKind, ...kindOpts]
+        : kindOpts;
+
     modal.innerHTML = DOMPurify.sanitize(`
         <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-full max-w-md shadow-2xl">
             <div class="flex items-center justify-between mb-3">
@@ -633,7 +642,7 @@ function _openAdminEditModal(rec) {
                         ${tt('ADMIN_EDIT_LEAVE_KIND', '假別')}
                     </label>
                     <select id="admin-edit-leave-kind" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
-                        ${(LEAVE_KINDS[curGroup] || []).map((k) => selOpt(k, k, curKind)).join('')}
+                        ${kindOptsWithCur.map((k) => selOpt(k, k, curKind)).join('')}
                     </select>
                 </div>
                 ` : `
