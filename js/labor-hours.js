@@ -135,10 +135,11 @@ function calcWorkHoursFromShifts(record, breakTimes) {
  * 單日「缺勤 / 請假倒扣」日數（月薪制薪資用；一日薪水 = 月薪 ÷ 30）。
  *
  * 規則（經業主確認）：只有「平日應上班日」才可能倒扣：
- *   - 已核准病假                    → 0.5（普通傷病假半薪）
- *   - 已核准事假 / 其他請假         → 1
- *   - 無故缺勤（未出勤且無核准請假） → 1（曠職）
- *   - 已核准休假（年假/特休/補休）  → 0（全薪）
+ *   - 已核准病假                       → 0.5（普通傷病假半薪）
+ *   - 已核准事假 / 其他請假            → 1
+ *   - 無故缺勤（未出勤且無核准請假）    → 1（曠職）
+ *   - 已核准休假（年假/特休/補休）     → 0（全薪）
+ *   - 颱風假（天災停班）               → 0（全薪，不論填在哪一群組）
  *   - 有實際出勤（含虛擬卡/已核准補卡）→ 0
  * 假別存於請假記錄的 location 欄（submitLeave 以 locationName 存 reason）。
  *
@@ -154,7 +155,9 @@ function leaveDeductionUnits(day) {
     if (approvedLeave) {
         const grp = String(approvedLeave.type || '');      // '請假' / '休假'
         const kind = String(approvedLeave.location || '');  // 假別
-        if (grp === '休假' || /特休|年假|補休/.test(kind)) return 0;  // 休假群組全薪
+        // 颱風假比對 kind 而非群組：天災停班不是員工假期額度，可能被填進「請假」組，
+        // 兩組都要判成不扣薪，否則員工會因颱風停班被扣一天。
+        if (grp === '休假' || /特休|年假|補休|颱風/.test(kind)) return 0;  // 休假群組 + 颱風假全薪
         if (/病假/.test(kind)) return 0.5;                            // 病假半天
         return 1;                                                     // 事假 / 其他 全天
     }

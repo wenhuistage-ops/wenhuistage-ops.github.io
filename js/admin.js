@@ -596,7 +596,8 @@ function _openAdminEditModal(rec) {
 
     // 請假記錄：以「假別」編輯取代「上班/下班 類型」與「地點」欄
     const isLeave = rec.adjustmentType === '系統請假記錄';
-    const LEAVE_KINDS = { '請假': ['病假', '事假', '其他'], '休假': ['年假', '特休', '補休'] };
+    // 需與後端 updateLeaveAsAdmin.js 的 LEAVE_KINDS 白名單一致，否則存檔會被擋
+    const LEAVE_KINDS = { '請假': ['病假', '事假', '其他'], '休假': ['年假', '特休', '補休', '颱風假'] };
     const curGroup = isLeave ? (rec.type === '休假' ? '休假' : '請假') : '';
     const curKind = isLeave ? String(rec.locationName || '') : '';
 

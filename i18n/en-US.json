@@ -107,6 +107,7 @@
   "VACATION_ANNUAL": "Annual Leave",
   "VACATION_SPECIAL": "Special Leave",
   "VACATION_COMPENSATORY": "Compensatory Leave",
+  "VACATION_TYPHOON": "Typhoon Leave",
   "DETECTING_LOCATION": "Detecting location...",
   "UNKNOWN_LOCATION": "Unknown",
   "DETECTION_SUCCESS": "Detection successful",

@@ -120,6 +120,16 @@ describe('薪資倒扣 - 缺勤/請假扣薪日數（月薪制，日薪=月薪/3
     expect(leaveDeductionUnits(workday([leave('休假', '特休')]))).toBe(0);
     expect(leaveDeductionUnits(workday([leave('休假', '補休')]))).toBe(0);
   });
+  test('颱風假（天災停班）→ 不扣，填在請假組也不扣', () => {
+    expect(leaveDeductionUnits(workday([leave('休假', '颱風假')]))).toBe(0);
+    expect(leaveDeductionUnits(workday([leave('請假', '颱風假')]))).toBe(0);
+  });
+  test('休假組非中文假別（多語系介面提交）→ 仍不扣', () => {
+    // option value 取 i18n 翻譯，故日文介面存入的是「台風休暇」而非「颱風假」；
+    // 群組欄位由 submitLeave 寫死中文「休假」，扣薪判斷才不受介面語言影響
+    expect(leaveDeductionUnits(workday([leave('休假', '台風休暇')]))).toBe(0);
+    expect(leaveDeductionUnits(workday([leave('休假', 'Annual Leave')]))).toBe(0);
+  });
   test('未核准病假（PENDING）不算已核准 → 視同曠職扣 1 天', () => {
     expect(leaveDeductionUnits(workday([leave('請假', '病假', '?')]))).toBe(1);
   });

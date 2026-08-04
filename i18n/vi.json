@@ -357,6 +357,7 @@
   "VACATION_ANNUAL": "Nghỉ phép năm",
   "VACATION_SPECIAL": "Nghỉ đặc biệt",
   "VACATION_COMPENSATORY": "Nghỉ bù",
+  "VACATION_TYPHOON": "Nghỉ bão",
   "LABEL_SELECT_EMPLOYEE": "Chọn nhân viên:",
   "OPT_SELECT_EMPLOYEE": "-- Vui lòng chọn nhân viên --",
   "LABEL_EMPLOYEE_NAME": "Tên nhân viên:",

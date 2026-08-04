@@ -412,6 +412,7 @@ function bindPunchEvents() {
                                 <option value="${t('VACATION_ANNUAL') || '年假'}">${t('VACATION_ANNUAL') || '年假'}</option>
                                 <option value="${t('VACATION_SPECIAL') || '特休'}">${t('VACATION_SPECIAL') || '特休'}</option>
                                 <option value="${t('VACATION_COMPENSATORY') || '補休'}">${t('VACATION_COMPENSATORY') || '補休'}</option>
+                                <option value="${t('VACATION_TYPHOON') || '颱風假'}">${t('VACATION_TYPHOON') || '颱風假'}</option>
                             </select>
                         </div>
                         <div class="form-group mb-3">

@@ -107,6 +107,7 @@
   "VACATION_ANNUAL": "年次休暇",
   "VACATION_SPECIAL": "特別休暇",
   "VACATION_COMPENSATORY": "代休",
+  "VACATION_TYPHOON": "台風休暇",
   "DETECTING_LOCATION": "位置情報を検出中...",
   "UNKNOWN_LOCATION": "不明",
   "DETECTION_SUCCESS": "検出成功",

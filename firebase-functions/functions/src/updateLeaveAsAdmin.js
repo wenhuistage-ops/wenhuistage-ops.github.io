@@ -21,10 +21,11 @@ const { db, COLLECTIONS, verifyAdmin } = require("./_helpers");
 const { applyEventToMonthly, invalidateMonthlyCacheForDate } = require("./_attendance");
 
 // 假別白名單（對應前端 make-up.js 的請假/休假選項）。
-// 薪資倒扣讀 locationName：病假半天、事假/其他全天、年假/特休/補休不扣。
+// 薪資倒扣讀 locationName（規則實作在 js/labor-hours.js leaveDeductionUnits）：
+//   病假 0.5 天、事假/其他 1 天、年假/特休/補休/颱風假 不扣。
 const LEAVE_KINDS = {
   "請假": ["病假", "事假", "其他"],
-  "休假": ["年假", "特休", "補休"],
+  "休假": ["年假", "特休", "補休", "颱風假"],
 };
 
 module.exports = onCall(
