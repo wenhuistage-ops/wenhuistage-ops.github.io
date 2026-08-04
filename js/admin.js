@@ -2832,7 +2832,10 @@ async function handleDetailedPayrollExport(userId, year, month) {
          '例假日8H以上', '國定假日9~10H', '國定假日11~12H以上',
          '扣休息(分)',  // Q1
          '突發事件工時(h)',  // R1: > 12h 或例假日出勤需審查的工時
-         '月薪', monthlySalary],   // S1, T1: 月薪標籤 + 數值
+         // S1, T1: 計薪實際採用的班表時間（labor-hours.js estimateShiftStart/End）
+         //   上班進位、下班四捨五入到 30 分刻度；D~G 仍是原始打卡時間供對照
+         '推估上班', '推估下班',
+         '月薪', monthlySalary],   // U1, V1: 月薪標籤 + 數值
     ];
 
     // 加班時薪參考（範本放在 Q4~R12）— 我先放每日資料下方統一處理
@@ -2866,6 +2869,15 @@ async function handleDetailedPayrollExport(userId, year, month) {
         const dOut = _toExcelTime(sh1.outTime);
         const fIn = _toExcelTime(sh2.inTime);
         const fOut = _toExcelTime(sh2.outTime);
+
+        // S/T 欄：計薪實際採用的推估班表時間（第 1 班），讓管理員能核對加班時數
+        // 從何而來。雙班日第 2 班的推估不另外列欄，但工時計算同樣有套用。
+        const _estIn = (typeof window.estimateShiftStart === 'function')
+            ? window.estimateShiftStart(sh1.inTime) : sh1.inTime;
+        const _estOut = (typeof window.estimateShiftEnd === 'function')
+            ? window.estimateShiftEnd(sh1.outTime) : sh1.outTime;
+        const sEstIn = _toExcelTime(_estIn);
+        const tEstOut = _toExcelTime(_estOut);
 
         // H 欄「加班時數」= **實際工時**（非等價時數）：
         //   - 平日（workday）：扣掉法定正常 8h 後的 OT 段（ot1 + ot2）
@@ -2915,6 +2927,8 @@ async function handleDetailedPayrollExport(userId, year, month) {
             // 帶 ⚠️ 圖示提醒業主審查，依勞基法 §40 由業主判斷是否為合法之
             // 天災／事變／突發事件停假
             s.illegalHours > 0 ? `⚠️ ${s.illegalHours}h` : '',
+            sEstIn != null ? sEstIn : '',      // S 欄 推估上班
+            tEstOut != null ? tEstOut : '',    // T 欄 推估下班
         ]);
         dayCount++;
     });
@@ -3116,10 +3130,10 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const ws1 = XLSX.utils.aoa_to_sheet(personalRows);
     const ws2 = XLSX.utils.aoa_to_sheet(rulesRows);
 
-    // 對 D~G 欄（每日上下班時間，從第 2 列起共 dayCount 列）套用 hh:mm 格式
+    // 對 D~G（原始打卡）與 S/T（推估班表時間）套用 hh:mm 格式
     for (let i = 0; i < dayCount; i++) {
         const rowNum = dayRowStart + i;  // Excel 1-indexed
-        ['D', 'E', 'F', 'G'].forEach((col) => {
+        ['D', 'E', 'F', 'G', 'S', 'T'].forEach((col) => {
             const addr = `${col}${rowNum}`;
             const cell = ws1[addr];
             if (cell && typeof cell.v === 'number') {
@@ -3132,11 +3146,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
     // ===== 公式注入：讓 admin 在 Excel 改月薪 / 時數時自動重算 =====
     // 設計：每日 I~P 欄（各段時數）保持「輸入」，下方合計、加班時薪、加班費、
     // 應發項目、應扣總額、實支額全部公式化。
-    // 月薪 cell = $T$1（R 欄因加入「突發事件工時」推 S→T；S 欄為「月薪」label）。
+    // 月薪 cell = $V$1（S/T 欄加入「推估上班/下班」後，月薪 label 與數值推到 U/V）。
     // 投保薪資與固定扣款（住宿、稅率）為當下匯出時的快照常數，admin 想長期改
     // 應該在系統內改員工資料、重新匯出。
     {
-        const SAL = '$T$1';                              // 月薪參照（絕對位址）
+        const SAL = '$V$1';                              // 月薪參照（絕對位址）
         const dayEndRow = dayCount + 1;                  // 最後一天的 Excel row
         const sumRow = dayCount + 2;                     // 各段合計列
         const rateRow = dayCount + 3;                    // 加班時薪列
@@ -3265,7 +3279,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         setF(`D${finalRow}`, `D${subtotalRow}`);
     }
 
-    // 欄寬（A~S 共 19 欄）
+    // 欄寬（A~V 共 22 欄）
     ws1['!cols'] = [
         { wch: 8 },   // A 日類型標記
         { wch: 6 },   // B 星期 / 員工名
@@ -3284,8 +3298,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
         { wch: 16 },  // O 國定假日9~10H
         { wch: 18 },  // P 國定假日11~12H以上
         { wch: 11 },  // Q 扣休息(分)
-        { wch: 14 },  // R 標籤
-        { wch: 12 },  // S 數值
+        { wch: 14 },  // R 突發事件工時(h)
+        { wch: 10 },  // S 推估上班／合計列的「加班總時」標籤
+        { wch: 10 },  // T 推估下班／合計列的加班總時數值
+        { wch: 10 },  // U 月薪標籤
+        { wch: 12 },  // V 月薪數值
     ];
     ws2['!cols'] = [{ wch: 16 }, { wch: 60 }];
 

@@ -6,7 +6,7 @@
  * 對應 js/labor-hours.js _pairShiftRanges 與 firebase-functions .../_attendance.js。
  */
 
-const { _pairShiftRanges, enrichDayWithLaborStats, leaveDeductionUnits } = require('../js/labor-hours.js');
+const { _pairShiftRanges, enrichDayWithLaborStats, leaveDeductionUnits, estimateShiftStart, estimateShiftEnd } = require('../js/labor-hours.js');
 
 describe('工時計算 - 補打卡審核狀態過濾', () => {
   const inAt = (time, extra = {}) => ({ time, type: '上班', ...extra });
@@ -95,6 +95,81 @@ describe('工時計算 - M4 請假為準（已核准請假日不計工時）', (
     };
     const { laborStats } = enrichDayWithLaborStats(day, breakTimes);
     expect(laborStats.net).toBeGreaterThan(0);
+  });
+});
+
+describe('推估應到班時間 - 無條件進位到 30 分刻度', () => {
+  test('業主指定的三個案例', () => {
+    expect(estimateShiftStart('07:55')).toBe('08:00');
+    expect(estimateShiftStart('06:45')).toBe('07:00');
+    expect(estimateShiftStart('05:15')).toBe('05:30');
+  });
+  test('已在刻度上不動（避免準時上班反被往後推）', () => {
+    expect(estimateShiftStart('08:00')).toBe('08:00');
+    expect(estimateShiftStart('08:30')).toBe('08:30');
+  });
+  test('剛過刻度 1 分鐘 → 進到下一個刻度', () => {
+    expect(estimateShiftStart('08:01')).toBe('08:30');
+    expect(estimateShiftStart('08:31')).toBe('09:00');
+  });
+  test('跨日邊界回 24:00 而非 00:00（否則工時暴增一整天）', () => {
+    expect(estimateShiftStart('23:45')).toBe('24:00');
+    expect(estimateShiftStart('23:30')).toBe('23:30');
+  });
+  test('格式不正確回 null', () => {
+    expect(estimateShiftStart('')).toBeNull();
+    expect(estimateShiftStart(null)).toBeNull();
+    expect(estimateShiftStart('abc')).toBeNull();
+  });
+});
+
+describe('推估應下班時間 - 四捨五入到 30 分刻度', () => {
+  test('業主指定的加班認定門檻', () => {
+    expect(estimateShiftEnd('17:14')).toBe('17:00');   // 未滿 15 分 → 不算加班
+    expect(estimateShiftEnd('17:15')).toBe('17:30');   // 滿 15 分 → 0.5 小時
+    expect(estimateShiftEnd('17:44')).toBe('17:30');
+    expect(estimateShiftEnd('17:45')).toBe('18:00');   // → 1 小時
+    expect(estimateShiftEnd('18:14')).toBe('18:00');
+    expect(estimateShiftEnd('18:15')).toBe('18:30');   // → 1.5 小時
+  });
+  test('準點下班不動', () => {
+    expect(estimateShiftEnd('17:00')).toBe('17:00');
+    expect(estimateShiftEnd('17:30')).toBe('17:30');
+  });
+  test('格式不正確回 null', () => {
+    expect(estimateShiftEnd('')).toBeNull();
+    expect(estimateShiftEnd('abc')).toBeNull();
+  });
+});
+
+describe('推估時間套用到計薪工時（8~17 班、午休 1 小時）', () => {
+  // 驗證 net 而非 ot1：net 不依賴日期類型判定，加班時數 = net - 8
+  const bt = [{ name: '午休', start: '12:00', end: '13:00' }];
+  const net = (inT, outT) => enrichDayWithLaborStats({
+    date: '2026-07-15',
+    record: [{ time: inT, type: '上班' }, { time: outT, type: '下班' }],
+  }, bt).laborStats.net;
+
+  test('17:14 下班 → 8 小時，不算加班', () => {
+    expect(net('08:00', '17:14')).toBe(8);
+  });
+  test('17:15~17:44 下班 → 8.5 小時，加班 0.5', () => {
+    expect(net('08:00', '17:15')).toBe(8.5);
+    expect(net('08:00', '17:44')).toBe(8.5);
+  });
+  test('17:45~18:14 下班 → 9 小時，加班 1', () => {
+    expect(net('08:00', '17:45')).toBe(9);
+    expect(net('08:00', '18:14')).toBe(9);
+  });
+  test('18:15 下班 → 9.5 小時，加班 1.5', () => {
+    expect(net('08:00', '18:15')).toBe(9.5);
+  });
+  test('早到不多算工時：07:55 進場與 08:00 進場同工時', () => {
+    expect(net('07:55', '17:00')).toBe(8);
+    expect(net('08:00', '17:00')).toBe(8);
+  });
+  test('同班別的零頭差異被消除：07:55/17:05 與 08:00/17:00 結果相同', () => {
+    expect(net('07:55', '17:05')).toBe(net('08:00', '17:00'));
   });
 });
 

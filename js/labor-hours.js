@@ -39,6 +39,50 @@ function _overlapMinutes(aStart, aEnd, bStart, bEnd) {
 }
 
 /**
+ * 推估「應到班時間」：把實際打卡時間無條件進位到最近的 30 分鐘刻度。
+ *
+ * 薪資工時要用排定的上班時間算，不是分秒不差的打卡時間 —— 否則早到
+ * 5 分鐘的人工時就比準時的人多，同一班的人薪水有零頭差異。
+ *
+ * 例：07:55 → 08:00、06:45 → 07:00、05:15 → 05:30
+ *     08:00 → 08:00、08:30 → 08:30（已在刻度上不動）
+ *
+ * @param {string} hhmm 'HH:MM'
+ * @returns {string|null} 'HH:MM'；格式不正確回 null
+ */
+function estimateShiftStart(hhmm) {
+    const min = _toMinutes(hhmm);
+    if (min == null) return null;
+    const rounded = Math.ceil(min / 30) * 30;
+    // 23:31~23:59 會進位到 1440（跨日）。回傳 '24:00' 而非 '00:00'：
+    // 後者會讓上班時間倒退到當日凌晨，工時暴增一整天。
+    const hh = Math.floor(rounded / 60);
+    const mm = rounded % 60;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/**
+ * 推估「應下班時間」：把實際打卡時間四捨五入到最近的 30 分鐘刻度。
+ *
+ * 與上班的無條件進位不同 —— 下班是業主指定的加班認定門檻：以 8~17 班為例，
+ * 17:14 下班不算加班、17:15~17:44 算 0.5 小時、17:45~18:14 算 1 小時，
+ * 即「超過刻度 15 分才進位，未滿捨去」。
+ *
+ * 例：17:14 → 17:00、17:15 → 17:30、17:44 → 17:30、17:45 → 18:00、18:15 → 18:30
+ *
+ * @param {string} hhmm 'HH:MM'
+ * @returns {string|null} 'HH:MM'；格式不正確回 null
+ */
+function estimateShiftEnd(hhmm) {
+    const min = _toMinutes(hhmm);
+    if (min == null) return null;
+    const rounded = Math.round(min / 30) * 30;   // JS 的 round 對 .5 向上，正好是「滿 15 分進位」
+    const hh = Math.floor(rounded / 60);
+    const mm = rounded % 60;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+/**
  * 從上下班時間 + breakTimes 計算總工時與淨工時（小時）
  *
  * @param {string} inTime   'HH:MM'
@@ -47,8 +91,13 @@ function _overlapMinutes(aStart, aEnd, bStart, bEnd) {
  * @returns {{ gross: number, net: number }}
  */
 function calcWorkHours(inTime, outTime, breakTimes) {
-    const inMin = _toMinutes(inTime);
-    const outMin = _toMinutes(outTime);
+    // 2026-08-04：計薪工時以推估的班表時間為準，不是分秒不差的打卡時間 ——
+    // 上班進位、下班四捨五入到 30 分刻度。否則早到 5 分鐘的人工時就多一點，
+    // 同一班的人薪水出現零頭差異。
+    // 兩條計算路徑（逐班的 calcWorkHoursFromShifts、缺卡時的單段 fallback）
+    // 都經過這裡，在此套用可保證薪資 / Excel / 月曆的工時口徑一致。
+    const inMin = _toMinutes(estimateShiftStart(inTime));
+    const outMin = _toMinutes(estimateShiftEnd(outTime));
     if (inMin == null || outMin == null) return { gross: 0, net: 0 };
     if (outMin <= inMin) return { gross: 0, net: 0 };
 
@@ -436,6 +485,8 @@ function calcEmployeeDeductions(insuredSalary, pensionRate = 0, opts = {}) {
 if (typeof window !== 'undefined') {
     window.calcWorkHours = calcWorkHours;
     window.calcWorkHoursFromShifts = calcWorkHoursFromShifts;
+    window.estimateShiftStart = estimateShiftStart;
+    window.estimateShiftEnd = estimateShiftEnd;
     window.enrichDayWithLaborStats = enrichDayWithLaborStats;
     window.leaveDeductionUnits = leaveDeductionUnits;
     window.aggregateMonthLaborStats = aggregateMonthLaborStats;
@@ -451,6 +502,8 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         calcWorkHours,
         calcWorkHoursFromShifts,
+        estimateShiftStart,
+        estimateShiftEnd,
         _pairShiftRanges,
         enrichDayWithLaborStats,
         leaveDeductionUnits,
