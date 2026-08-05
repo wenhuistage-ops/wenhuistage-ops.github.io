@@ -275,6 +275,7 @@
   "PUNCH_OUT": "Punch Out",
   "STATUS_PUNCH_NORMAL": "Punch Normal",
   "RECORD_HOURS_PREFIX": "Hours worked today: ",
+  "RECORD_PAYROLL_TIME_PREFIX": "Payroll hours (estimated): ",
   "MONTH_TOTAL_HOURS_PREFIX": "Total hours this month: ",
   "UNIT_HOURS": "hr",
   "LOCATION_VIRTUAL_PUNCH": "System virtual punch",

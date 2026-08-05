@@ -258,6 +258,7 @@
   "STATUS_VACATION_APPROVED": "Nghỉ mát đã duyệt",
   "STATUS_PUNCH_NORMAL": "Chấm công bình thường",
   "RECORD_HOURS_PREFIX": "Số giờ làm việc trong ngày: ",
+  "RECORD_PAYROLL_TIME_PREFIX": "Giờ tính lương (ước tính): ",
   "MONTH_TOTAL_HOURS_PREFIX": "Tổng giờ tháng này: ",
   "UNIT_HOURS": "giờ",
   "LOCATION_VIRTUAL_PUNCH": "Thẻ ảo hệ thống",

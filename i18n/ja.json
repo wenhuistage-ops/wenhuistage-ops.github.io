@@ -275,6 +275,7 @@
   "PUNCH_OUT": "退勤",
   "STATUS_PUNCH_NORMAL": "パンチ正常",
   "RECORD_HOURS_PREFIX": "本日の勤務時間：",
+  "RECORD_PAYROLL_TIME_PREFIX": "給与計算時間（推定）：",
   "MONTH_TOTAL_HOURS_PREFIX": "今月の累計勤務時間：",
   "UNIT_HOURS": "時間",
   "LOCATION_VIRTUAL_PUNCH": "システム仮想打刻",

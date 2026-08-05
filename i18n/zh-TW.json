@@ -263,6 +263,7 @@
   "ERR_BEFORE_MONTH_START": "⚠️ 不能選擇本月以前的時間",
   "STATUS_PUNCH_NORMAL": "打卡正常",
   "RECORD_HOURS_PREFIX": "當日工作時數：",
+  "RECORD_PAYROLL_TIME_PREFIX": "計薪時間（推估）：",
   "MONTH_TOTAL_HOURS_PREFIX": "本月累計時數：",
   "UNIT_HOURS": "小時",
   "LOCATION_VIRTUAL_PUNCH": "系統虛擬卡",

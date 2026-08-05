@@ -487,6 +487,9 @@ if (typeof window !== 'undefined') {
     window.calcWorkHoursFromShifts = calcWorkHoursFromShifts;
     window.estimateShiftStart = estimateShiftStart;
     window.estimateShiftEnd = estimateShiftEnd;
+    // 對外公開：admin 顯示「計薪時間」時必須用與計算同一套配對，否則遇到
+    // 誤觸打卡（上班→下班→下班）兩邊會配出不同班次，顯示與工時對不上。
+    window.pairShiftRanges = _pairShiftRanges;
     window.enrichDayWithLaborStats = enrichDayWithLaborStats;
     window.leaveDeductionUnits = leaveDeductionUnits;
     window.aggregateMonthLaborStats = aggregateMonthLaborStats;

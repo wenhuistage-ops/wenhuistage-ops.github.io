@@ -275,6 +275,7 @@
   "PUNCH_OUT": "Absen Keluar",
   "STATUS_PUNCH_NORMAL": "Punch Normal",
   "RECORD_HOURS_PREFIX": "Jam kerja hari ini: ",
+  "RECORD_PAYROLL_TIME_PREFIX": "Jam penggajian (perkiraan): ",
   "MONTH_TOTAL_HOURS_PREFIX": "Total jam bulan ini: ",
   "UNIT_HOURS": "jam",
   "LOCATION_VIRTUAL_PUNCH": "Punch virtual sistem",

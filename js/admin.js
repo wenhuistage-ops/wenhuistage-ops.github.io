@@ -297,16 +297,21 @@ async function renderAdminDailyRecords(dateKey, userId) {
         // 2026-04-27 合併：loadMonthDetailData 內部統一從 adminMonthDataCache /
         // 'month' cache 取，cache miss 時 fallback 呼叫 getCalendarSummary。
         // 不再走獨立的 getAttendanceDetails 路徑（同一份資料的重複 API）。
-        const details = await loadMonthDetailData(monthKey, userId);
+        // 併發載入休息時段：摘要區要顯示計薪工時（扣掉午休/晚休），
+        // 與 details 一起取才不會多一次往返延遲。
+        const [details, breakTimes] = await Promise.all([
+            loadMonthDetailData(monthKey, userId),
+            (typeof loadBreakTimes === 'function') ? loadBreakTimes() : Promise.resolve([]),
+        ]);
         adminRecordsLoading.style.display = 'none';
-        renderRecords(details || []);
+        renderRecords(details || [], breakTimes || []);
     } catch (err) {
         adminRecordsLoading.style.display = 'none';
         console.error(err);
     }
 
     // 內部函式：渲染日紀錄列表
-    function renderRecords(records) {
+    function renderRecords(records, breakTimes) {
         const dailyRecords = records.filter(record => record.date === dateKey);
         console.log(dailyRecords);
         // 清空現有列表
@@ -428,15 +433,42 @@ async function renderAdminDailyRecords(dateKey, userId) {
                 externalInfo.className = 'daily-summary mt-4 p-3 bg-gray-100 dark:bg-gray-600 rounded-lg';
 
                 // 薪資顯示已移除（待重新設計），此處只顯示工時
+                const hoursUnit = (typeof t === 'function' && t('UNIT_HOURS')) || '小時';
                 let hoursHtml = '';
                 if (dailyRecord.hours > 0) {
-                    const hoursUnit = (typeof t === 'function' && t('UNIT_HOURS')) || '小時';
                     hoursHtml = `
                         <p class="text-sm text-gray-500 dark:text-gray-400">
                             <span data-i18n="RECORD_HOURS_PREFIX">當日工作時數：</span>
                             ${dailyRecord.hours} ${hoursUnit}
                         </p>
                     `;
+                }
+
+                // 計薪採用的推估班表時間（上班進位、下班四捨五入到 30 分刻度，
+                // 見 labor-hours.js estimateShiftStart/End）。上面「當日工作時數」是
+                // 依實際打卡算的，兩者會有落差 —— 管理員核薪時要看得到差在哪。
+                let payrollHtml = '';
+                if (typeof window.estimateShiftStart === 'function'
+                    && typeof window.estimateShiftEnd === 'function'
+                    && typeof window.pairShiftRanges === 'function') {
+                    // 用 labor-hours 的配對（而非 admin 的 _pairShifts）：兩者對誤觸
+                    // 打卡序列的處理不同，用計算那一套才能保證顯示與工時一致。
+                    const shifts = window.pairShiftRanges(dailyRecord.record || []);
+                    if (shifts.length) {
+                        const spans = shifts
+                            .map((s) => `${window.estimateShiftStart(s.inTime)} ~ ${window.estimateShiftEnd(s.outTime)}`)
+                            .join('、');
+                        const calc = (typeof window.calcWorkHoursFromShifts === 'function')
+                            ? window.calcWorkHoursFromShifts(dailyRecord.record || [], breakTimes || [])
+                            : null;
+                        const netTxt = calc ? `　${calc.net} ${hoursUnit}` : '';
+                        payrollHtml = `
+                            <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                                <span data-i18n="RECORD_PAYROLL_TIME_PREFIX">計薪時間（推估）：</span>
+                                ${spans}${netTxt}
+                            </p>
+                        `;
+                    }
                 }
 
                 // ✅ XSS防護：使用 DOMPurify 淨化 HTML
@@ -446,6 +478,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                             ${t(dailyRecord.reason)}
                         </p>
                         ${hoursHtml}
+                        ${payrollHtml}
                 `;
                 externalInfo.innerHTML = DOMPurify.sanitize(externalInfoHtml);
                 // append 到 adminDailyRecordsList 後面
@@ -2878,10 +2911,18 @@ async function handleDetailedPayrollExport(userId, year, month) {
 
         // S/T 欄：計薪實際採用的推估班表時間（第 1 班），讓管理員能核對加班時數
         // 從何而來。雙班日第 2 班的推估不另外列欄，但工時計算同樣有套用。
+        //
+        // 用 labor-hours 的 pairShiftRanges 而非上面 D~G 的 _pairShifts：兩者對誤觸
+        // 打卡（上班→下班→下班）配出的班次不同，S/T 必須跟計薪同一套，否則會顯示
+        // 成 08:00~08:00 而實際是以 08:00~16:30 計薪。D~G 仍用 _pairShifts，因為
+        // 那要呈現「打了哪些卡」（含缺上/下班的殘段）供管理員查缺卡。
+        const _payShift1 = (typeof window.pairShiftRanges === 'function')
+            ? (window.pairShiftRanges(day.record || [])[0] || {})
+            : sh1;
         const _estIn = (typeof window.estimateShiftStart === 'function')
-            ? window.estimateShiftStart(sh1.inTime) : sh1.inTime;
+            ? window.estimateShiftStart(_payShift1.inTime) : _payShift1.inTime;
         const _estOut = (typeof window.estimateShiftEnd === 'function')
-            ? window.estimateShiftEnd(sh1.outTime) : sh1.outTime;
+            ? window.estimateShiftEnd(_payShift1.outTime) : _payShift1.outTime;
         const sEstIn = _toExcelTime(_estIn);
         const tEstOut = _toExcelTime(_estOut);
 
