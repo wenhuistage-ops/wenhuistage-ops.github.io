@@ -2847,7 +2847,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const totalDed = baseDed + incomeTaxDed + absenceDed;
     const netPay = grossTotal - totalDed;
 
-    // ===== Sheet 1: 個人薪資詳細（對齊用戶範本 A~R 欄結構）=====
+    // ===== Sheet 1: 個人薪資詳細（A~V 欄；H/I 為計薪推估時間）=====
     // 'HH:MM' → Excel 時間值 (一日 = 1)
     const _toExcelTime = (hhmm) => {
         if (!hhmm) return null;
@@ -2861,19 +2861,20 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const rocYear = year - 1911;
     const monthLabel = `${rocYear}年`;
 
-    // 表頭 R1（Q 欄：每日扣休息分鐘；R 欄：突發事件工時；S 欄：月薪標籤；T 欄：月薪數值）
+    // 表頭（H/I 欄：計薪推估上下班；S 欄：每日扣休息分鐘；T 欄：突發事件工時；
+    //       U 欄：月薪標籤；V 欄：月薪數值）
     // 「突發事件工時」涵蓋兩類：每日 > 12h（§32 §36）或例假日出勤（§36）
     // 不直接稱「違法」——可能是 §40 天災 / 事變 / 突發事件之合法停假，由業主判斷
     const personalRows = [
         ['', employeeName, monthLabel, '上班', '下班', '上班', '下班',
-         '加班時數', '平日2H以內', '平日3~4H以上',
-         '休息日2H以內', '休息日3~8H', '休息日9H以上',
-         '例假日8H以上', '國定假日9~10H', '國定假日11~12H以上',
-         '扣休息(分)',  // Q1
-         '突發事件工時(h)',  // R1: > 12h 或例假日出勤需審查的工時
-         // S1, T1: 計薪實際採用的班表時間（labor-hours.js estimateShiftStart/End）
-         //   上班進位、下班四捨五入到 30 分刻度；D~G 仍是原始打卡時間供對照
+         // H1, I1: 計薪實際採用的班表時間（labor-hours.js estimateShiftStart/End）
+         //   上班進位、下班四捨五入到 30 分刻度；緊接 D~G 原始打卡時間便於對照
          '推估上班', '推估下班',
+         '加班時數', '平日2H以內', '平日3~4H以上',      // J, K, L
+         '休息日2H以內', '休息日3~8H', '休息日9H以上',   // M, N, O
+         '例假日8H以上', '國定假日9~10H', '國定假日11~12H以上',  // P, Q, R
+         '扣休息(分)',  // S1
+         '突發事件工時(h)',  // T1: > 12h 或例假日出勤需審查的工時
          '月薪', monthlySalary],   // U1, V1: 月薪標籤 + 數值
     ];
 
@@ -2909,7 +2910,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         const fIn = _toExcelTime(sh2.inTime);
         const fOut = _toExcelTime(sh2.outTime);
 
-        // S/T 欄：計薪實際採用的推估班表時間（第 1 班），讓管理員能核對加班時數
+        // H/I 欄：計薪實際採用的推估班表時間（第 1 班），讓管理員能核對加班時數
         // 從何而來。雙班日第 2 班的推估不另外列欄，但工時計算同樣有套用。
         //
         // 用 labor-hours 的 pairShiftRanges 而非上面 D~G 的 _pairShifts：兩者對誤觸
@@ -2926,20 +2927,20 @@ async function handleDetailedPayrollExport(userId, year, month) {
         const sEstIn = _toExcelTime(_estIn);
         const tEstOut = _toExcelTime(_estOut);
 
-        // H 欄「加班時數」= **實際工時**（非等價時數）：
+        // J 欄「加班時數」= **實際工時**（非等價時數）：
         //   - 平日（workday）：扣掉法定正常 8h 後的 OT 段（ot1 + ot2）
         //   - 假日（rest / public / regular）：整天淨工時 net
         //
         // 關鍵：H 必須是「實際出勤時數」，不是「應給付的等價時數」。
         // 例假日的 8h base + 8h 補休折現（法定加倍）顯示在下方「應發項目區」，
-        // H 欄不重複加總這些「非實際工時」的法定給付。
+        // J 欄不重複加總這些「非實際工時」的法定給付。
         //
         // 範例：例假日工作 4.18h
-        //   錯誤設計：H = 8 + 8 + 0 = 16（會誤以為員工工作 16h）
-        //   正確設計：H = 4.18（實際工時），16 在應發項目區另列
+        //   錯誤設計：J = 8 + 8 + 0 = 16（會誤以為員工工作 16h）
+        //   正確設計：J = 4.18（實際工時），16 在應發項目區另列
         //
-        // rest_ot3 已移除 12h cap（保留違法工時計薪）→ K+L+M 自然等於 net，
-        // 與 H 對齊；不需要把 H 改成 sum(I:P)。
+        // rest_ot3 已移除 12h cap（保留違法工時計薪）→ M+N+O 自然等於 net，
+        // 與 J 對齊；不需要把 J 改成 sum(K:R)。
         let hVal;
         if (s.kind === 'workday') {
             hVal = (s.ot1 || 0) + (s.ot2 || 0);
@@ -2950,7 +2951,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         }
         hVal = Math.round(hVal * 100) / 100;
 
-        // Q 欄：當日扣休息分鐘數（透明度：讓使用者看到午休/晚休扣了多少）
+        // S 欄：當日扣休息分鐘數（透明度：讓使用者看到午休/晚休扣了多少）
         // 逐班計算（雙班日休息時段落在班距空檔不誤算）
         const breakMin = _dayBreakMinutes(day, breakTimes);
 
@@ -2960,30 +2961,30 @@ async function handleDetailedPayrollExport(userId, year, month) {
             dOut != null ? dOut : '',
             fIn != null ? fIn : '',
             fOut != null ? fOut : '',
-            hVal,
-            s.ot1 || '',
-            s.ot2 || '',
-            s.rest_ot1 || '',
-            s.rest_ot2 || '',
-            s.rest_ot3 || '',
-            s.regular_ot || '',
-            s.public_ot1 || '',
-            s.public_ot2 || '',
-            breakMin || '',  // Q 欄
-            // R 欄：突發事件工時警告（> 12h 或例假日出勤）
+            sEstIn != null ? sEstIn : '',      // H 欄 推估上班
+            tEstOut != null ? tEstOut : '',    // I 欄 推估下班
+            hVal,                              // J 欄 加班時數
+            s.ot1 || '',                       // K
+            s.ot2 || '',                       // L
+            s.rest_ot1 || '',                  // M
+            s.rest_ot2 || '',                  // N
+            s.rest_ot3 || '',                  // O
+            s.regular_ot || '',                // P
+            s.public_ot1 || '',                // Q
+            s.public_ot2 || '',                // R
+            breakMin || '',  // S 欄
+            // T 欄：突發事件工時警告（> 12h 或例假日出勤）
             // 帶 ⚠️ 圖示提醒業主審查，依勞基法 §40 由業主判斷是否為合法之
             // 天災／事變／突發事件停假
             s.illegalHours > 0 ? `⚠️ ${s.illegalHours}h` : '',
-            sEstIn != null ? sEstIn : '',      // S 欄 推估上班
-            tEstOut != null ? tEstOut : '',    // T 欄 推估下班
         ]);
         dayCount++;
     });
 
-    // 合計列（範本 R30）：G=普通工時(normal 合計)、I~P=月度各段時數、Q=扣休息分鐘合計、R='加班總時'、S=數值
+    // 合計列（範本 R30）：G=每日 J 加總、K~R=月度各段時數、S=扣休息分鐘合計、U='加班總時'、V=數值
     const totalBreakMin = fullDays.reduce(
         (acc, day) => acc + _dayBreakMinutes(day, breakTimes), 0);
-    // G 欄合計 = 每日 H 欄（實際工時）加總，與 H 欄計算邏輯一致：
+    // G 欄合計 = 每日 J 欄（實際工時）加總，與 J 欄計算邏輯一致：
     //   - workday：ot1 + ot2（扣掉法定 8h 正常工時）
     //   - rest / public / regular：整天淨工時 net
     // 例假日的 8h base + 8h 補休折現顯示在應發項目區，不在此重複算。
@@ -3006,25 +3007,26 @@ async function handleDetailedPayrollExport(userId, year, month) {
 
     personalRows.push([
         '', '', '', '', '', '',
-        Math.round(sumH * 100) / 100,                // G: 每日 H 欄加總（公式會覆寫）
-        '加班時數',
-        sum.ot1 || 0, sum.ot2 || 0,
-        sum.rest_ot1 || 0, sum.rest_ot2 || 0, sum.rest_ot3 || 0,
-        sum.regular_ot || 0,
-        sum.public_ot1 || 0, sum.public_ot2 || 0,
-        totalBreakMin,  // Q
-        // R: 違法工時月度合計（提示審查業主）
+        Math.round(sumH * 100) / 100,                // G: 每日 J 欄加總（公式會覆寫）
+        '', '',                                       // H, I: 推估時間欄，合計列不適用
+        '加班時數',                                    // J
+        sum.ot1 || 0, sum.ot2 || 0,                   // K, L
+        sum.rest_ot1 || 0, sum.rest_ot2 || 0, sum.rest_ot3 || 0,  // M, N, O
+        sum.regular_ot || 0,                          // P
+        sum.public_ot1 || 0, sum.public_ot2 || 0,     // Q, R
+        totalBreakMin,  // S
+        // T: 違法工時月度合計（提示審查業主）
         totalIllegalHours > 0
             ? `⚠️ ${Math.round(totalIllegalHours * 100) / 100}h / ${illegalDayCount}天`
             : '',
-        '加班總時',  // S
+        '加班總時',  // U
         Math.round((sum.ot1 + sum.ot2 + sum.rest_ot1 + sum.rest_ot2 + sum.rest_ot3 +
-                    sum.regular_ot + sum.public_ot1 + sum.public_ot2) * 100) / 100,  // T
+                    sum.regular_ot + sum.public_ot1 + sum.public_ot2) * 100) / 100,  // V
     ]);
 
-    // 加班時薪列（範本 R31）：H='加班時薪'、I~P 各段時薪
+    // 加班時薪列（範本 R31）：J='加班時薪'、K~R 各段時薪
     personalRows.push([
-        '', '', '', '', '', '', '',
+        '', '', '', '', '', '', '', '', '',
         '加班時薪',
         otRates.plain1, otRates.plain2,
         otRates.rest1, otRates.rest2, otRates.rest3,
@@ -3032,17 +3034,17 @@ async function handleDetailedPayrollExport(userId, year, month) {
         otRates.public1, otRates.public2,
     ]);
 
-    // 加班費列（範本 R32）：H='加班費'、I~P 各段工資、Q=空、R=空、S='合計'、T=加班費合計
+    // 加班費列（範本 R32）：J='加班費'、K~R 各段工資、S=空、T=空、U='合計'、V=加班費合計
     personalRows.push([
-        '', '', '', '', '', '', '',
+        '', '', '', '', '', '', '', '', '',
         '加班費',
         pay.ot1, pay.ot2,
         pay.rest_ot1, pay.rest_ot2, pay.rest_ot3,
         pay.regular_ot,
         pay.public_ot1, pay.public_ot2,
-        '',  // Q
-        '',  // R（違法工時欄此列保留空）
-        '合計', Math.round(otTotal * 100) / 100,  // S, T
+        '',  // S
+        '',  // T（違法工時欄此列保留空）
+        '合計', Math.round(otTotal * 100) / 100,  // U, V
     ]);
 
     // 空白列
@@ -3177,10 +3179,10 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const ws1 = XLSX.utils.aoa_to_sheet(personalRows);
     const ws2 = XLSX.utils.aoa_to_sheet(rulesRows);
 
-    // 對 D~G（原始打卡）與 S/T（推估班表時間）套用 hh:mm 格式
+    // 對 D~G（原始打卡）與 H/I（推估班表時間）套用 hh:mm 格式
     for (let i = 0; i < dayCount; i++) {
         const rowNum = dayRowStart + i;  // Excel 1-indexed
-        ['D', 'E', 'F', 'G', 'S', 'T'].forEach((col) => {
+        ['D', 'E', 'F', 'G', 'H', 'I'].forEach((col) => {
             const addr = `${col}${rowNum}`;
             const cell = ws1[addr];
             if (cell && typeof cell.v === 'number') {
@@ -3191,9 +3193,10 @@ async function handleDetailedPayrollExport(userId, year, month) {
     }
 
     // ===== 公式注入：讓 admin 在 Excel 改月薪 / 時數時自動重算 =====
-    // 設計：每日 I~P 欄（各段時數）保持「輸入」，下方合計、加班時薪、加班費、
+    // 設計：每日 K~R 欄（各段時數）保持「輸入」，下方合計、加班時薪、加班費、
     // 應發項目、應扣總額、實支額全部公式化。
-    // 月薪 cell = $V$1（S/T 欄加入「推估上班/下班」後，月薪 label 與數值推到 U/V）。
+    // 月薪 cell = $V$1（H/I 欄插入「推估上班/下班」後，時數區整體右移 2 欄；
+    // 月薪 label 與數值仍在 U/V）。
     // 投保薪資與固定扣款（住宿、稅率）為當下匯出時的快照常數，admin 想長期改
     // 應該在系統內改員工資料、重新匯出。
     {
@@ -3209,25 +3212,25 @@ async function handleDetailedPayrollExport(userId, year, month) {
             ws1[addr] = { t: 'n', f: formula, v: typeof cur.v === 'number' ? cur.v : 0 };
         };
 
-        // (1) 第 sumRow 列：G 欄=每日 H 加總、I~Q 各欄合計、T 欄加班總時
-        // （之前在 S 欄是 bug——S 欄是「加班總時」label，T 才是值）
-        setF(`G${sumRow}`, `SUM(H2:H${dayEndRow})`);
-        ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].forEach((col) => {
+        // (1) 第 sumRow 列：G 欄=每日 J 加總、K~S 各欄合計、V 欄加班總時
+        // （U 欄是「加班總時」label，V 才是值）
+        setF(`G${sumRow}`, `SUM(J2:J${dayEndRow})`);
+        ['K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S'].forEach((col) => {
             setF(`${col}${sumRow}`, `SUM(${col}2:${col}${dayEndRow})`);
         });
-        setF(`T${sumRow}`, `SUM(I${sumRow}:P${sumRow})`);
+        setF(`V${sumRow}`, `SUM(K${sumRow}:R${sumRow})`);
 
         // (2) 第 rateRow 列：加班時薪 = 月薪/240 × 倍率
-        const RATES = { I: 1.34, J: 1.67, K: 1.34, L: 1.67, M: 2.67, N: 2, O: 1.34, P: 1.67 };
+        const RATES = { K: 1.34, L: 1.67, M: 1.34, N: 1.67, O: 2.67, P: 2, Q: 1.34, R: 1.67 };
         Object.entries(RATES).forEach(([col, rate]) => {
             setF(`${col}${rateRow}`, `${SAL}/240*${rate}`);
         });
 
-        // (3) 第 payRow 列：各段加班費 = 時數 × 時薪 + T 欄合計
-        ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'].forEach((col) => {
+        // (3) 第 payRow 列：各段加班費 = 時數 × 時薪 + V 欄合計
+        ['K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R'].forEach((col) => {
             setF(`${col}${payRow}`, `${col}${sumRow}*${col}${rateRow}`);
         });
-        setF(`T${payRow}`, `SUM(I${payRow}:P${payRow})`);
+        setF(`V${payRow}`, `SUM(K${payRow}:R${payRow})`);
 
         // (4) 應發項目區（layout 跟著 personalRows push 順序）
         // 警告區會多吃 1 行（突發事件工時 > 0 時 push warning row）→ 所有後續
@@ -3257,21 +3260,21 @@ async function handleDetailedPayrollExport(userId, year, month) {
             setF(`C${applyRest1Row}`, `${SAL}/240*8*${publicDays}`);
         }
 
-        // 右側「時數」G 欄：直接引用 sumRow 對應段
+        // 右側「時數」G 欄：直接引用 sumRow 對應段（時數區已右移 2 欄 → K~R）
         const HOUR_REF = [
-            [applyBaseRow,  'I'], [applyOt2Row,   'J'],
-            [applyRest1Row, 'K'], [applyRest2Row, 'L'], [applyRest3Row, 'M'],
-            [applyReg2Row,  'N'],
-            [applyPub1Row,  'O'], [applyPub2Row,  'P'],
+            [applyBaseRow,  'K'], [applyOt2Row,   'L'],
+            [applyRest1Row, 'M'], [applyRest2Row, 'N'], [applyRest3Row, 'O'],
+            [applyReg2Row,  'P'],
+            [applyPub1Row,  'Q'], [applyPub2Row,  'R'],
         ];
         HOUR_REF.forEach(([r, col]) => setF(`G${r}`, `${col}${sumRow}`));
 
         // 右側「加班費」H 欄：引用 payRow 對應段
         const PAY_REF = [
-            [applyBaseRow,  'I'], [applyOt2Row,   'J'],
-            [applyRest1Row, 'K'], [applyRest2Row, 'L'], [applyRest3Row, 'M'],
-            [applyReg2Row,  'N'],
-            [applyPub1Row,  'O'], [applyPub2Row,  'P'],
+            [applyBaseRow,  'K'], [applyOt2Row,   'L'],
+            [applyRest1Row, 'M'], [applyRest2Row, 'N'], [applyRest3Row, 'O'],
+            [applyReg2Row,  'P'],
+            [applyPub1Row,  'Q'], [applyPub2Row,  'R'],
         ];
         PAY_REF.forEach(([r, col]) => setF(`H${r}`, `${col}${payRow}`));
 
@@ -3341,21 +3344,21 @@ async function handleDetailedPayrollExport(userId, year, month) {
         { wch: 7 },   // E 下班1
         { wch: 7 },   // F 上班2
         { wch: 7 },   // G 下班2
-        { wch: 11 },  // H 加班時數
-        { wch: 12 },  // I 平日2H以內
-        { wch: 14 },  // J 平日3~4H以上
-        { wch: 14 },  // K 休息日2H以內
-        { wch: 12 },  // L 休息日3~8H
-        { wch: 13 },  // M 休息日9H以上
-        { wch: 13 },  // N 例假日8H以上
-        { wch: 16 },  // O 國定假日9~10H
-        { wch: 18 },  // P 國定假日11~12H以上
-        { wch: 11 },  // Q 扣休息(分)
-        { wch: 14 },  // R 突發事件工時(h)
-        { wch: 10 },  // S 推估上班／合計列的「加班總時」標籤
-        { wch: 10 },  // T 推估下班／合計列的加班總時數值
-        { wch: 10 },  // U 月薪標籤
-        { wch: 12 },  // V 月薪數值
+        { wch: 10 },  // H 推估上班
+        { wch: 10 },  // I 推估下班
+        { wch: 11 },  // J 加班時數
+        { wch: 12 },  // K 平日2H以內
+        { wch: 14 },  // L 平日3~4H以上
+        { wch: 14 },  // M 休息日2H以內
+        { wch: 12 },  // N 休息日3~8H
+        { wch: 13 },  // O 休息日9H以上
+        { wch: 13 },  // P 例假日8H以上
+        { wch: 16 },  // Q 國定假日9~10H
+        { wch: 18 },  // R 國定假日11~12H以上
+        { wch: 11 },  // S 扣休息(分)
+        { wch: 14 },  // T 突發事件工時(h)
+        { wch: 10 },  // U 月薪標籤／合計列的「加班總時」標籤
+        { wch: 12 },  // V 月薪數值／合計列的加班總時數值
     ];
     ws2['!cols'] = [{ wch: 16 }, { wch: 60 }];
 
