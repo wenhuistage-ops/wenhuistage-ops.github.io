@@ -180,6 +180,35 @@ describe('管理員功能 - Admin Module', () => {
     });
   });
 
+  describe('所得稅 - 稅基先扣掉請假/曠職扣薪', () => {
+    // 對應 admin.js：taxableIncome = max(0, grossTotal - absenceDed)
+    const calcTax = (grossTotal, absenceDed, rate) =>
+      Math.round(Math.max(0, grossTotal - absenceDed) * (rate / 100));
+
+    it('本薪+加班費扣掉缺勤後才計稅', () => {
+      // 月薪 45000 + 加班費 5000 = 50000，缺勤 1 天扣 1500
+      expect(calcTax(50000, 1500, 6)).toBe(2910);   // (50000-1500) × 6%
+    });
+
+    it('舊算法（不扣缺勤）會多課稅', () => {
+      const oldWay = Math.round(50000 * 0.06);
+      expect(oldWay).toBe(3000);
+      expect(calcTax(50000, 1500, 6)).toBeLessThan(oldWay);
+    });
+
+    it('無缺勤時稅額不變', () => {
+      expect(calcTax(50000, 0, 6)).toBe(3000);
+    });
+
+    it('缺勤扣超過應發時稅額為 0，不會變成倒貼', () => {
+      expect(calcTax(10000, 15000, 6)).toBe(0);
+    });
+
+    it('稅率 0 不扣稅', () => {
+      expect(calcTax(50000, 1500, 0)).toBe(0);
+    });
+  });
+
   describe('假別編輯下拉 - 保留非中文現值', () => {
     // 對應 admin.js _openAdminEditModal 的 kindOptsWithCur
     const LEAVE_KINDS = {

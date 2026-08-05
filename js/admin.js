@@ -2763,12 +2763,12 @@ async function handleDetailedPayrollExport(userId, year, month) {
 
     // 住宿費（每月固定扣款，外籍員工常用）
     const housingDed = Math.max(0, Number(employee.housingExpense || 0));
-    // 薪資所得稅（依該月應發總額 × 扣繳率）
+    // 薪資所得稅稅率；稅額本身要等缺勤扣薪算出來才能算（見下方 taxableIncome）
     const incomeTaxRate = Math.max(0, Math.min(30, Number(employee.incomeTaxRate || 0)));
-    const incomeTaxDed = Math.round(grossTotal * (incomeTaxRate / 100));
 
-    // 非缺勤扣款小計；缺勤/請假倒扣需待 fullDays 建立後才算，故 totalDed/netPay 延後。
-    const baseDed = ded.total + housingDed + incomeTaxDed;
+    // 非缺勤扣款小計（不含所得稅）；缺勤/請假倒扣需待 fullDays 建立後才算，
+    // 所得稅又以「扣除缺勤後的金額」為基數，故所得稅 / totalDed / netPay 都延後。
+    const baseDed = ded.total + housingDed;
 
     // 2026-04-27 補：dailyStatusRaw 只含有打卡的日子，國定假日 / 例假日員工
     // 沒上班就會缺列。逐日掃整月補空 stub（laborStats 全 0，但 kind 標示
@@ -2805,7 +2805,13 @@ async function handleDetailedPayrollExport(userId, year, month) {
         : 0;
     const absenceDed = Math.round(monthlySalary / 30 * absenceDeductDays);
 
-    const totalDed = baseDed + absenceDed;
+    // 所得稅：基數為「本薪 + 加班費 − 請假/曠職扣薪」，即應發總額扣掉缺勤倒扣後
+    // 再乘扣繳率（勞健保與住宿費不從稅基扣除）。缺勤扣超過應發時夾在 0，
+    // 避免負數稅額變成倒貼給員工。
+    const taxableIncome = Math.max(0, grossTotal - absenceDed);
+    const incomeTaxDed = Math.round(taxableIncome * (incomeTaxRate / 100));
+
+    const totalDed = baseDed + incomeTaxDed + absenceDed;
     const netPay = grossTotal - totalDed;
 
     // ===== Sheet 1: 個人薪資詳細（對齊用戶範本 A~R 欄結構）=====
@@ -3258,14 +3264,20 @@ async function handleDetailedPayrollExport(userId, year, month) {
         if (housingDed > 0) {
             setF(`D${curRow}`, `-${housingDed}`); curRow++;
         }
+        // 所得稅 = -(應發總額 − 缺勤/請假扣薪) × 稅率。
+        // 缺勤扣薪就排在所得稅的下一列且 D 欄為負值，故直接相加即為稅基
+        // （Excel 可往下參照，非循環參照）；沒有缺勤列時退回只用應發總額。
         if (incomeTaxRate > 0 && incomeTaxDed > 0) {
-            // 所得稅 = -應發總額 × 稅率
-            setF(`D${curRow}`, `-H${deductTitleRow}*${incomeTaxRate}/100`); curRow++;
+            const hasAbsenceRow = salaryType === 'monthly' && absenceDed > 0;
+            const taxBase = hasAbsenceRow
+                ? `H${deductTitleRow}+D${curRow + 1}`
+                : `H${deductTitleRow}`;
+            setF(`D${curRow}`, `-ROUND((${taxBase})*${incomeTaxRate}/100,0)`); curRow++;
         }
-        // 缺勤/請假倒扣（月薪制）：日薪 = 月薪(T1)/30 × 扣薪日數。與 personalRows 同條件、
-        // 同位置，維持 aoa 與公式列對齊。
+        // 缺勤/請假倒扣（月薪制）：日薪 = 月薪($V$1)/30 × 扣薪日數。與 personalRows
+        // 同條件、同位置，維持 aoa 與公式列對齊。
         if (salaryType === 'monthly' && absenceDed > 0) {
-            setF(`D${curRow}`, `-ROUND(T1/30*${absenceDeductDays},0)`); curRow++;
+            setF(`D${curRow}`, `-ROUND(${SAL}/30*${absenceDeductDays},0)`); curRow++;
         }
 
         // 應扣合計（curRow 是空白行的下一行）
