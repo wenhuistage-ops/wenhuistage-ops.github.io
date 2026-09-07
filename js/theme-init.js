@@ -25,6 +25,9 @@
 document.addEventListener('DOMContentLoaded', () => {
   const htmlElement = document.documentElement;
 
+  // --- 非阻塞樣式表：index.html 以 media="print" 載入的 Google Fonts / Leaflet CSS，此時切回 all ---
+  document.querySelectorAll('link[data-defer-css]').forEach((l) => { l.media = 'all'; });
+
   // --- 主題切換按鈕 ---
   const toggleButton = document.getElementById('theme-toggle');
   const themeIcon = document.getElementById('theme-icon');

@@ -188,7 +188,6 @@
 /
 ├── README.md              # 項目簡介（GPLv2、功能說明）
 ├── package.json           # 前端依賴
-├── tailwind.config.js     # Tailwind CSS 配置
 ├── docs/                  # 📚 所有文檔在這裡
 │   └── ...
 ├── js/                    # 前端 JavaScript

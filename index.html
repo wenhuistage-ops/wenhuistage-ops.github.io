@@ -317,14 +317,14 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
     <!-- 主題初始化 + 事件綁定改為外部同源腳本（配合 CSP 移除 inline script）-->
     <script src="js/theme-init.js"></script>
-    <!-- 🚀 P4-1 優化：預連接 Google Fonts，加快加載 -->
+    <!-- Google Fonts：preconnect + 非阻塞載入（media=print → DOM 就緒後切 all，避免擋首屏）-->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Leaflet CSS & JS (從 CDN 加載，避免 GitHub Pages 部署問題) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" data-defer-css>
+    <!-- Leaflet CSS & JS：CSS 非阻塞載入、JS defer（只有地圖分頁才用到）-->
+    <link rel="stylesheet" media="print" data-defer-css href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
         integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
         integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous"></script>
 
 </head>
@@ -1402,9 +1402,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script defer src="js/my-requests.js"></script>
     <script defer src="js/location.js"></script>
 
-    <!-- SheetJS for Excel export (從 CDN 加載) -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
-        integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+    <!-- SheetJS（Excel 匯出）改為按需載入：見 js/admin.js ensureXLSX()，省下每次開頁 ~1MB -->
     <script defer src="js/admin.js"></script>
 
     <!-- Floating LINE button (樣式與行為移到 compiled.css / js/app.js) -->

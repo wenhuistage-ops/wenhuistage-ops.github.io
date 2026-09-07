@@ -2543,6 +2543,23 @@ function setupEmployeeSettingTabs() {
 // #region 6. 管理員 Excel 匯出（完整打卡紀錄）
 // ===================================
 
+// ponytail: SheetJS 約 1MB，只有匯出 Excel 才需要 → 按需載入，不再每次開頁都下載
+let _xlsxLoading = null;
+function ensureXLSX() {
+    if (window.XLSX) return Promise.resolve();
+    if (_xlsxLoading) return _xlsxLoading;
+    _xlsxLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+        s.crossOrigin = 'anonymous';
+        s.onload = () => resolve();
+        s.onerror = () => { _xlsxLoading = null; reject(new Error('SheetJS 載入失敗')); };
+        document.head.appendChild(s);
+    });
+    return _xlsxLoading;
+}
+
 function setupAdminExport() {
     const btn = document.getElementById('export-admin-month-excel-btn');
     if (!btn) return;
@@ -2610,6 +2627,7 @@ function setupAdminExport() {
             });
 
             try {
+                await ensureXLSX();
                 const ws = XLSX.utils.aoa_to_sheet(completeRecordRows);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, '完整打卡紀錄');
@@ -3197,6 +3215,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
     ];
 
     // 寫 Excel
+    await ensureXLSX();
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.aoa_to_sheet(personalRows);
     const ws2 = XLSX.utils.aoa_to_sheet(rulesRows);
