@@ -1,26 +1,27 @@
 /**
- * setEmployeeStatus — 切換員工的「管理員權限」或「帳號啟用狀態」
+ * setEmployeeStatus — 切換員工的「管理員權限」「帳號啟用狀態」「離職」或「LINE 漏打卡提醒」
  *
- * 對應 employees/{userId} 的 dept / status 欄位（管理員 dashboard toggle 兩顆按鈕）
+ * 對應 employees/{userId} 的 dept / status / punchReminder 欄位
  *
  * 規則：
- *   - 必須是管理員 session
- *   - 不能把自己「降級」（避免管理員把自己變一般員工後沒人能改回來）
- *   - 不能把自己「停用」
- *   - field 限定 'isAdmin' 或 'active'，避免任意覆寫敏感欄位
+ *   - isAdmin / active / resign：必須是管理員 session，且不能改自己（避免自我鎖死）
+ *   - punchReminder：管理員可改任何人；一般員工只能改「自己的」（自助開關）
+ *   - field 白名單，避免任意覆寫敏感欄位
  *
  * 請求格式：
- *   { action, sessionToken, userId, field: 'isAdmin' | 'active', value: boolean }
+ *   { action, sessionToken, userId, field: 'isAdmin' | 'active' | 'resign' | 'punchReminder', value: boolean }
  *
  * 寫入：
  *   - field === 'isAdmin' && value === true  →  dept = '管理員'
  *   - field === 'isAdmin' && value === false →  dept = '一般員工'
  *   - field === 'active' && value === true   →  status = '啟用'
  *   - field === 'active' && value === false  →  status = '停用'
+ *   - field === 'resign'                     →  status = '已離職'
+ *   - field === 'punchReminder'              →  punchReminder = value（預設缺值 = 不提醒，opt-in）
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifyAdmin, invalidateAdminListCache, invalidateSessionCacheByUserId } = require("./_helpers");
+const { admin, db, COLLECTIONS, verifySession, invalidateAdminListCache, invalidateSessionCacheByUserId } = require("./_helpers");
 
 module.exports = onCall(
   {
@@ -29,7 +30,7 @@ module.exports = onCall(
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token || null;
-    const auth = await verifyAdmin(sessionToken);
+    const auth = await verifySession(sessionToken);
     if (!auth.ok) return { ok: false, code: auth.code };
 
     const data = request.data || {};
@@ -40,11 +41,11 @@ module.exports = onCall(
     if (!userId) {
       return { ok: false, code: "ERR_MISSING_USER_ID", msg: "userId required" };
     }
-    if (!["isAdmin", "active", "resign"].includes(field)) {
+    if (!["isAdmin", "active", "resign", "punchReminder"].includes(field)) {
       return {
         ok: false,
         code: "ERR_INVALID_FIELD",
-        msg: "field must be 'isAdmin', 'active', or 'resign'",
+        msg: "field must be 'isAdmin', 'active', 'resign', or 'punchReminder'",
       };
     }
     if (typeof value !== "boolean") {
@@ -59,8 +60,15 @@ module.exports = onCall(
       };
     }
 
-    // 不能修改自己（避免自我鎖死）
-    if (auth.user?.userId && userId === auth.user.userId) {
+    const isSelf = auth.user?.userId === userId;
+    const isAdmin = auth.user?.dept === "管理員";
+
+    // 一般員工只能改自己的「漏打卡提醒」；其他欄位或改別人一律要管理員
+    if (!isAdmin && !(isSelf && field === "punchReminder")) {
+      return { ok: false, code: "ERR_NO_PERMISSION" };
+    }
+    // 不能修改自己的權限/狀態（避免自我鎖死）；提醒開關除外
+    if (isSelf && field !== "punchReminder") {
       return { ok: false, code: "ERR_CANNOT_MODIFY_SELF", msg: "cannot change your own admin/active status" };
     }
 
@@ -87,12 +95,15 @@ module.exports = onCall(
     } else if (field === "resign") {
       update.status = "已離職";
       update.resignedAt = admin.firestore.FieldValue.serverTimestamp();
+    } else if (field === "punchReminder") {
+      update.punchReminder = value;
     }
 
     await empRef.set(update, { merge: true });
 
     // M1：降權/停用/離職後主動清該員工的 session 快取，讓權限變更盡快生效，
     // 避免被降級者在 60 秒快取窗口內仍持舊管理員權（其他容器仍待 TTL）。
+    // punchReminder 也清，讓 checkSession 立刻回傳新開關值。
     invalidateSessionCacheByUserId(userId);
 
     // 改 dept 會影響 getAdminList 結果，清同容器 cache（其他容器待 5 分鐘 TTL）

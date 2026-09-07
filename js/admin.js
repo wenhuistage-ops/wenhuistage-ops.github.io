@@ -1592,6 +1592,18 @@ function initAdminEvents() {
                 });
                 settingsContainer.appendChild(activeToggle);
 
+                // LINE 漏打卡提醒 Toggle（opt-in：缺值 = 關；員工端也能自己開）
+                const reminderToggle = UIComponentGenerator.createToggleSetting({
+                    id: 'toggle-punch-reminder',
+                    label: t('PUNCH_REMINDER') || 'LINE 漏打卡提醒',
+                    checked: employee.punchReminder === true,
+                    colorScheme: 'blue',
+                    statusText: { on: '啟用', off: '關閉' },
+                    i18nKey: 'PUNCH_REMINDER',
+                    onchange: (e) => togglePunchReminder(currentManagingEmployee.userId, e.target.checked, e.target)
+                });
+                settingsContainer.appendChild(reminderToggle);
+
                 // 員工離職按鈕（軟刪除：status='已離職'，attendance 紀錄保留）
                 // 已離職員工：顯示「重新啟用」提示；其他：顯示「標記為離職」紅色按鈕
                 const resignWrapper = document.createElement('div');
@@ -1886,6 +1898,15 @@ async function toggleAccountStatus(userId, value, checkbox) {
 }
 
 /**
+ * 切換 LINE 漏打卡提醒（不需二次確認）
+ */
+async function togglePunchReminder(userId, value, checkbox) {
+    return _setEmployeeStatusField(userId, 'punchReminder', value, checkbox, {
+        punchReminder: value,
+    });
+}
+
+/**
  * 標記員工離職（軟刪除）
  *   - status='已離職'，attendance 紀錄保留
  *   - 雙重確認，操作不可一鍵還原（要重新啟用須改 active=true）
@@ -1942,6 +1963,7 @@ async function handleResignEmployee(userId, employeeName) {
 if (typeof window !== 'undefined') {
     window.toggleAdminStatus = toggleAdminStatus;
     window.toggleAccountStatus = toggleAccountStatus;
+    window.togglePunchReminder = togglePunchReminder;
     window.handleResignEmployee = handleResignEmployee;
 }
 

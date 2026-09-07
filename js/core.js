@@ -79,6 +79,9 @@ async function verifyAdminPermission() {
         const res = await callApifetch({ action: 'checkSession' });
         if (res && res.ok && res.user) {
             const isAdmin = res.user.dept === "管理員";
+            // 順手同步員工端「LINE 漏打卡提醒」開關（重新整理時走這條路徑，不經 ensureLogin）
+            const reminderCb = document.getElementById('punch-reminder-toggle');
+            if (reminderCb) reminderCb.checked = res.user.punchReminder === true;
             // 同步快取（僅供顯示用途），降權時一併清除
             try {
                 if (isAdmin) localStorage.setItem("userDept", res.user.dept);

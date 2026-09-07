@@ -439,6 +439,7 @@
   "EMPLOYEE_TYPE": "職務狀態",
   "IS_ADMIN": "管理員權限",
   "ACCOUNT_STATUS": "帳號啟用狀態",
+  "PUNCH_REMINDER": "LINE 漏打卡提醒",
   "YEAR": "年",
   "MONTH": "個月",
   "EMPLOYEE_POSITION_REGULAR": "正式員工",

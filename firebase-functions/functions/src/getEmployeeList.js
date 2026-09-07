@@ -34,6 +34,7 @@ module.exports = onCall(
         status: d.status || "啟用",
         resignedAt: d.resignedAt?.toDate?.() || null,
         preferredLanguage: d.preferredLanguage || "",
+        punchReminder: d.punchReminder === true, // LINE 漏打卡提醒（opt-in，缺值 = 關）
         lastLoginTime: d.lastLoginTime?.toDate?.() || null,
         isAdmin: dept === "管理員" || /admin/i.test(dept),
         lineUserId: doc.id,

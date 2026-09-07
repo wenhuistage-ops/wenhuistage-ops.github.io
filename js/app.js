@@ -50,6 +50,7 @@ async function ensureLogin() {
 
                     document.getElementById("user-name").textContent = res.user.name;
                     document.getElementById("profile-img").src = res.user.picture || res.user.rate;
+                    document.getElementById("punch-reminder-toggle").checked = res.user.punchReminder === true;
                     localStorage.setItem("sessionUserId", res.user.userId);
                     localStorage.setItem("userName", res.user.name);
                     localStorage.setItem("userPicture", res.user.picture || res.user.rate);
@@ -283,6 +284,27 @@ function bindEvents() {
     });
     document.getElementById('refresh-month').addEventListener('click', () => {
         renderCalendar(currentMonthDate, true); // 來自 ui.js（強制重抓當月）
+    });
+    // === LINE 漏打卡提醒自助開關（員工只能改自己的，後端 setEmployeeStatus 驗證） ===
+    document.getElementById('punch-reminder-toggle').addEventListener('change', async (e) => {
+        const cb = e.target;
+        const value = cb.checked;
+        cb.disabled = true;
+        try {
+            const res = await callApifetch({ action: 'setEmployeeStatus', userId, field: 'punchReminder', value });
+            if (res && res.ok) {
+                showNotification(t('MSG_EMPLOYEE_STATUS_UPDATED'), 'success');
+            } else {
+                cb.checked = !value; // rollback
+                showNotification(t(res?.code || 'UNKNOWN_ERROR'), 'error');
+            }
+        } catch (err) {
+            console.error('punchReminder 切換失敗：', err);
+            cb.checked = !value; // rollback
+            showNotification(t('NETWORK_ERROR'), 'error');
+        } finally {
+            cb.disabled = false;
+        }
     });
     // === 語系切換事件 ===
     document.getElementById('language-switcher').addEventListener('change', (e) => {

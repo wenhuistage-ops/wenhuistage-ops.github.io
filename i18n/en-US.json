@@ -439,6 +439,7 @@
   "EMPLOYEE_TYPE": "Position",
   "IS_ADMIN": "Admin Permission",
   "ACCOUNT_STATUS": "Account Status",
+  "PUNCH_REMINDER": "LINE missed-punch reminder",
   "YEAR": "yr",
   "MONTH": "mo",
   "EMPLOYEE_POSITION_REGULAR": "Regular Employee",

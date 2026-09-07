@@ -8,7 +8,7 @@
  * 邏輯：
  *   1. 撈昨天（台灣時區 00:00 ~ 今天 00:00）的所有 attendance 紀錄
  *   2. 按 userId 分組
- *   3. 對每位「啟用中」員工逐一判斷：
+ *   3. 對每位「啟用中」且「有開 punchReminder」的員工逐一判斷（opt-in，缺值 = 不提醒）：
  *        - 完全沒打 → PUNCH_ALL_MISS
  *        - 沒「上班」 → PUNCH_IN_MISS
  *        - 沒「下班」 → PUNCH_OUT_MISS
@@ -181,8 +181,8 @@ module.exports = onSchedule(
       const status = emp.status || "啟用";
       const lang = emp.preferredLanguage || "zh-TW";
 
-      // 沒 LINE userId 或非啟用 → 跳過
-      if (!userId || status !== "啟用") {
+      // 沒 LINE userId、非啟用、或沒開提醒開關 → 跳過
+      if (!userId || status !== "啟用" || emp.punchReminder !== true) {
         skipped++;
         return;
       }

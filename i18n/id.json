@@ -439,6 +439,7 @@
   "EMPLOYEE_TYPE": "Jabatan",
   "IS_ADMIN": "Hak Admin",
   "ACCOUNT_STATUS": "Status Akun",
+  "PUNCH_REMINDER": "Pengingat lupa absen (LINE)",
   "YEAR": "thn",
   "MONTH": "bln",
   "EMPLOYEE_POSITION_REGULAR": "Karyawan Tetap",

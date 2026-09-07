@@ -439,6 +439,7 @@
   "EMPLOYEE_TYPE": "Vị trí",
   "IS_ADMIN": "Quyền quản trị",
   "ACCOUNT_STATUS": "Trạng thái tài khoản",
+  "PUNCH_REMINDER": "Nhắc quên chấm công (LINE)",
   "YEAR": "năm",
   "MONTH": "tháng",
   "EMPLOYEE_POSITION_REGULAR": "Nhân viên chính thức",

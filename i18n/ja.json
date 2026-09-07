@@ -439,6 +439,7 @@
   "EMPLOYEE_TYPE": "職種",
   "IS_ADMIN": "管理者権限",
   "ACCOUNT_STATUS": "アカウント状態",
+  "PUNCH_REMINDER": "LINE 打刻漏れ通知",
   "YEAR": "年",
   "MONTH": "ヶ月",
   "EMPLOYEE_POSITION_REGULAR": "正社員",

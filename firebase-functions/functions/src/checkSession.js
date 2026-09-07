@@ -29,7 +29,7 @@ module.exports = onCall(
     }
 
     // 與 GS 版本格式對齊：不回傳完整 internal 欄位
-    const { userId, name, displayName, picture, pictureUrl, dept } = result.user;
+    const { userId, name, displayName, picture, pictureUrl, dept, punchReminder } = result.user;
     return {
       ok: true,
       user: {
@@ -37,6 +37,7 @@ module.exports = onCall(
         name: name || displayName || "",
         picture: picture || pictureUrl || "",
         dept: dept || "員工",
+        punchReminder: punchReminder === true, // 員工端自助開關的初始值
       },
     };
   }
