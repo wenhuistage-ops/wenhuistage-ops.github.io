@@ -41,10 +41,17 @@ const DEFAULT_LINE_REDIRECT_URL = "https://wenhuistage-ops.github.io/";
  * 不在白名單即回退為 DEFAULT_LINE_REDIRECT_URL。
  */
 function safeRedirectUrl(url) {
+  if (typeof url !== "string") return DEFAULT_LINE_REDIRECT_URL;
+  // 用 URL 解析後比對 origin，避免 startsWith 被 `github.io.evil.com` / `github.io@evil.com` 繞過
+  let origin = "";
+  try {
+    origin = new URL(url).origin;
+  } catch (_) {
+    return DEFAULT_LINE_REDIRECT_URL;
+  }
   if (
-    typeof url === "string" &&
-    (url.startsWith("https://wenhuistage-ops.github.io") ||
-      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url))
+    origin === "https://wenhuistage-ops.github.io" ||
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)
   ) {
     return url;
   }

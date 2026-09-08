@@ -454,7 +454,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 🚀 P2-1 優化：刪除自動初始化地圖，改為延遲加載
             // initLocationMap(); // ❌ 已移除，用戶點擊 location-view 時才初始化
             checkAbnormal();
-            checkAutoPunch(); // 添加自動打卡檢查
         } else {
             // 沒有本地狀態，檢查會話
             loginResult = await ensureLogin();

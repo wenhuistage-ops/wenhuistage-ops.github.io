@@ -155,32 +155,33 @@ html.dark .btn-secondary:hover {
     }
 }
 
-/* --- Notification (無須修改) --- */
-.notification {
-    position: fixed;
-    top: 1rem;
-    right: 1rem;
-    z-index: 50;
-    border-radius: 0.5rem;
-    padding: 1rem 1.5rem;
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    transform: translateX(200%);
-    transition: transform 0.5s ease-in-out;
-    /* 💡 增加亮色模式預設背景，暗黑模式需另外定義通知背景 */
-    background-color: white;
-    color: #374151;
-}
+/* --- Notification --- */
+/* 放進 components layer：否則這裡的白底灰字會蓋掉 JS 加上的 bg-red-500 / text-white
+   等 utilities（layer 外的規則永遠贏過 layer 內），導致成功/失敗/警告提示全是白色。 */
+@layer components {
+    .notification {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 50;
+        border-radius: 0.5rem;
+        padding: 1rem 1.5rem;
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        transform: translateX(200%);
+        transition: transform 0.5s ease-in-out;
+        /* 預設底色，JS 依類型再加 bg-green/yellow/blue/red-500 覆蓋 */
+        background-color: white;
+        color: #374151;
+    }
 
-.notification.show {
-    transform: translateX(0);
-}
+    .notification.show {
+        transform: translateX(0);
+    }
 
-/* 💡 暗黑模式下的通知背景 (建議用 JS 處理，或在這裡補上) */
-html.dark .notification {
-    background-color: #374151;
-    /* dark:bg-gray-700 */
-    color: #f3f4f6;
-    /* dark:text-gray-100 */
+    html.dark .notification {
+        background-color: #374151;
+        color: #f3f4f6;
+    }
 }
 
 

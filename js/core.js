@@ -136,6 +136,8 @@ const showNotification = (message, type = 'success') => {
         notification.classList.add('bg-green-500', 'text-white');
     } else if (type === 'warning') {
         notification.classList.add('bg-yellow-500', 'text-white');
+    } else if (type === 'info') {
+        notification.classList.add('bg-blue-500', 'text-white');
     } else {
         notification.classList.add('bg-red-500', 'text-white');
     }

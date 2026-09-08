@@ -265,7 +265,7 @@ function _leaveProofSectionHtml() {
     return `
         <div class="form-group mb-3">
             <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300" data-i18n="LEAVE_PROOF_LABEL">${tt('LEAVE_PROOF_LABEL', '證明照片（病假請附，其他選填）')}</label>
-            <input type="file" id="leaveProofInput" accept="image/*" capture="environment" class="hidden">
+            <input type="file" id="leaveProofInput" accept="image/*" class="hidden">
             <div class="flex items-center gap-2">
                 <button type="button" id="leaveProofPick"
                         class="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600">
