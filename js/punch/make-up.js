@@ -304,6 +304,39 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ===================================
+// LINE 漏打卡提醒深層連結：?makeup=YYYY-MM-DD&mode=in|out|full
+// LINE OAuth 回跳會丟掉 query string，所以載入時先暫存到 sessionStorage，登入完成後再開表單。
+// ===================================
+(function stashMakeupDeepLink() {
+    try {
+        const p = new URLSearchParams(window.location.search);
+        const date = p.get('makeup');
+        if (date) sessionStorage.setItem('makeupDeepLink', JSON.stringify({ date, mode: p.get('mode') || 'full' }));
+    } catch (_) { /* ignore */ }
+})();
+
+/**
+ * 登入成功後呼叫：若有暫存的深層連結，開補卡 modal 並帶入日期與模式，使用者只需改時間按送出。
+ * 供 app.js 登入完成區塊呼叫（與 checkAutoPunch 同位置）。
+ */
+function checkMakeupDeepLink() {
+    let raw = null;
+    try {
+        raw = sessionStorage.getItem('makeupDeepLink');
+        sessionStorage.removeItem('makeupDeepLink');
+    } catch (_) { /* ignore */ }
+    if (!raw) return;
+    let date, mode;
+    try { ({ date, mode } = JSON.parse(raw)); } catch (_) { return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return;
+    if (!['in', 'out', 'full'].includes(mode)) mode = 'full';
+    const container = _openMakeupModal();
+    if (!container) return;
+    _renderMakeupFormHtml(container, date, mode, /* showModeSelector */ true);
+    history.replaceState(null, '', window.location.pathname);
+}
+
 /**
  * 集中綁定所有與打卡、異常相關的事件
  * 供 app.js 的 bindEvents 呼叫
@@ -728,5 +761,5 @@ console.log('✓ make-up 模組已加載');
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateAdjustTime, bindPunchEvents };
+    module.exports = { validateAdjustTime, bindPunchEvents, checkMakeupDeepLink };
 }

@@ -13,7 +13,8 @@
  *        - 沒「上班」 → PUNCH_IN_MISS
  *        - 沒「下班」 → PUNCH_OUT_MISS
  *        - 都有 → 不發訊息
- *   4. 用 LINE Buttons template 發訊息（含「補打卡」按鈕，連回網站首頁）
+ *   4. 用 LINE Buttons template 發訊息（含「補打卡」按鈕，
+ *      連到 首頁?makeup=YYYY-MM-DD&mode=full|in|out → 前端自動開那天的補卡表單）
  *
  * 多語：依 employees.preferredLanguage 切換訊息與按鈕文字，缺值時退回 zh-TW。
  */
@@ -87,7 +88,9 @@ function getYesterdayRangeTaipei() {
   const d = taipeiNow.getUTCDate();
   const start = new Date(Date.UTC(y, m, d - 1) - TAIPEI_OFFSET_MS);
   const end = new Date(Date.UTC(y, m, d) - TAIPEI_OFFSET_MS);
-  return { start, end };
+  // 昨天的 YYYY-MM-DD（台灣），給補卡深層連結用
+  const dateStr = new Date(Date.UTC(y, m, d - 1)).toISOString().slice(0, 10);
+  return { start, end, dateStr };
 }
 
 /**
@@ -140,7 +143,7 @@ module.exports = onSchedule(
     secrets: [LINE_CHANNEL_ACCESS_TOKEN],
   },
   async () => {
-    const { start, end } = getYesterdayRangeTaipei();
+    const { start, end, dateStr } = getYesterdayRangeTaipei();
     console.log(
       `checkYesterdayPunch: 檢查 ${start.toISOString()} ~ ${end.toISOString()}`
     );
@@ -165,7 +168,8 @@ module.exports = onSchedule(
     //    避免對沒在用的帳號狂發訊息（push 失敗會被 LINE 視為無效用戶累積扣分）。
     const employeesSnap = await db.collection(COLLECTIONS.EMPLOYEES).get();
     const accessToken = LINE_CHANNEL_ACCESS_TOKEN.value();
-    const repairUrl = DEFAULT_LINE_REDIRECT_URL;
+    // 深層連結：前端 make-up.js checkMakeupDeepLink 會讀 ?makeup&mode 自動開補卡表單
+    const repairUrl = (mode) => `${DEFAULT_LINE_REDIRECT_URL}?makeup=${dateStr}&mode=${mode}`;
 
     const sendTasks = [];
     let allMiss = 0;
@@ -197,7 +201,7 @@ module.exports = onSchedule(
             to: userId,
             text: getBroadcastText("PUNCH_ALL_MISS", lang),
             buttonLabel: getBroadcastText("PUNCH_REPAIR", lang),
-            url: repairUrl,
+            url: repairUrl("full"),
             accessToken,
           })
         );
@@ -216,7 +220,7 @@ module.exports = onSchedule(
             to: userId,
             text: getBroadcastText("PUNCH_IN_MISS", lang),
             buttonLabel: getBroadcastText("PUNCH_REPAIR", lang),
-            url: repairUrl,
+            url: repairUrl("in"),
             accessToken,
           })
         );
@@ -228,7 +232,7 @@ module.exports = onSchedule(
             to: userId,
             text: getBroadcastText("PUNCH_OUT_MISS", lang),
             buttonLabel: getBroadcastText("PUNCH_REPAIR", lang),
-            url: repairUrl,
+            url: repairUrl("out"),
             accessToken,
           })
         );

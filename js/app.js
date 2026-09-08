@@ -465,6 +465,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================
     if (loginResult.isLoggedIn) {
         checkAutoPunch(); // 來自 punch.js
+        if (typeof checkMakeupDeepLink === 'function') checkMakeupDeepLink(); // LINE 提醒按鈕 → 直接開那天的補卡表單
         renderCalendar(currentMonthDate); // 來自 ui.js，員工自己的日曆
         // 載入今日打卡紀錄到 dashboard 即時回饋區
         if (typeof renderTodayPunches === 'function') {
