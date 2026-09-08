@@ -70,7 +70,8 @@ const BROADCAST_TEXT = {
 function getBroadcastText(code, lang) {
   const item = BROADCAST_TEXT[code];
   if (!item) return "";
-  return item[lang] || item["zh-TW"];
+  // 前端語言代碼是 en-US / zh-TW 這種形式，字典用 en；先整碼、再主語言、最後退回 zh-TW
+  return item[lang] || item[String(lang).split("-")[0]] || item["zh-TW"];
 }
 
 /**

@@ -34,7 +34,7 @@ async function ensureLogin() {
         if (localStorage.getItem("sessionToken")) {
             document.getElementById("status").textContent = t("CHECKING_LOGIN");
             try {
-                const res = await callApifetch({ action: 'checkSession' });
+                const res = await callApifetch({ action: 'checkSession', language: currentLang });
 
                 if (res.ok) {
                     const isAdmin = (res.user.dept === "管理員");
@@ -224,7 +224,10 @@ function bindEvents() {
         }
     };
 
-    logoutBtn.onclick = () => {
+    logoutBtn.onclick = async () => {
+        logoutBtn.disabled = true;
+        // 先請後端撤銷 session（真正登出，token 之後就不能用）；失敗也照樣清本機狀態
+        try { await callApifetch({ action: 'logout' }); } catch (_) { /* ignore */ }
         // 清除所有登入/身分快取：避免降權後仍保有管理員 UI，或換帳號後殘留舊姓名/頭像
         ['sessionToken', 'sessionUserId', 'userDept', 'userName', 'userPicture', 'userId', 'isAdmin']
             .forEach((k) => { try { localStorage.removeItem(k); } catch (_) { /* ignore */ } });
@@ -310,6 +313,10 @@ function bindEvents() {
     document.getElementById('language-switcher').addEventListener('change', (e) => {
         const newLang = e.target.value;
         loadTranslations(newLang);
+        // 已登入就立刻同步到後端（LINE 漏打卡提醒用這個語言）；失敗不影響介面
+        if (localStorage.getItem('sessionToken')) {
+            callApifetch({ action: 'checkSession', language: newLang }).catch(() => {});
+        }
 
         // 重新初始化需要翻譯的 Tab
         const currentTab = document.querySelector('.active');
@@ -404,11 +411,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 處理 otoken 換取 sessionToken 的流程
         document.getElementById("status").textContent = t("VERIFYING_AUTH");
         try {
-            console.log(currentLang);
             // 獲取當前環境的 redirect URL，與登入時相同
             const redirectUrl = getRedirectUrl();
-            // 帶回 LINE 回傳的 state，供後端一次性驗證（M5）
-            const res = await callApifetch({ action: 'getProfile', otoken: otoken, state: params.get('state') || '', languag: currentLang, redirectUrl: redirectUrl });
+            // 帶回 LINE 回傳的 state，供後端一次性驗證（M5）；語言改由緊接著的 checkSession 同步
+            const res = await callApifetch({ action: 'getProfile', otoken: otoken, state: params.get('state') || '', redirectUrl: redirectUrl });
             if (res.ok && res.sToken) {
                 localStorage.setItem("sessionToken", res.sToken);
                 history.replaceState({}, '', window.location.pathname);

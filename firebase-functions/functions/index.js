@@ -15,6 +15,7 @@ exports.checkSession = require("./src/checkSession");
 exports.getLoginUrl = require("./src/getLoginUrl");
 exports.getProfile = require("./src/getProfile");
 exports.exchangeToken = require("./src/exchangeToken");
+exports.logout = require("./src/logout"); // 撤銷 session（真正登出）
 
 // ===== 打卡寫入 =====
 exports.punch = require("./src/punch");

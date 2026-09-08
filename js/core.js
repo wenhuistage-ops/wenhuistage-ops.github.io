@@ -76,7 +76,7 @@ async function verifyAdminPermission() {
         // ⚠️ 一律向伺服器驗證，不信任 localStorage 快取：
         // 否則降權（管理員→一般員工）後，舊的 userDept 快取會讓對方繼續看到 admin UI；
         // 且該快取可被使用者於 devtools 自行竄改。安全邊界必須在伺服器。
-        const res = await callApifetch({ action: 'checkSession' });
+        const res = await callApifetch({ action: 'checkSession', language: currentLang });
         if (res && res.ok && res.user) {
             const isAdmin = res.user.dept === "管理員";
             // 順手同步員工端「LINE 漏打卡提醒」開關（重新整理時走這條路徑，不經 ensureLogin）

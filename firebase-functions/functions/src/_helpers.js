@@ -123,6 +123,18 @@ function invalidateSessionCacheByUserId(userId) {
 }
 
 /**
+ * 撤銷 session（登出）：刪 sessions doc，並把本容器快取改成失敗結果，讓同一 token 立即失效。
+ * 跨容器最多再撐 60 秒（SESSION_CACHE_TTL_MS），與權限變更同一取捨。
+ * token 不存在也視為成功（冪等）。
+ */
+async function revokeSession(sessionToken) {
+  if (typeof sessionToken !== "string" || !/^[A-Za-z0-9_-]+$/.test(sessionToken)) return;
+  SESSION_CACHE.delete(sessionToken);
+  setSessionCache(sessionToken, { ok: false, code: "ERR_SESSION_INVALID" });
+  await db.collection(COLLECTIONS.SESSIONS).doc(sessionToken).delete();
+}
+
+/**
  * 驗證 session token，回傳員工資料或錯誤
  *
  * @param {string} sessionToken
@@ -583,6 +595,7 @@ module.exports = {
   verifySession,
   verifyAdmin,
   invalidateSessionCacheByUserId,
+  revokeSession,
   isValidMonth,
   isReasonableAttendanceDate,
   clampText,

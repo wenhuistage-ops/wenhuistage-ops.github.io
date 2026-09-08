@@ -98,6 +98,7 @@ firebase deploy --only functions
 - `getLoginUrl`
 - `getProfile`
 - `exchangeToken`
+- `logout`（撤銷 session，真正登出）
 
 **打卡寫入**：
 - `punch`
