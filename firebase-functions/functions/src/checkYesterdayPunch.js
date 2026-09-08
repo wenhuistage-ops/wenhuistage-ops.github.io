@@ -9,6 +9,7 @@
  *   1. 撈昨天（台灣時區 00:00 ~ 今天 00:00）的所有 attendance 紀錄
  *   2. 按 userId 分組
  *   3. 對每位「啟用中」且「有開 punchReminder」的員工逐一判斷（opt-in，缺值 = 不提醒）：
+ *      昨天有請假/休假申請（核准或待審）者直接略過，不催。
  *        - 完全沒打 → PUNCH_ALL_MISS
  *        - 沒「上班」 → PUNCH_IN_MISS
  *        - 沒「下班」 → PUNCH_OUT_MISS
@@ -178,6 +179,7 @@ module.exports = onSchedule(
     let outMiss = 0;
     let normal = 0;
     let skipped = 0;
+    let onLeave = 0;
 
     employeesSnap.docs.forEach((doc) => {
       const emp = doc.data();
@@ -193,6 +195,13 @@ module.exports = onSchedule(
       }
 
       const records = recordsByUser.get(userId) || [];
+
+      // 昨天有請假/休假申請（已核准或待審）→ 本來就不用打卡，不催。
+      // 被退回（audit 'x'）的不算；假日不在此判斷（後端沒有假日資料，且本行假日常上班）。
+      if (records.some((r) => /請假|休假/.test(r.type || "") && r.audit !== "x")) {
+        onLeave++;
+        return;
+      }
 
       if (records.length === 0) {
         allMiss++;
@@ -248,7 +257,7 @@ module.exports = onSchedule(
 
     console.log(
       `checkYesterdayPunch 完成：` +
-        `全缺=${allMiss}, 缺上班=${inMiss}, 缺下班=${outMiss}, 正常=${normal}, 略過=${skipped}; ` +
+        `全缺=${allMiss}, 缺上班=${inMiss}, 缺下班=${outMiss}, 正常=${normal}, 請假=${onLeave}, 略過=${skipped}; ` +
         `LINE 推送 成功=${sendOk}/${results.length}, 失敗=${sendFail}`
     );
   }
