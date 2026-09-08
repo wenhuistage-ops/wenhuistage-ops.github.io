@@ -664,8 +664,8 @@ async function renderDailyRecords(dateKey) {
                         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                         const punchHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}${sourceBadge}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">${locationDisplay}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="RECORD_NOTE_PREFIX">備註：</span>${r.note}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(locationDisplay)}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="RECORD_NOTE_PREFIX">備註：</span>${escapeHtml(r.note)}</p>
                     `;
                         li.innerHTML = DOMPurify.sanitize(punchHtml);
                     }

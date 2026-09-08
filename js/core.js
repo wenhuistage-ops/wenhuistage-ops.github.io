@@ -122,6 +122,18 @@ async function executeAdminOperation(adminOperation) {
 // #endregion
 // ===================================
 
+/* ===== HTML 轉義 ===== */
+/**
+ * 把使用者可控的字串（備註、請假原因、姓名、地點名稱…）轉成安全文字後再拼進 innerHTML。
+ * DOMPurify 只擋 script，不擋「長得像按鈕的 HTML」（例如備註裡放一顆 .admin-delete-record-btn，
+ * 事件委派會把它當真的按鈕）；拼字串前一律先過這裡，DOMPurify 當第二層。
+ */
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+
 /* ===== 共用訊息顯示 ===== */
 let _notificationTimer = null;
 const showNotification = (message, type = 'success') => {

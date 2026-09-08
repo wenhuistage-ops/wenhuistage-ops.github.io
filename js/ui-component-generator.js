@@ -139,7 +139,7 @@ const UIComponentGenerator = (() => {
     if (i18nKey) {
       labelDiv.setAttribute('data-i18n', i18nKey);
     }
-    labelDiv.innerHTML = `${label}:`;
+    labelDiv.textContent = `${label}:`;
 
     const toggleWrapper = document.createElement('label');
     toggleWrapper.className = 'relative inline-flex items-center cursor-pointer';

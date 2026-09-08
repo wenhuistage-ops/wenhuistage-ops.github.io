@@ -359,10 +359,10 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     let actionBtnsHtml = '';
                     if (r.id) {
                         const safeId = String(r.id).replace(/[^a-zA-Z0-9_-]/g, '');
-                        const safeType = (r.type || '').replace(/[<>"&]/g, '');
-                        const safeNote = (r.note || '').replace(/"/g, '&quot;');
-                        const safeAudit = r.audit || '';
-                        const safeLocation = (r.location || '').replace(/"/g, '&quot;');
+                        const safeType = escapeHtml(r.type);
+                        const safeNote = escapeHtml(r.note);
+                        const safeAudit = escapeHtml(r.audit);
+                        const safeLocation = escapeHtml(r.location);
                         const adjType = r.adjustmentType || '';
                         // 2026-08-04c：一般打卡改為可刪（員工按錯上/下班需要 admin 修正）
                         //   請假記錄仍不可刪 — 改假別走「編輯」的假別下拉
@@ -375,7 +375,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                                                hover:bg-rose-100 dark:hover:bg-rose-900/50
                                                border border-rose-300 dark:border-rose-700 rounded transition"
                                         data-doc-id="${safeId}"
-                                        data-adjustment-type="${adjType.replace(/"/g, '&quot;')}"
+                                        data-adjustment-type="${escapeHtml(adjType)}"
                                         data-record-time="${r.time || ''}"
                                         data-record-type="${safeType}"
                                         data-i18n="BTN_DELETE">
@@ -396,7 +396,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                                         data-record-note="${safeNote}"
                                         data-record-audit="${safeAudit}"
                                         data-record-location="${safeLocation}"
-                                        data-record-adjtype="${adjType.replace(/"/g, '&quot;')}"
+                                        data-record-adjtype="${escapeHtml(adjType)}"
                                         data-i18n="BTN_EDIT">
                                     <i class="fas fa-pen mr-1"></i>編輯
                                 </button>
@@ -418,8 +418,8 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                     const recordHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}${sourceBadge}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${locationDisplay}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="RECORD_NOTE_PREFIX">備註：</span>${r.note}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${escapeHtml(locationDisplay)}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="RECORD_NOTE_PREFIX">備註：</span>${escapeHtml(r.note)}</p>
                         ${actionBtnsHtml}
                     `;
                     li.innerHTML = DOMPurify.sanitize(recordHtml);
@@ -639,7 +639,7 @@ function _openAdminEditModal(rec) {
     modal.className = 'fixed inset-0 z-[1200] flex items-center justify-center bg-black/50 p-4';
 
     const selOpt = (val, label, current) =>
-        `<option value="${val}" ${val === current ? 'selected' : ''}>${label}</option>`;
+        `<option value="${escapeHtml(val)}" ${val === current ? 'selected' : ''}>${escapeHtml(label)}</option>`;
 
     // 員工以非中文介面提交時，假別存的是 i18n 翻譯值（make-up.js 的 option value
     // 取 t()，如越南文事假存成 'Nghỉ việc riêng'），不在中文白名單內。
@@ -706,7 +706,7 @@ function _openAdminEditModal(rec) {
                         ${tt('LABEL_LOCATION', '地點')}
                     </label>
                     <input type="text" id="admin-edit-location"
-                           value="${(rec.locationName || '').replace(/"/g, '&quot;')}"
+                           value="${escapeHtml(rec.locationName)}"
                            placeholder="${tt('ADMIN_EDIT_LOCATION_PLACEHOLDER', '地點名稱（可空白）')}"
                            class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 </div>
@@ -729,7 +729,7 @@ function _openAdminEditModal(rec) {
                         ${tt('NOTE_LABEL', '備註')}
                     </label>
                     <textarea id="admin-edit-note" rows="2"
-                              class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">${(rec.note || '').replace(/</g, '&lt;')}</textarea>
+                              class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">${escapeHtml(rec.note)}</textarea>
                 </div>
             </div>
 
@@ -892,7 +892,7 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
                 <h3 class="text-lg font-bold mb-3 text-gray-900 dark:text-white">
                     <i class="fas fa-user-edit mr-2 text-amber-600"></i>${tt('BTN_MAKEUP_AS_ADMIN', '代員工補卡')}
                 </h3>
-                <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">${tt('LABEL_EMPLOYEE', '員工')}：<span class="font-semibold">${empName}</span></p>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">${tt('LABEL_EMPLOYEE', '員工')}：<span class="font-semibold">${escapeHtml(empName)}</span></p>
                 <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">${tt('TABLE_HEADER_DATE', '日期')}：<span class="font-semibold">${dateKey}</span></p>
 
                 <div class="grid grid-cols-3 gap-1 mb-3 p-1 bg-gray-100 dark:bg-gray-900 rounded-lg">
@@ -1155,9 +1155,9 @@ function renderReviewRequests(requests) {
         <div class="flex flex-col space-y-1">
             <div class="flex items-center justify-between w-full">
                 <div>
-                    <p class="text-sm font-semibold text-gray-800 dark:text-white">${detailText}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="LABEL_APPLICATION_TIME">申請時間</span>：${req.applicationTime || unknownText}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="${labelTimeKey}">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}</span>：${req.targetTime || unknownText}</p>
+                    <p class="text-sm font-semibold text-gray-800 dark:text-white">${escapeHtml(detailText)}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="LABEL_APPLICATION_TIME">申請時間</span>：${escapeHtml(req.applicationTime || unknownText)}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400"><span data-i18n="${labelTimeKey}">${isLeaveRequest ? '請假/休假時間' : '補打卡時間'}</span>：${escapeHtml(req.targetTime || unknownText)}</p>
                 </div>
                 <span data-i18n="${badgeKey}" class="text-xs font-semibold px-2 py-1 rounded-md ${isLeaveRequest ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}">${isLeaveRequest ? '請假/休假' : '補打卡'}</span>
             </div>
@@ -1165,7 +1165,7 @@ function renderReviewRequests(requests) {
 
         <div class="flex items-center justify-between w-full mt-2">
             <p
-                data-i18n-key="${req.type}"
+                data-i18n-key="${escapeHtml(req.type)}"
                 class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
             </p>
 
@@ -3734,7 +3734,7 @@ async function renderEmployeePunchTable(userId, date) {
                     <div>${netOf(day).toFixed(1)}</div>
                     ${breakdownHtml}
                 </td>
-                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${locationOf(day)}</td>
+                <td class="py-2 px-3 text-sm text-gray-600 dark:text-gray-300">${escapeHtml(locationOf(day))}</td>
                 <td class="py-2 px-3">${reasonBadge(day.reason)}</td>
             </tr>`;
         }).join('');
@@ -3758,7 +3758,7 @@ async function renderEmployeePunchTable(userId, date) {
                 </div>
                 ${breakdownLine}
                 <div style="font-size:0.75rem;margin-top:6px;" class="text-gray-500 dark:text-gray-400">
-                    <span data-i18n="TABLE_HEADER_LOCATION">${t('TABLE_HEADER_LOCATION')}</span>：<span class="text-gray-800 dark:text-gray-100">${locationOf(day)}</span>
+                    <span data-i18n="TABLE_HEADER_LOCATION">${t('TABLE_HEADER_LOCATION')}</span>：<span class="text-gray-800 dark:text-gray-100">${escapeHtml(locationOf(day))}</span>
                 </div>
             </li>`;
         }).join('');
@@ -3996,8 +3996,8 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
         const total = entries.reduce((s, [, n]) => s + n, 0);
         const itemsHtml = entries.map(([cat, days]) => {
             const label = useI18nKeyAsLabel
-                ? `<span data-i18n="${cat}" style="color:#4b5563;">${t(cat)}</span>`
-                : `<span style="color:#4b5563;">${cat}</span>`;
+                ? `<span data-i18n="${escapeHtml(cat)}" style="color:#4b5563;">${escapeHtml(t(cat))}</span>`
+                : `<span style="color:#4b5563;">${escapeHtml(cat)}</span>`;
             return `
             <li style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(156,163,175,0.18);font-size:0.875rem;">
                 ${label}
@@ -4030,10 +4030,10 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
         return sectionHtml('ABNORMAL_GROUP', color, abnormalEntries, true);
     })();
 
-    leaveCard.innerHTML = titleLeave +
+    leaveCard.innerHTML = DOMPurify.sanitize(titleLeave +
         sectionHtml('LEAVE_GROUP_LEAVE', '#dc2626', leaveEntries) +
         sectionHtml('LEAVE_GROUP_VACATION', '#0891b2', vacationEntries) +
-        abnormalSectionHtml;
+        abnormalSectionHtml);
     renderTranslations(leaveCard);
 }
 
@@ -4130,20 +4130,20 @@ async function renderEmployeeRequestHistory(userId, audit = '?') {
         const statusBadge = STATUS_BADGE[req.audit] || STATUS_BADGE['?'];
         const showActions = req.audit === '?';
         const remarkLine = (isLeave && req.remark)
-            ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${req.remark}</p>`
+            ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${escapeHtml(req.remark)}</p>`
             : '';
         return `
         <li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div class="flex-grow min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                     <span data-i18n="${typeBadgeKey}" class="text-xs font-semibold px-2 py-0.5 rounded ${typeBadgeCls}">${t(typeBadgeKey)}</span>
-                    <span class="text-xs font-medium text-gray-600 dark:text-gray-300">${req.type || ''}</span>
+                    <span class="text-xs font-medium text-gray-600 dark:text-gray-300">${escapeHtml(req.type || '')}</span>
                     <span data-i18n="${statusBadge.i18n}" class="text-xs font-semibold px-2 py-0.5 rounded ${statusBadge.cls}">${t(statusBadge.i18n)}</span>
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    <span data-i18n="${labelTimeKey}">${t(labelTimeKey)}</span>：${req.targetTime || ''}
+                    <span data-i18n="${labelTimeKey}">${t(labelTimeKey)}</span>：${escapeHtml(req.targetTime || '')}
                     <span class="mx-1">·</span>
-                    <span data-i18n="LABEL_APPLICATION_TIME">${t('LABEL_APPLICATION_TIME')}</span>：${req.applicationTime || ''}
+                    <span data-i18n="LABEL_APPLICATION_TIME">${t('LABEL_APPLICATION_TIME')}</span>：${escapeHtml(req.applicationTime || '')}
                 </p>
                 ${remarkLine}
             </div>
@@ -4544,7 +4544,7 @@ function setupBreakTimesEditor() {
                 <div style="display:flex;gap:8px;align-items:flex-end;">
                     <div style="flex:1 1 auto;min-width:0;">
                         <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">${nameLabel}</label>
-                        <input type="text" class="break-name ${inputCls}" style="width:100%;box-sizing:border-box;" value="${String(name).replace(/"/g, '&quot;')}" />
+                        <input type="text" class="break-name ${inputCls}" style="width:100%;box-sizing:border-box;" value="${escapeHtml(name)}" />
                     </div>
                     <div style="flex:0 0 auto;">
                         <button type="button" class="break-remove-btn text-sm font-semibold rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-900"

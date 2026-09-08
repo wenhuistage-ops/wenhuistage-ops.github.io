@@ -71,7 +71,7 @@ async function fetchAndRenderLocationsOnMap() {
                     radius: punchInRadius
                 });
                 locationCircle.bindPopup(
-                    `<b>${loc.name}</b><br>${t('LOCATION_RADIUS_POPUP', { radius: punchInRadius })}`);
+                    `<b>${escapeHtml(loc.name)}</b><br>${t('LOCATION_RADIUS_POPUP', { radius: punchInRadius })}`);
                 locationCircles.addLayer(locationCircle);
             });
 
@@ -464,7 +464,7 @@ function initAdminAddLocationMapIfNeeded() {
             li.dataset.lon = it.lon;
             li.dataset.display = it.display_name || '';
             // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-            li.innerHTML = DOMPurify.sanitize(`<div>${it.display_name}</div><small>${it.type || ''} ${it.class || ''}</small>`);
+            li.innerHTML = DOMPurify.sanitize(`<div>${escapeHtml(it.display_name)}</div><small>${escapeHtml(it.type || '')} ${escapeHtml(it.class || '')}</small>`);
             li.addEventListener('click', () => {
                 const lat = parseFloat(li.dataset.lat);
                 const lon = parseFloat(li.dataset.lon);

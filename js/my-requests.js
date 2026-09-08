@@ -125,7 +125,7 @@
                 : tt('PUNCH_' + (typeText === '上班' ? 'IN' : 'OUT'), typeText);
             const canEdit = isPending && !isLeave;
             const rejectReasonHtml = (audit === 'x' && r.rejectReason)
-                ? `<p class="text-xs text-red-600 dark:text-red-300 mt-1">${tt('MY_REQUESTS_REJECT_REASON', '退回原因：')}${r.rejectReason}</p>`
+                ? `<p class="text-xs text-red-600 dark:text-red-300 mt-1">${tt('MY_REQUESTS_REJECT_REASON', '退回原因：')}${escapeHtml(r.rejectReason)}</p>`
                 : '';
 
             // XSS safe: 透過 DOMPurify
@@ -133,7 +133,7 @@
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
-                            <span class="text-base font-bold text-gray-800 dark:text-white">${titleText}</span>
+                            <span class="text-base font-bold text-gray-800 dark:text-white">${escapeHtml(titleText)}</span>
                             ${statusInfo}
                         </div>
                         <p class="text-sm text-gray-700 dark:text-gray-200">
@@ -213,10 +213,10 @@
                     <button id="my-req-edit-close" class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none" aria-label="關閉">&times;</button>
                 </div>
                 <p class="text-sm text-gray-600 dark:text-gray-300 mb-1">
-                    ${tt('LABEL_TYPE', '類型')}：<span class="font-semibold">${item.type || ''}</span>
+                    ${tt('LABEL_TYPE', '類型')}：<span class="font-semibold">${escapeHtml(item.type || '')}</span>
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    ${tt('MY_REQUESTS_ORIGINAL', '原時間')}：${item.targetTime || ''}
+                    ${tt('MY_REQUESTS_ORIGINAL', '原時間')}：${escapeHtml(item.targetTime || '')}
                 </p>
                 <div class="space-y-3">
                     <div>
@@ -224,7 +224,7 @@
                             ${tt('SELECT_DATETIME_LABEL', '選擇日期與時間')}
                         </label>
                         <input type="datetime-local" id="my-req-edit-datetime"
-                               value="${tt2dt(item.targetTime)}"
+                               value="${escapeHtml(tt2dt(item.targetTime))}"
                                class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                     </div>
                     <div>
