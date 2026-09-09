@@ -1,39 +1,39 @@
 {
   "name": "attendance-system",
   "version": "1.0.0",
-  "description": "[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)",
-  "main": "index.js",
+  "description": "文輝舞台技術考勤系統：LINE Login + GPS 打卡的純靜態前端，後端走 Firebase Cloud Functions 與 Firestore。",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
     "build:css": "tailwindcss -i style.css -o compiled.css --minify",
-    "preview": "vite preview",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/0rigind1865-bit/Attendance-System.git"
+    "url": "git+https://github.com/wenhuistage-ops/wenhuistage-ops.github.io.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "attendance",
+    "line-login",
+    "firebase",
+    "firestore",
+    "gps",
+    "pwa"
+  ],
+  "author": "0J (Lin Jie / 0rigin1856)",
+  "license": "GPL-2.0-or-later",
   "bugs": {
-    "url": "https://github.com/0rigind1865-bit/Attendance-System/issues"
+    "url": "https://github.com/wenhuistage-ops/wenhuistage-ops.github.io/issues"
   },
-  "homepage": "https://github.com/0rigind1865-bit/Attendance-System#readme",
+  "homepage": "https://wenhuistage-ops.github.io/",
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.11",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
-    "@vitejs/plugin-legacy": "^8.0.1",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
     "jsdom": "^29.0.2",
-    "tailwindcss": "^4.1.16",
-    "terser": "^5.46.1",
-    "vite": "^8.0.9"
+    "tailwindcss": "^4.1.16"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.16",

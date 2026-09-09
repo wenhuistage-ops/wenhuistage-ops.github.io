@@ -1,236 +1,161 @@
-# 📚 0riginAttendance-System 文檔中心
+# 📚 0riginAttendance-System 文件中心
 
-歡迎來到 0riginAttendance-System 的完整文檔庫。本頁面提供導航和快速查詢。
+本頁是 `docs/` 的導覽索引。**此處只列實際存在的檔案**，不列「待建」的計畫檔——
+需要新文件時直接建立並回來補上連結即可。
 
----
-
-## 🚀 快速開始
-
-**👤 我是...**
-- [**項目經理/管理人員**](#項目經理--管理人員) → 了解項目狀態與問題
-- [**後端開發人員**](#後端開發人員) → 部署、API、編碼規範
-- [**前端開發人員**](#前端開發人員) → 環境搭建、模塊結構
-- [**安全審查者**](#安全審查者) → 安全隱患與改善方案
-- [**新員工/實習生**](#新員工實習生) → 從這裡開始
+> 系統現況：純靜態前端（GitHub Pages）+ Firebase Cloud Functions（asia-southeast1）+ Firestore。
+> 2026 年前的 Google Apps Script 後端已停用，程式碼僅存於 [`legacy/`](legacy/) 供查閱。
 
 ---
 
-## 📖 文檔分類導覽
+## 📖 目錄一覽
 
-### **💼 系統架構文檔** (`docs/architecture/`)
+### 🏗 系統架構（`architecture/`）
 
-| 文檔 | 內容描述 | 適合讀者 |
-|------|--------|--------|
-| [專案架構.md](architecture/專案架構.md) | 整體系統設計、功能模塊、技術棧 | 所有人 |
-| [資料架構.md](architecture/資料架構.md) | Google Sheets 資料模型、字段定義、資料流程 | 後端、全棧開發 |
-| SYSTEM_FLOW.md（待建） | 業務流程圖：認證、打卡、補卡流程 | 架構師、PM |
+| 文件 | 內容 |
+|------|------|
+| [專案架構.md](architecture/專案架構.md) | 整體系統設計、目錄結構、技術棧、Cloud Functions 清單 |
+| [資料架構.md](architecture/資料架構.md) | Firestore 資料模型與欄位定義 |
+| [異步通知系統.md](architecture/異步通知系統.md) | LINE 推播與排程通知的流程 |
 
-### **📖 開發與部署指南** (`docs/guides/`)
+### 📐 業務規則（`rules/`）
 
-| 文檔 | 內容描述 | 適合讀者 |
-|------|--------|--------|
-| SETUP.md（待建） | 本地開發環境搭建、依賴安裝 | 開發人員 |
-| DEPLOYMENT.md（待建） | 前後端部署步驟、GAS 部署、GitHub Pages | DevOps、開發主管 |
-| API_DOCUMENTATION.md（待建） | 完整的 API 參考、請求/響應示例 | 前端、移動端開發 |
-| CODING_STANDARDS.md（待建） | JavaScript/GAS 編碼規範、命名慣例 | 開發團隊 |
-| CONFIGURATION.md（待建） | config.js、Constants.gs 配置說明 | 開發人員 |
+| 文件 | 內容 |
+|------|------|
+| [薪資與加班計算規則整理.md](rules/薪資與加班計算規則整理.md) | 勞基法分段工時、倍率、月薪換時薪、勞健保費率 |
+| [異常記錄定義.md](rules/異常記錄定義.md) | 什麼算「異常打卡」 |
+| [異常清單顯示規則.md](rules/異常清單顯示規則.md) | 異常清單的篩選與呈現邏輯 |
+| [月曆格子顏色定義.md](rules/月曆格子顏色定義.md) | 月曆各狀態的配色規範 |
 
-### **🚨 問題與改善方案** (`docs/issues/`)
+### 🛠 指南（`guides/`）
 
-| 文檔 | 內容描述 | 適合讀者 |
-|------|--------|--------|
-| [問題分析.md](issues/問題分析.md) | 完整問題列表、優先級、修復方案 | PM、開發主管 |
-| SECURITY_ISSUES.md（待建） | 安全隱患詳細說明、PoC、修復建議 | 安全審查、後端 |
-| PERFORMANCE_OPTIMIZATION.md（待建） | 性能瓶頸分析、優化方案 | 性能測試、後端 |
-| REFACTORING_ROADMAP.md（待建） | 代碼重構計畫，優先級排序 | 開發主管、架構師 |
+| 文件 | 內容 |
+|------|------|
+| [LINE通知設置指南.md](guides/LINE通知設置指南.md) | LINE Login / Messaging API 的設定步驟 |
+| [文檔組織守則.md](guides/文檔組織守則.md) | 文件放哪、怎麼命名、何時更新 |
 
----
+### 🚀 部署
 
-## 👥 按角色推薦閱讀
+| 文件 | 內容 |
+|------|------|
+| [部署檢查清單.md](部署檢查清單.md) | 前端 push、後端 deploy、上線後驗證、rollback |
 
-### **項目經理 & 管理人員**
+### 🔐 安全（`security/`）
 
-**必讀**（15分鐘）
-1. [專案架構.md](architecture/專案架構.md) - 📌 快速了解系統架構
-2. [問題分析.md](issues/問題分析.md) - 🚨 當前項目狀況
+| 文件 | 內容 |
+|------|------|
+| [後端檢查清單.md](security/後端檢查清單.md) | Cloud Functions 的授權與輸入驗證檢查項 |
 
-**深度了解**（30分鐘）
-3. [資料架構.md](architecture/資料架構.md) - 了解資料如何儲存和流轉
+### 🚨 問題與檢查報告（`issues/`）
 
-**參考資料**
-- REFACTORING_ROADMAP.md（完成時）- 改進計畫與時間軸
+| 文件 | 內容 |
+|------|------|
+| [2026-09-08-全面檢查報告-安全與UX.md](issues/2026-09-08-全面檢查報告-安全與UX.md) | **最新**：前後端安全、UX、技術債全面盤點與處理進度 |
+| [2026-07-02-全面檢查報告-UX與設計原則.md](issues/2026-07-02-全面檢查報告-UX與設計原則.md) | 前一輪檢查報告（追蹤狀態見 09-08 報告） |
+| [問題分析.md](issues/問題分析.md) | 長期技術債待辦清單 |
 
----
+### 📋 實作計畫（`plans/`）
 
-### **後端開發人員**
+| 文件 | 內容 |
+|------|------|
+| [勞基法工時計算實作計畫.md](plans/勞基法工時計算實作計畫.md) | 分段工時功能的實作規劃 |
+| [薪資結算月報與匯出實作計畫.md](plans/薪資結算月報與匯出實作計畫.md) | 薪資 Excel 匯出規劃（含未完成的 Phase M6） |
+| [員工管理介面重設計計畫.md](plans/員工管理介面重設計計畫.md) | 管理員後台改版規劃 |
+| [Firestore-讀取最佳化-月度聚合計畫.md](plans/Firestore-讀取最佳化-月度聚合計畫.md) | `attendanceMonthly` 聚合的設計 |
 
-**必讀**（1小時）
-1. [專案架構.md](architecture/專案架構.md) - 系統概述
-2. [資料架構.md](architecture/資料架構.md) - 資料模型詳解
-3. [問題分析.md](issues/問題分析.md) - 已知 Bug 與安全隱患
+### 🗄 歷史封存（`legacy/`）
 
-**開發指南**
-4. SETUP.md - 環境搭建
-5. DEPLOYMENT.md - GAS 部署步驟
-6. CODING_STANDARDS.md - 編碼規範
-7. API_DOCUMENTATION.md - API 端點詳列
+| 文件 | 內容 |
+|------|------|
+| [legacy/README.md](legacy/README.md) | 已停用的 GAS 後端說明（2026 年停用，僅供查閱） |
 
-**深度研究**
-8. SECURITY_ISSUES.md - 安全隱患深度分析
-9. PERFORMANCE_OPTIMIZATION.md - 性能優化方案
+### 📜 變更紀錄
 
----
-
-### **前端開發人員**
-
-**必讀**（45分鐘）
-1. [專案架構.md](architecture/專案架構.md) - 系統概述
-2. [數據架構 - API 端點清單部分](architecture/專案架構.md#-api-端點清單) - 了解 API
-
-**開發指南**
-3. SETUP.md - 環境搭建
-4. API_DOCUMENTATION.md - API 詳細文檔
-5. CODING_STANDARDS.md - 前端編碼規範
-6. CONFIGURATION.md - config.js 配置
-
-**問題參考**
-7. [問題分析.md](../issues/問題分析.md) - 確認前端已知問題
+| 文件 | 內容 |
+|------|------|
+| [ChangeLog.md](ChangeLog.md) | 依時間排序的變更紀錄 |
 
 ---
 
-### **新員工/實習生**
+## 👥 按角色推薦
 
-**第一天**（1小時）
-1. README.md（項目根目錄）- 項目簡介
-2. [PROJECT_ARCHITECTURE.md](architecture/PROJECT_ARCHITECTURE.md) - 整體架構
+**新加入的開發者**
+1. 專案根目錄 [README.md](../README.md) — 系統簡介、架構圖、本機開發與部署
+2. [架構/專案架構.md](architecture/專案架構.md) — 目錄結構與模組職責
+3. [issues/2026-09-08-全面檢查報告-安全與UX.md](issues/2026-09-08-全面檢查報告-安全與UX.md) — 目前已知問題
 
-**第一週**
-3. SETUP.md - 環境搭建
-4. CODING_STANDARDS.md - 編碼規範
-5. 選擇前後端路線，深入閱讀相關文檔
+**要動薪資 / 工時計算的人**
+1. [rules/薪資與加班計算規則整理.md](rules/薪資與加班計算規則整理.md) — 規則來源
+2. `js/labor-hours.js` — 實作
+3. `tests/labor-hours.test.js` — 行為測試（改動計算邏輯前先跑 `npm test`）
 
-**第二週**
-6. [DATA_ARCHITECTURE.md](architecture/DATA_ARCHITECTURE.md) - 資料模型
-7. API_DOCUMENTATION.md - API 文檔
-8. 在導師指導下進行第一個任務
+**要部署的人**
+1. [部署檢查清單.md](部署檢查清單.md)
+2. `scripts/deploy.sh` — 一鍵前端 push + 後端 deploy
 
----
-
-### **安全審查者**
-
-**必讀**（2小時）
-1. [ISSUES_ANALYSIS.md](issues/ISSUES_ANALYSIS.md) - 完整問題清單
-2. SECURITY_ISSUES.md（完成時）- 安全隱患詳解
-3. [PROJECT_ARCHITECTURE.md - 安全與權限機制部分](architecture/PROJECT_ARCHITECTURE.md#-安全與權限機制)
-
-**技術審查**
-4. 逐一驗證 `GS/*.gs` 中的輸入驗證
-5. 檢查前端 localStorage 使用情況
-
----
-
-## 📊 文檔狀態
-
-### 已完成 ✅
-- PROJECT_ARCHITECTURE.md - 系統架構完整分析
-- DATA_ARCHITECTURE.md - 資料模型詳細說明
-- ISSUES_ANALYSIS.md - 問題與改善方案
-
-### 進行中 ⏳
-- SECURITY_ISSUES.md - 安全隱患深度分析
-- SETUP.md - 開發環境搭建指南
-
-### 待建立 📋
-- DEPLOYMENT.md
-- API_DOCUMENTATION.md
-- CODING_STANDARDS.md
-- CONFIGURATION.md
-- SYSTEM_FLOW.md
-- PERFORMANCE_OPTIMIZATION.md
-- REFACTORING_ROADMAP.md
-
----
-
-## 🎯 優先級文檔建立計畫
-
-| 優先級 | 文檔 | 預估完成時間 |
-|--------|------|----------|
-| 🔴 高 | SECURITY_ISSUES.md | 本週 |
-| 🔴 高 | SETUP.md | 本週 |
-| 🔴 高 | DEPLOYMENT.md | 下週 |
-| 🟠 中 | API_DOCUMENTATION.md | 2週內 |
-| 🟠 中 | CODING_STANDARDS.md | 2週內 |
-| 🟡 低 | SYSTEM_FLOW.md | 1月內 |
-| 🟡 低 | PERFORMANCE_OPTIMIZATION.md | 1月內 |
+**做安全審查的人**
+1. [issues/2026-09-08-全面檢查報告-安全與UX.md](issues/2026-09-08-全面檢查報告-安全與UX.md) 第 1、2 節
+2. [security/後端檢查清單.md](security/後端檢查清單.md)
+3. 逐一檢視 `firebase-functions/functions/src/*.js` 的授權與輸入驗證
+   （授權集中在 `_helpers.js`；`firestore.rules` 全鎖，用戶端不可直接讀寫）
+4. 檢查前端 `localStorage` 使用情況（session token 仍存於此）
 
 ---
 
 ## 🔍 快速查詢
 
-### **我想了解...**
-
-- ✅ **系統如何設計** → [PROJECT_ARCHITECTURE.md](architecture/PROJECT_ARCHITECTURE.md)
-- ✅ **資料如何存儲** → [DATA_ARCHITECTURE.md](architecture/DATA_ARCHITECTURE.md)
-- ✅ **當前有什麼問題** → [ISSUES_ANALYSIS.md](issues/ISSUES_ANALYSIS.md)
-- ✅ **如何搭建開發環境** → SETUP.md（待建）
-- ✅ **如何部署應用** → DEPLOYMENT.md（待建）
-- ✅ **API 端點有哪些** → API_DOCUMENTATION.md（待建）
-- ✅ **編碼規範是什麼** → CODING_STANDARDS.md（待建）
-- ✅ **安全隱患詳情** → SECURITY_ISSUES.md（待建）
-- ✅ **性能如何優化** → PERFORMANCE_OPTIMIZATION.md（待建）
+| 我想知道… | 去哪看 |
+|---|---|
+| 系統怎麼設計的 | [architecture/專案架構.md](architecture/專案架構.md) |
+| 資料存成什麼樣子 | [architecture/資料架構.md](architecture/資料架構.md) |
+| 加班費怎麼算 | [rules/薪資與加班計算規則整理.md](rules/薪資與加班計算規則整理.md) |
+| 怎麼部署 | [部署檢查清單.md](部署檢查清單.md) |
+| 目前有什麼問題 | [issues/2026-09-08-全面檢查報告-安全與UX.md](issues/2026-09-08-全面檢查報告-安全與UX.md) |
+| 有哪些 API 端點 | `firebase-functions/functions/src/`（一個檔案一個端點） |
+| 前端設定在哪 | `js/config.js` |
+| 舊的 GAS 程式碼 | [legacy/](legacy/) |
 
 ---
 
-## 📝 相關檔案位置
+## 📝 專案結構速覽
 
-### **項目根目錄**
-```
+```text
 /
-├── README.md              # 項目簡介（GPLv2、功能說明）
-├── package.json           # 前端依賴
-├── docs/                  # 📚 所有文檔在這裡
-│   └── ...
-├── js/                    # 前端 JavaScript
-├── GS/                    # 後端 Google Apps Script
-├── i18n/                  # 多語言翻譯
-└── ...
+├── README.md               # 專案簡介、架構、部署方式
+├── index.html              # 單頁應用進入點
+├── style.css               # Tailwind 原始碼
+├── compiled.css            # Tailwind 產出（入版控，直接被 index.html 引用）
+├── manifest.json / sw.js   # PWA
+├── package.json            # 前端相依與 npm scripts（build:css / test）
+├── jest.config.js
+├── js/                     # 前端 JavaScript（無打包，<script defer> 逐檔載入）
+├── i18n/                   # 5 語系：zh-TW / en-US / ja / vi / id
+├── icons/                  # PWA 圖示
+├── firebase-functions/     # 後端 Cloud Functions（獨立部署）
+├── tests/                  # Jest 測試
+├── scripts/deploy.sh       # 一鍵部署
+└── docs/                   # 本文件中心
 ```
 
-### **快速命令**
+> **沒有 build step。** 前端不經打包，GitHub Pages 直接提供根目錄檔案。
+> 唯一的產生步驟是 `npm run build:css`（Tailwind CLI → `compiled.css`）。
+
+### 常用命令
+
 ```bash
-# 查看文檔目錄
-ls -la docs/
-
-# 搜索文檔中的關鍵字
-grep -r "API" docs/
-
-# 打開文檔（macOS）
-open docs/README.md
-open docs/architecture/PROJECT_ARCHITECTURE.md
+npm run build:css       # 改完 style.css 後重新產生 compiled.css
+npm test                # 跑 Jest
+scripts/deploy.sh       # 前端 push + 後端（有改才）deploy
 ```
 
 ---
 
-## 🤝 貢獻文檔
+## 🤝 維護文件
 
-如果你:
-- 發現了新的 Bug → 更新 [ISSUES_ANALYSIS.md](issues/ISSUES_ANALYSIS.md)
-- 完成了功能 → 更新相關 API 文檔
-- 改進了現有代碼 → 更新 CODING_STANDARDS.md
-- 優化了性能 → 貢獻 PERFORMANCE_OPTIMIZATION.md
-
-**文檔更新規範** → 查看 [DOCUMENTATION_STRUCTURE.md](DOCUMENTATION_STRUCTURE.md)
+- 發現新問題 → 記到 [issues/問題分析.md](issues/問題分析.md) 或最新的檢查報告
+- 改了架構 / 目錄 → 同步更新 [architecture/專案架構.md](architecture/專案架構.md) 與本頁
+- 命名與擺放規則 → 見 [guides/文檔組織守則.md](guides/文檔組織守則.md)
 
 ---
 
-## 📞 聯繫與反饋
-
-- 🐛 發現文檔錯誤？提出 Issue
-- 💡 有改進建議？提交 PR
-- 📧 其他問題？聯繫項目維護人
-
----
-
-**最後更新**：2026年4月 | **文檔中心版本**：1.0  
-**下一次計畫更新**：2026年7月
-
+**最後更新**：2026-09-09（清理已下線架構的殘留描述）
