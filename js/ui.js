@@ -22,6 +22,42 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // #region 1. 月曆
 // ===================================
 
+// 月曆載入序號（U-L12 競態保護）：每次 renderCalendar 遞增，
+// API 回來時若序號已被更新的請求蓋過，代表使用者已切到別的月份 → 整批結果丟棄。
+// 沒有這道保護，慢回應的舊月份會覆蓋掉新月份的畫面。
+let _calendarRequestSeq = 0;
+
+/**
+ * 月曆載入失敗時，把「正在載入…」換成可點擊的重試提示（U-M9）
+ *
+ * 舊版失敗只跳 toast、catch 完全靜默，格子永遠停在「正在載入…」，
+ * 使用者沒有任何辦法讓它重來。
+ *
+ * @param {HTMLElement} grid  #calendar-grid
+ * @param {Function} onRetry  點擊時要重跑的函式
+ */
+function renderCalendarLoadError(grid, onRetry) {
+    if (!grid) return;
+    grid.replaceChildren();
+    const wrap = document.createElement('div');
+    wrap.className = 'col-span-full text-center py-6';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className =
+        'calendar-retry-btn px-4 py-2 text-sm font-medium rounded-lg border ' +
+        'border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 ' +
+        'bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 transition';
+    // i18n key 尚未加入 i18n/*.json 時 t() 會回 key 本身，退回中文文案
+    const RETRY_KEY = 'CALENDAR_LOAD_FAILED_RETRY';
+    const retryText = (typeof t === 'function') ? t(RETRY_KEY) : RETRY_KEY;
+    btn.setAttribute('data-i18n', RETRY_KEY);
+    btn.textContent = (retryText && retryText !== RETRY_KEY) ? retryText : '載入失敗，點此重試';
+    btn.addEventListener('click', () => { if (typeof onRetry === 'function') onRetry(); });
+    wrap.appendChild(btn);
+    grid.appendChild(wrap);
+    if (typeof renderTranslations === 'function') renderTranslations(wrap);
+}
+
 // 渲染日曆的函式
 async function renderCalendar(date, isrefresh = false) {
     const monthTitle = document.getElementById('month-title');
@@ -32,6 +68,10 @@ async function renderCalendar(date, isrefresh = false) {
 
     // 生成 monthKey
     const monthkey = year + "-" + String(month + 1).padStart(2, "0");
+
+    // 本次請求的序號；回應處理前先確認自己還是最新的那一個
+    const mySeq = ++_calendarRequestSeq;
+    const isStale = () => mySeq !== _calendarRequestSeq;
 
     // 檢查快取中是否已有該月份資料
     const cachedData = cacheManager.get('month', monthkey);
@@ -54,6 +94,8 @@ async function renderCalendar(date, isrefresh = false) {
                 month: monthkey,
                 userId: userId
             });
+            // 使用者已切到別的月份：這批結果過期，不能蓋畫面
+            if (isStale()) return;
             if (res.ok) {
                 cacheMonthData(monthkey, res.records.dailyStatus);
 
@@ -67,11 +109,16 @@ async function renderCalendar(date, isrefresh = false) {
 
                 // 預加載已停用（2026-04-27），同上方註解。
             } else {
-                console.error("Failed to fetch attendance records:", res.msg);
-                showNotification(t("ERROR_FETCH_RECORDS"), "error");
+                console.error("Failed to fetch attendance records:", res.code || '');
+                showNotification(apiErrorText(res, 'ERROR_FETCH_RECORDS'), "error");
+                // U-M9：不能只跳 toast，格子要換成可重試
+                renderCalendarLoadError(calendarGrid, () => renderCalendar(date, true));
             }
         } catch (err) {
             console.error(err);
+            if (isStale()) return;
+            showNotification(apiErrorText(err, 'ERROR_FETCH_RECORDS'), "error");
+            renderCalendarLoadError(calendarGrid, () => renderCalendar(date, true));
         }
     }
 }
@@ -110,7 +157,7 @@ async function preloadAdjacentMonths(currentDate) {
 
                     if (res.ok) {
                         cacheMonthData(key, res.records.dailyStatus);
-                        console.log(`✅ 預加載 ${key} 成功`);
+                        debugLog(`✅ 預加載 ${key} 成功`);
                     }
                 } catch (err) {
                     console.warn(`⚠️ 預加載 ${key} 失敗:`, err.message);
@@ -364,13 +411,31 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
         }
 
         const isToday = (year === today.getFullYear() && month === today.getMonth() && i === today.getDate());
+        // 未來日期以「本地日期」比較：cellDate 由 new Date(year, month, i) 建立
+        // 已是本地 00:00，today 則含時分秒，直接比會把今天判成過去 → 用 isFutureDateKey
+        const isFuture = (typeof isFutureDateKey === 'function')
+            ? isFutureDateKey(dateKey, today)
+            : cellDate > today;
         if (isToday) {
             dayCell.classList.add('today');
-        } else if (cellDate > today) {
+        } else if (isFuture) {
             dayCell.classList.add('future-day');
             dayCell.style.pointerEvents = 'none'; // 未來日期不可點擊
         } else {
             dayCell.classList.add(dateClass);
+        }
+
+        // U-L3：日期格原本是純 div + click 委派，鍵盤與讀屏完全操作不到。
+        // 可點的日子補上 button 語意與 tab 焦點（未來日期不可點 → 不進 tab 序）
+        if (!isFuture) {
+            dayCell.setAttribute('role', 'button');
+            dayCell.setAttribute('tabindex', '0');
+            const holidayName = dayCell.title || '';
+            dayCell.setAttribute(
+                'aria-label',
+                holidayName ? `${dateKey} ${holidayName}` : dateKey);
+        } else {
+            dayCell.setAttribute('aria-disabled', 'true');
         }
 
         // 2026-05-14：含「系統虛擬卡」的日子加紫色角標（不影響 reason 顏色）
@@ -408,15 +473,19 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
     }
 
     // 創建新的事件監聽器函數
-    const newListener = (event) => {
-        const dayCell = event.target.closest('.day-cell:not(.empty)');
+    const activateCell = (dayCell) => {
         if (!dayCell) return;
-
         const dateStr = dayCell.dataset.date;
-        const cellDate = new Date(dateStr);
+        if (!dateStr) return;
 
         // 排除未來日期
-        if (cellDate > today) return;
+        // ⚠️ U-M2：舊版寫 new Date(dateStr)，'YYYY-MM-DD' 依規範以 UTC 午夜解析，
+        //    在台灣（UTC+8）等於當地 08:00；凌晨 00:00–07:59 點「今天」會被判成
+        //    未來日期而完全沒反應。一律用本地解析的 isFutureDateKey。
+        const future = (typeof isFutureDateKey === 'function')
+            ? isFutureDateKey(dateStr, today)
+            : false;
+        if (future) return;
 
         // 判斷是否為管理員日曆
         if (isForAdmin && adminSelectedUserId) {
@@ -433,6 +502,25 @@ function renderCalendarWithData(year, month, today, records, calendarGrid, month
             if (chartCard) renderWeeklyChart(chartCard, records, dateStr, 'total');
         }
     };
+
+    const newListener = (event) => {
+        activateCell(event.target.closest('.day-cell:not(.empty)'));
+    };
+
+    // U-L3：Enter / Space 等同點擊（讀屏與鍵盤使用者的唯一入口）
+    const oldKeyListener = calendarGrid._calendarKeyListener;
+    if (oldKeyListener) {
+        calendarGrid.removeEventListener('keydown', oldKeyListener);
+    }
+    const keyListener = (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+        const dayCell = event.target.closest('.day-cell[role="button"]');
+        if (!dayCell) return;
+        event.preventDefault(); // Space 會捲動頁面
+        activateCell(dayCell);
+    };
+    calendarGrid._calendarKeyListener = keyListener;
+    calendarGrid.addEventListener('keydown', keyListener);
 
     // 保存監聽器引用以便後續移除
     calendarGrid._calendarClickListener = newListener;
@@ -562,8 +650,9 @@ async function renderDailyRecords(dateKey) {
     }
 
 
-    const dateObject = new Date(dateKey);
-    const month = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
+    // U-M2：dateKey 是 'YYYY-MM-DD'，直接切字串取月份鍵，不要 new Date(dateKey)
+    // （UTC 解析在負時區會落到前一天，月份跟著錯）
+    const month = String(dateKey).slice(0, 7);
     const userId = localStorage.getItem("sessionUserId");
 
     try {
@@ -595,7 +684,7 @@ async function renderDailyRecords(dateKey) {
             return record.date === dateKey;
         });
 
-        console.log('Filtered dailyRecords for', dateKey, ':', dailyRecords);
+        debugLog('Filtered dailyRecords for', dateKey, ':', dailyRecords);
 
         // 清空現有列表
         dailyRecordsList.replaceChildren();
@@ -609,7 +698,7 @@ async function renderDailyRecords(dateKey) {
 
             // 假設 dailyRecords 通常只有一個（單一日期），但以 forEach 處理可能多個
             dailyRecords.forEach(dailyRecord => {
-                console.log('Processing dailyRecord:', dailyRecord);
+                debugLog('Processing dailyRecord:', dailyRecord);
                 // 安全檢查：確保 record 存在且為數組
                 if (!dailyRecord.record || !Array.isArray(dailyRecord.record)) {
                     console.warn('記錄數據結構異常:', dailyRecord);
@@ -680,10 +769,12 @@ async function renderDailyRecords(dateKey) {
 
                 let hoursHtml = '';
                 if (dailyRecord.hours > 0) {
+                    // U-L5：單位走 i18n（admin.js 同處已用 UNIT_HOURS）
+                    const hoursUnit = (typeof t === 'function' && t('UNIT_HOURS')) || '小時';
                     hoursHtml = `
                     <p class="text-sm text-gray-500 dark:text-gray-400">
                         <span data-i18n="RECORD_HOURS_PREFIX">當日工作時數：</span>
-                        ${dailyRecord.hours} 小時
+                        ${dailyRecord.hours} ${hoursUnit}
                     </p>
                 `;
                 }
@@ -730,7 +821,12 @@ async function renderDailyRecords(dateKey) {
  * @returns {string} <span class="..."> 之 HTML 片段
  */
 function recordSourceBadgeHtml(r) {
-    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    // ⚠️ t(k) 找不到翻譯會回傳 k 本身（truthy），要明確比對才算沒翻到
+    const tt = (k, fb) => {
+        if (typeof t !== 'function') return fb;
+        const v = t(k);
+        return (v && v !== k) ? v : fb;
+    };
     const adjType = r?.adjustmentType || '';
     const createdByAdmin = r?.createdByAdmin || '';
     const note = r?.note || '';
@@ -828,14 +924,128 @@ if (typeof window !== 'undefined') {
 // #endregion
 // ===================================
 
+// ===================================
+// #region Modal 焦點管理（U-M12）
+// ===================================
+
+/**
+ * 幫動態產生的 modal 補上鍵盤與讀屏該有的行為
+ *
+ * 專案裡的 modal 都是 `document.createElement + innerHTML + appendChild`，
+ * 一律缺三件事：開啟時焦點沒進去（讀屏還停在背景頁）、Esc 沒反應、
+ * 關閉後焦點掉回 <body>（鍵盤使用者要從頭 Tab 一次）。這裡一次補齊：
+ *
+ *   1. role="dialog" aria-modal="true"
+ *   2. 開啟時 focus 第一個可操作元素（優先 opts.initialFocus）
+ *   3. Esc 關閉
+ *   4. Tab / Shift+Tab 在 modal 內循環（focus trap）
+ *   5. 關閉時把焦點還給開啟前那顆按鈕
+ *
+ * @param {HTMLElement} modal      已經 append 到 document 的 modal 根節點
+ * @param {Function} close         關閉函式（呼叫端自己的 remove/hide）
+ * @param {object} [opts]
+ * @param {string} [opts.initialFocus] 想先聚焦的元素 selector
+ * @param {string} [opts.labelledBy]   標題元素 id（供 aria-labelledby）
+ * @returns {Function} 包好的 close：會先解除監聽並還原焦點
+ */
+function attachModalA11y(modal, close, opts = {}) {
+    if (!modal) return close;
+    const previouslyFocused = (typeof document !== 'undefined')
+        ? document.activeElement : null;
+
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    if (opts.labelledBy) modal.setAttribute('aria-labelledby', opts.labelledBy);
+
+    const FOCUSABLE = [
+        'a[href]', 'button:not([disabled])', 'input:not([disabled]):not([type="hidden"])',
+        'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    const focusables = () => Array.from(modal.querySelectorAll(FOCUSABLE))
+        .filter((el) => el.offsetParent !== null || el === document.activeElement);
+
+    const onKeydown = (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            e.preventDefault();
+            wrappedClose();
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const list = focusables();
+        if (list.length === 0) return;
+        const first = list[0];
+        const last = list[list.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    };
+
+    function wrappedClose() {
+        modal.removeEventListener('keydown', onKeydown);
+        try { close(); } catch (err) { console.error('modal close 失敗:', err); }
+        // 關閉後把焦點還給開啟它的按鈕，鍵盤使用者不用從頭 Tab
+        if (previouslyFocused && typeof previouslyFocused.focus === 'function'
+            && document.contains(previouslyFocused)) {
+            previouslyFocused.focus();
+        }
+    }
+
+    modal.addEventListener('keydown', onKeydown);
+
+    // 開啟時把焦點移進 modal
+    const target = (opts.initialFocus && modal.querySelector(opts.initialFocus))
+        || focusables()[0]
+        || modal;
+    if (target === modal && !modal.hasAttribute('tabindex')) modal.setAttribute('tabindex', '-1');
+    // 等 layout 完成再 focus（剛 append 的節點在部分瀏覽器 focus 會失敗）
+    const raf = (typeof requestAnimationFrame === 'function')
+        ? requestAnimationFrame : ((fn) => setTimeout(fn, 0));
+    raf(() => {
+        try { target.focus(); } catch (_) { /* ignore */ }
+    });
+
+    return wrappedClose;
+}
+
+if (typeof window !== 'undefined') {
+    window.attachModalA11y = attachModalA11y;
+    window.renderCalendarLoadError = renderCalendarLoadError;
+}
+
+// #endregion
+// ===================================
+
 // UI切換邏輯
-const switchTab = (tabId) => {
-    const tabs = ['dashboard-view', 'monthly-view', 'my-requests-view', 'location-view', 'Form-view', 'admin-view'];
+const TAB_IDS = ['dashboard-view', 'monthly-view', 'my-requests-view', 'location-view', 'Form-view', 'admin-view'];
+
+/**
+ * 切換分頁（U-L10：支援瀏覽器/手機返回鍵）
+ *
+ * 舊版純粹切 display，沒有任何 history 紀錄 —— 手機使用者在「月曆」按返回鍵
+ * 會直接離開 App（LINE 內建瀏覽器則退回聊天室），而不是回到上一個分頁。
+ *
+ * 用 hash（#monthly-view）而非 query string：OAuth 回跳與 ?makeup= 深層連結都靠
+ * query string，動它會踩到登入流程。
+ *
+ * @param {string} tabId
+ * @param {{fromHistory?: boolean, replace?: boolean}} [opts]
+ *        fromHistory=true 代表是 popstate 觸發的，不可再 push（否則返回鍵會卡住）
+ */
+const switchTab = (tabId, opts = {}) => {
+    if (!TAB_IDS.includes(tabId)) return;
+    const tabs = TAB_IDS;
     const btns = ['tab-dashboard-btn', 'tab-monthly-btn', 'tab-my-requests-btn', 'tab-location-btn', 'tab-Form-btn', 'tab-admin-btn'];
 
     // 1. 移除舊的 active 類別和 CSS 屬性
+    //    加 null 檢查：tab-my-requests-btn 等按鈕在某些權限下不會渲染，
+    //    舊版會在此丟 TypeError 而讓整個切換中斷。
     tabs.forEach(id => {
         const tabElement = document.getElementById(id);
+        if (!tabElement) return;
         tabElement.style.display = 'none'; // 隱藏內容
         tabElement.classList.remove('active'); // 移除 active 類別
     });
@@ -843,19 +1053,26 @@ const switchTab = (tabId) => {
     // 2. 移除按鈕的選中狀態
     btns.forEach(id => {
         const btnElement = document.getElementById(id);
+        if (!btnElement) return;
         btnElement.classList.replace('bg-indigo-600', 'bg-gray-200');
         btnElement.classList.replace('text-white', 'text-gray-600');
     });
 
     // 3. 顯示新頁籤並新增 active 類別
     const newTabElement = document.getElementById(tabId);
+    if (!newTabElement) return;
     newTabElement.style.display = 'block'; // 顯示內容
     newTabElement.classList.add('active'); // 新增 active 類別
 
     // 4. 設定新頁籤按鈕的選中狀態
     const newBtnElement = document.getElementById(`tab-${tabId.replace('-view', '-btn')}`);
-    newBtnElement.classList.replace('bg-gray-200', 'bg-indigo-600');
-    newBtnElement.classList.replace('text-gray-600', 'text-white');
+    if (newBtnElement) {
+        newBtnElement.classList.replace('bg-gray-200', 'bg-indigo-600');
+        newBtnElement.classList.replace('text-gray-600', 'text-white');
+    }
+
+    // 4b. 寫入瀏覽器歷史，讓返回鍵回到上一個分頁而不是離開 App
+    _recordTabInHistory(tabId, opts);
 
     // 5. 根據頁籤 ID 執行特定動作
     if (tabId === 'monthly-view') {
@@ -882,6 +1099,37 @@ const switchTab = (tabId) => {
         }
     }
 };
+
+/**
+ * 把目前分頁寫進 history（U-L10 的內部細節）
+ *
+ * 規則：
+ *  - popstate 觸發的切換不再 push，否則按返回鍵會在兩頁之間彈跳而永遠出不去
+ *  - 切到同一個分頁不重複 push，避免要按好幾次返回才動
+ *  - 第一次（頁面剛載入）用 replaceState，不製造多餘的一筆歷史
+ */
+function _recordTabInHistory(tabId, opts = {}) {
+    if (opts.fromHistory) return;
+    try {
+        const current = (history.state && history.state.tab) || null;
+        if (current === tabId) return;
+        const url = `${location.pathname}${location.search}#${tabId}`;
+        if (opts.replace || current === null) {
+            history.replaceState({ tab: tabId }, '', url);
+        } else {
+            history.pushState({ tab: tabId }, '', url);
+        }
+    } catch (_) { /* 某些 webview 會擋 history API，切換照常運作即可 */ }
+}
+
+// 返回/前進鍵：切回對應分頁。沒有 state 就看 hash，都沒有就回儀表板。
+window.addEventListener('popstate', (e) => {
+    const fromState = e.state && e.state.tab;
+    const fromHash = (location.hash || '').replace('#', '');
+    const target = TAB_IDS.includes(fromState) ? fromState
+        : (TAB_IDS.includes(fromHash) ? fromHash : 'dashboard-view');
+    switchTab(target, { fromHistory: true });
+});
 
 function generalButtonState(button, state, loadingText = '處理中...') {
     if (!button) return;

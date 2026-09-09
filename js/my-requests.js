@@ -20,7 +20,18 @@
     let _cachedItems = [];
 
     const $ = (id) => document.getElementById(id);
-    const tt = (key, fallback) => (typeof t === 'function' ? (t(key) || fallback) : fallback);
+    // ⚠️ t(key) 找不到翻譯時會回傳 key 本身（truthy），不能寫 `t(key) || fallback`，
+    //    否則新加的 key 還沒進 i18n 檔時，畫面會直接顯示大寫代碼。
+    const tt = (key, fallback) => {
+        if (typeof t !== 'function') return fallback;
+        const v = t(key);
+        return (v && v !== key) ? v : fallback;
+    };
+    // U-M8：一律把後端錯誤碼翻成人話，找不到翻譯就退回通用文案。
+    // 絕不把 res.code / res.msg / err.message 直接顯示給員工。
+    const errText = (err, fallbackKey) => (typeof apiErrorText === 'function'
+        ? apiErrorText(err, fallbackKey)
+        : tt(fallbackKey || 'UNKNOWN_ERROR', '發生未知錯誤，請稍後重試'));
 
     /**
      * 載入「我的申請」列表
@@ -54,10 +65,10 @@
             });
 
             if (!res || !res.ok) {
+                console.error('loadMyRequests 失敗:', res?.code || '');
                 if (loading) loading.style.display = 'none';
                 if (empty) {
-                    empty.textContent = tt('MY_REQUESTS_LOAD_FAILED', '取得申請失敗：') +
-                        (res?.code || res?.msg || 'unknown');
+                    empty.textContent = errText(res, 'MY_REQUESTS_LOAD_ERROR');
                     empty.style.display = 'block';
                 }
                 return;
@@ -73,7 +84,7 @@
             console.error('loadMyRequests 失敗:', err);
             if (loading) loading.style.display = 'none';
             if (empty) {
-                empty.textContent = tt('MY_REQUESTS_LOAD_FAILED', '取得申請失敗：') + (err?.message || 'error');
+                empty.textContent = errText(err, 'MY_REQUESTS_LOAD_ERROR');
                 empty.style.display = 'block';
             }
         }
@@ -207,10 +218,10 @@
         modal.innerHTML = DOMPurify.sanitize(`
             <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-full max-w-md shadow-2xl">
                 <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">
+                    <h3 id="my-req-edit-title" class="text-lg font-bold text-gray-900 dark:text-white">
                         ${tt('MY_REQUESTS_EDIT_TITLE', '修改補卡申請')}
                     </h3>
-                    <button id="my-req-edit-close" class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none" aria-label="關閉">&times;</button>
+                    <button id="my-req-edit-close" class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none" aria-label="${escapeHtml(tt('BTN_CLOSE', '關閉'))}">&times;</button>
                 </div>
                 <p class="text-sm text-gray-600 dark:text-gray-300 mb-1">
                     ${tt('LABEL_TYPE', '類型')}：<span class="font-semibold">${escapeHtml(item.type || '')}</span>
@@ -250,7 +261,14 @@
         `);
         document.body.appendChild(modal);
 
-        const close = () => modal.remove();
+        // U-M12：開啟時焦點移進 modal、Esc 可關、關閉後焦點還原
+        const removeModal = () => modal.remove();
+        const close = (typeof attachModalA11y === 'function')
+            ? attachModalA11y(modal, removeModal, {
+                initialFocus: '#my-req-edit-datetime',
+                labelledBy: 'my-req-edit-title',
+            })
+            : removeModal;
         modal.addEventListener('click', (e) => {
             if (e.target === modal) close();
         });
@@ -278,7 +296,7 @@
                     note: note || '',
                 });
                 if (!res || !res.ok) {
-                    showNotification(tt(res?.code || 'UNKNOWN_ERROR', res?.msg || '修改失敗'), 'error');
+                    showNotification(errText(res, 'MY_REQUESTS_UPDATE_FAILED'), 'error');
                     submitBtn.disabled = false;
                     submitBtn.textContent = tt('BTN_SAVE', '儲存修改');
                     return;
@@ -314,7 +332,7 @@
         const confirmMsg = tt('MY_REQUESTS_DELETE_CONFIRM', '確定要刪除這筆補卡申請？此操作無法復原。') +
             `\n\n${item.type || ''} @ ${item.targetTime || ''}`;
         const confirmed = typeof showConfirmDialog === 'function'
-            ? await showConfirmDialog(confirmMsg)
+            ? await showConfirmDialog(confirmMsg, { variant: 'danger' })
             : window.confirm(confirmMsg);
         if (!confirmed) return;
 
@@ -324,7 +342,7 @@
                 id: item.id,
             });
             if (!res || !res.ok) {
-                showNotification(tt(res?.code || 'UNKNOWN_ERROR', res?.msg || '刪除失敗'), 'error');
+                showNotification(errText(res, 'MY_REQUESTS_DELETE_FAILED'), 'error');
                 return;
             }
             showNotification(tt('MY_REQUESTS_DELETE_SUCCESS', '已刪除申請'), 'success');
@@ -411,4 +429,3 @@
     }
 })();
 
-console.log('✓ my-requests 模組已加載');

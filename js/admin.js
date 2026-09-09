@@ -24,6 +24,243 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
 
 // ===================================
+// #region 0. 共用小工具（錯誤文案 / 假別代碼 / 原因輸入對話框）
+// ===================================
+
+/**
+ * t() 的短版：找不到翻譯時退回 fallback 文字
+ *
+ * ⚠️ t(key) 在找不到翻譯時會回傳 key 本身（truthy），所以不能寫成
+ *    `t(key) || fallback` —— 那會讓畫面直接顯示 'ADMIN_CONFIRM_RESIGN'
+ *    這種大寫代碼。必須明確比對「回傳值 === key」才算沒翻到。
+ */
+const _tt = (key, fallback) => {
+    if (typeof t !== 'function') return fallback;
+    const v = t(key);
+    return (v && v !== key) ? v : (fallback !== undefined ? fallback : key);
+};
+
+/**
+ * U-M8：把後端錯誤翻成人話。
+ * 絕不把 res.code（ERR_FIRESTORE_CALL_FAILED）、res.msg（後端英文原文）
+ * 或 err.message / stack 直接顯示給管理員。
+ *
+ * @param {object|string|Error|null} err
+ * @param {string} [fallbackKey] 找不到 code 翻譯時的通用文案 key
+ * @returns {string}
+ */
+function _errText(err, fallbackKey) {
+    if (typeof apiErrorText === 'function') return apiErrorText(err, fallbackKey);
+    return _tt(fallbackKey || 'UNKNOWN_ERROR', '發生未知錯誤，請稍後重試');
+}
+
+// ---------------------------------------------------------------
+// U-M4（管理端）：假別代碼 ↔ 顯示文字
+//
+// make-up.js 目前把「翻譯後的假別文字」當 <option value> 存進 Firestore，
+// 越南文員工的病假存成 'Nghỉ ốm'、印尼文存成 'Izin Sakit'，統計因此把同一種
+// 病假拆成好幾類。將來 make-up.js 改存固定代碼（sick/personal/...）後，
+// 資料庫會同時存在「舊的各語言文字」與「新的固定代碼」兩種值。
+//
+// 管理端一律走這裡：
+//   - normalizeLeaveKind(raw) → 代碼（新代碼直接認、舊文字用別名表反查）
+//   - leaveKindLabel(raw)     → 顯示字（代碼翻成當前語言；認不出的舊值原樣顯示）
+//   - leaveKindStatKey(raw)   → 統計分組 key（同一種假別不再被語言拆開）
+// ---------------------------------------------------------------
+
+/** 代碼 → i18n key（新制固定代碼） */
+const LEAVE_KIND_I18N = {
+    sick: 'LEAVE_SICK',
+    personal: 'LEAVE_PERSONAL',
+    other: 'LEAVE_OTHER',
+    annual: 'VACATION_ANNUAL',
+    special: 'VACATION_SPECIAL',
+    compensatory: 'VACATION_COMPENSATORY',
+    typhoon: 'VACATION_TYPHOON',
+};
+
+/**
+ * 代碼 → 正規中文假別 + 所屬群組
+ * ⚠️ 中文值必須與後端 _helpers.js 的 LEAVE_KINDS 白名單逐字相同，
+ *    updateLeaveAsAdmin 只收白名單值，改錯字會讓儲存被擋。
+ */
+const LEAVE_KIND_ZH = {
+    sick: '病假', personal: '事假', other: '其他',
+    annual: '年假', special: '特休', compensatory: '補休', typhoon: '颱風假',
+};
+const LEAVE_KIND_GROUP = {
+    sick: '請假', personal: '請假', other: '請假',
+    annual: '休假', special: '休假', compensatory: '休假', typhoon: '休假',
+};
+/** 群組 → 該群組的假別代碼（下拉選單順序） */
+const LEAVE_GROUP_KINDS = {
+    '請假': ['sick', 'personal', 'other'],
+    '休假': ['annual', 'special', 'compensatory', 'typhoon'],
+};
+
+/**
+ * 舊資料相容：各語系翻譯後的假別文字 → 代碼
+ * 來源為 i18n/{zh-TW,en-US,ja,vi,id}.json 的 LEAVE_* / VACATION_* 值，
+ * 全部小寫後比對（避免大小寫差異漏接）。
+ */
+const LEAVE_KIND_ALIASES = (() => {
+    const table = {
+        sick: ['病假', 'sick leave', '病欠', 'Nghỉ ốm', 'Izin Sakit'],
+        personal: ['事假', 'personal leave', '私用欠勤', 'Nghỉ việc riêng', 'Izin Pribadi'],
+        other: ['其他', 'other', 'その他', 'Khác', 'Lainnya'],
+        annual: ['年假', 'annual leave', '年次休暇', 'Nghỉ phép năm', 'Cuti Tahunan'],
+        special: ['特休', 'special leave', '特別休暇', 'Nghỉ đặc biệt', 'Cuti Khusus'],
+        compensatory: ['補休', 'comp', 'compensatory leave', '代休', 'Nghỉ bù', 'Cuti Kompensasi'],
+        typhoon: ['颱風假', 'typhoon leave', '台風休暇', 'Nghỉ bão', 'Cuti Badai'],
+    };
+    const map = {};
+    Object.keys(table).forEach((code) => {
+        // NFC 正規化：越南文的組合字元有兩種等價寫法，不統一會比不到
+        table[code].forEach((label) => { map[String(label).normalize('NFC').toLowerCase()] = code; });
+    });
+    return map;
+})();
+
+/**
+ * 把資料庫裡的假別值正規化成固定代碼
+ * @param {string} raw 可能是新代碼（'sick'）或舊的翻譯文字（'Nghỉ ốm'）
+ * @returns {string|null} 代碼；完全認不出來時回 null（呼叫端原樣顯示）
+ */
+function normalizeLeaveKind(raw) {
+    const v = String(raw == null ? '' : raw).normalize('NFC').trim();
+    if (!v) return null;
+    const lower = v.toLowerCase();
+    if (LEAVE_KIND_I18N[lower]) return lower;      // 新制代碼
+    return LEAVE_KIND_ALIASES[lower] || null;      // 舊制翻譯文字
+}
+
+/**
+ * 假別 → 後端白名單接受的「正規中文值」（存檔用）
+ * @param {string} raw
+ * @returns {string|null} 認不出來時回 null（呼叫端保留原值送出）
+ */
+function leaveKindCanonicalZh(raw) {
+    const code = normalizeLeaveKind(raw);
+    return code ? LEAVE_KIND_ZH[code] : null;
+}
+
+/**
+ * 假別顯示字：新代碼翻成當前語言，舊值/未知值原樣顯示
+ * @param {string} raw
+ * @returns {string}
+ */
+function leaveKindLabel(raw) {
+    const code = normalizeLeaveKind(raw);
+    if (!code) return String(raw == null ? '' : raw);
+    return _tt(LEAVE_KIND_I18N[code], String(raw));
+}
+
+/**
+ * 統計分組 key：認得出的假別用代碼（跨語言合併成同一類），
+ * 認不出的用原字串（至少不會把資料吃掉）
+ * @param {string} raw
+ * @returns {string}
+ */
+function leaveKindStatKey(raw) {
+    return normalizeLeaveKind(raw) || String(raw == null ? '' : raw).trim();
+}
+
+/**
+ * 包一個「訊息已翻譯」的 Error，讓 catch 端知道可以安全顯示 err.message。
+ * 沒有這個旗標就分不出「自己丟的翻譯字」與「fetch 丟的英文原生錯誤」。
+ * @param {string} message 已翻譯的訊息
+ * @returns {Error}
+ */
+function _translatedError(message) {
+    const e = new Error(message);
+    e.isTranslated = true;
+    return e;
+}
+
+/**
+ * U-L8：自製「輸入原因」對話框，取代 window.prompt
+ *
+ * 表單審核（handleReviewAction）與員工報表（handleEmployeeRequestAction）兩條
+ * 退回路徑共用同一套，避免一邊有問原因、一邊沒有。
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.titleKey]        標題 i18n key
+ * @param {string} [opts.titleFallback]   標題退路文字
+ * @param {string} [opts.placeholderKey]  輸入框 placeholder i18n key
+ * @param {string} [opts.detail]          附帶說明（顯示哪一筆），純文字
+ * @returns {Promise<string|null>} 使用者輸入的原因（可空字串）；取消回 null
+ */
+function showReasonDialog(opts = {}) {
+    return new Promise((resolve) => {
+        const modalId = 'admin-reason-dialog';
+        const existing = document.getElementById(modalId);
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = modalId;
+        modal.className = 'fixed inset-0 z-[1300] flex items-center justify-center bg-black/50 p-4';
+        modal.innerHTML = DOMPurify.sanitize(`
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-full max-w-md shadow-2xl">
+                <h3 id="admin-reason-title" class="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                    ${escapeHtml(_tt(opts.titleKey || 'ENTER_REJECTION_REASON', opts.titleFallback || '請輸入退回原因'))}
+                </h3>
+                ${opts.detail ? `<p class="text-sm text-gray-600 dark:text-gray-300 mb-3 whitespace-pre-line">${escapeHtml(opts.detail)}</p>` : ''}
+                <textarea id="admin-reason-input" rows="3"
+                    placeholder="${escapeHtml(_tt(opts.placeholderKey || 'REJECTION_REASON_PLACEHOLDER', '員工會看到這段文字，可留空'))}"
+                    class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"></textarea>
+                <div class="mt-4 flex gap-2">
+                    <button id="admin-reason-ok" type="button"
+                        class="flex-1 py-2 px-4 rounded-lg font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition">
+                        ${escapeHtml(_tt('BTN_CONFIRM', '確認'))}
+                    </button>
+                    <button id="admin-reason-cancel" type="button"
+                        class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        ${escapeHtml(_tt('BTN_CANCEL', '取消'))}
+                    </button>
+                </div>
+            </div>
+        `);
+        document.body.appendChild(modal);
+
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            resolve(value);
+        };
+        // Esc → 視為取消。先於 attachModalA11y 註冊：後者的 Esc handler 會直接
+        // 移除 modal，先掛才保證這裡一定收得到、Promise 不會懸著。
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' || e.key === 'Esc') finish(null);
+        });
+
+        const removeModal = () => { modal.remove(); };
+        const close = (typeof attachModalA11y === 'function')
+            ? attachModalA11y(modal, removeModal, {
+                initialFocus: '#admin-reason-input',
+                labelledBy: 'admin-reason-title',
+            })
+            : removeModal;
+
+        // 點背景 / 取消 → 視為取消（resolve(null)）
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) { finish(null); close(); }
+        });
+        document.getElementById('admin-reason-cancel').addEventListener('click', () => {
+            finish(null); close();
+        });
+        document.getElementById('admin-reason-ok').addEventListener('click', () => {
+            const val = document.getElementById('admin-reason-input')?.value || '';
+            finish(String(val).trim());
+            close();
+        });
+    });
+}
+
+// #endregion
+// ===================================
+
+// ===================================
 // #region 1. 管理員日曆與紀錄渲染
 // ===================================
 
@@ -37,7 +274,7 @@ async function renderAdminCalendar(userId, date) {
     // 🚀 性能監測：開始記錄
     const renderStartTime = performance.now();
     const monthStr = String(date.getMonth() + 1).padStart(2, "0");
-    console.log(`%c[Calendar Load] 開始載入員工月曆`, 'color: #0066cc; font-weight: bold;', {
+    debugLog(`%c[Calendar Load] 開始載入員工月曆`, 'color: #0066cc; font-weight: bold;', {
         userId,
         month: `${date.getFullYear()}-${monthStr}`
     });
@@ -80,17 +317,17 @@ async function renderAdminCalendar(userId, date) {
         console.timeEnd('  ├─ addWeekdayLabels');
 
         const uiEndTime = performance.now();
-        console.log(`  └─ UI更新完成: ${(uiEndTime - uiStartTime).toFixed(2)}ms`);
+        debugLog(`  └─ UI更新完成: ${(uiEndTime - uiStartTime).toFixed(2)}ms`);
     };
 
     // 3. 邏輯分支：檢查快取 vs API 請求
     if (adminMonthDataCache[cacheKey]) {
         // --- 情境 A: 快取有資料 ---
         const cacheStartTime = performance.now();
-        console.log(`%c[Cache Hit] ✓ 快取命中`, 'color: #00aa00; font-weight: bold;', `使用快取數據: ${cacheKey}`);
+        debugLog(`%c[Cache Hit] ✓ 快取命中`, 'color: #00aa00; font-weight: bold;', `使用快取數據: ${cacheKey}`);
         updateCalendarUI(adminMonthDataCache[cacheKey]);
         const cacheEndTime = performance.now();
-        console.log(`%c[Cache Load] 完成 - 耗時 ${(cacheEndTime - cacheStartTime).toFixed(2)}ms`, 'color: #00aa00;');
+        debugLog(`%c[Cache Load] 完成 - 耗時 ${(cacheEndTime - cacheStartTime).toFixed(2)}ms`, 'color: #00aa00;');
         recordAdminMonthNavigation(date);
 
         // 預加載已停用（2026-04-27）：
@@ -102,7 +339,7 @@ async function renderAdminCalendar(userId, date) {
     } else {
         // --- 情境 B: 無快取，需請求 API ---
         const apiStartTime = performance.now();
-        console.log(`%c[API Request] ⏳ 快取未命中，發送 API 請求...`, 'color: #ff9900;');
+        debugLog(`%c[API Request] ⏳ 快取未命中，發送 API 請求...`, 'color: #ff9900;');
 
         // 顯示 Loading 狀態
         // ✅ XSS防護：使用 DOMPurify 淨化 HTML
@@ -131,23 +368,27 @@ async function renderAdminCalendar(userId, date) {
                 console.timeEnd('  ├─ updateCalendarUI');
 
                 const apiEndTime = performance.now();
-                console.log(`%c[API Load] ✓ 完成 - 耗時 ${(apiEndTime - apiStartTime).toFixed(2)}ms`, 'color: #00aa00;');
+                debugLog(`%c[API Load] ✓ 完成 - 耗時 ${(apiEndTime - apiStartTime).toFixed(2)}ms`, 'color: #00aa00;');
                 recordAdminMonthNavigation(date);
 
                 // 預加載已停用（2026-04-27），同上方註解。
             } else {
                 // API 回傳錯誤
-                console.error("Failed to fetch admin attendance records:", res.msg);
-                // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-                calendarGrid.innerHTML = DOMPurify.sanitize(`<div class="col-span-full text-center text-red-500 py-4">${res.msg || '無法載入資料'}</div>`);
-                showNotification(res.msg || t("ERROR_FETCH_RECORDS"), "error");
+                // U-M8：res.msg 是後端英文原文，不能直接寫進月曆格
+                console.error("Failed to fetch admin attendance records:", res.code || '');
+                showNotification(_errText(res, 'ERROR_FETCH_RECORDS'), "error");
+                // U-M9：失敗要留一條路回來，不能停在「正在載入…」
+                if (typeof renderCalendarLoadError === 'function') {
+                    renderCalendarLoadError(calendarGrid, () => renderAdminCalendar(userId, date));
+                }
             }
         } catch (err) {
             // 網路或系統錯誤
             console.error("System Error in renderAdminCalendar:", err);
-            // ✅ XSS防護：使用 DOMPurify 淨化 HTML
-            calendarGrid.innerHTML = DOMPurify.sanitize(
-                `<div class="col-span-full text-center text-red-500 py-4">${t('MSG_SYSTEM_ERROR')}</div>`);
+            showNotification(_errText(err, 'MSG_SYSTEM_ERROR'), "error");
+            if (typeof renderCalendarLoadError === 'function') {
+                renderCalendarLoadError(calendarGrid, () => renderAdminCalendar(userId, date));
+            }
         }
     }
 }
@@ -259,7 +500,7 @@ async function preloadAdjacentAdminMonths(currentDate, userId) {
                     });
                     if (res.ok) {
                         cacheAdminMonthData(key, res.records.dailyStatus || []);
-                        console.log(`✅ Admin 預加載 ${key} 成功`);
+                        debugLog(`✅ Admin 預加載 ${key} 成功`);
                     }
                 } catch (err) {
                     console.warn(`⚠️ Admin 預加載 ${key} 失敗:`, err.message);
@@ -290,8 +531,9 @@ async function renderAdminDailyRecords(dateKey, userId) {
     adminDailyRecordsCard.style.display = 'block';
     adminRecordsLoading.style.display = 'block';
 
-    const dateObject = new Date(dateKey);
-    const monthKey = dateObject.getFullYear() + "-" + String(dateObject.getMonth() + 1).padStart(2, "0");
+    // U-M2：dateKey 是 'YYYY-MM-DD'，直接切字串；new Date(dateKey) 以 UTC 解析，
+    // 在負時區會落到前一天而拿到錯的月份鍵。
+    const monthKey = String(dateKey).slice(0, 7);
 
     try {
         // 2026-04-27 合併：loadMonthDetailData 內部統一從 adminMonthDataCache /
@@ -313,7 +555,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
     // 內部函式：渲染日紀錄列表
     function renderRecords(records, breakTimes) {
         const dailyRecords = records.filter(record => record.date === dateKey);
-        console.log(dailyRecords);
+        debugLog(dailyRecords);
         // 清空現有列表
         adminDailyRecordsList.replaceChildren();
 
@@ -404,9 +646,9 @@ async function renderAdminDailyRecords(dateKey, userId) {
                             </div>`;
                     } else {
                         actionBtnsHtml = `
-                            <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                            <p class="mt-2 text-xs text-amber-600 dark:text-amber-400" data-i18n="ADMIN_LEGACY_NO_DOC_ID">
                                 <i class="fas fa-exclamation-triangle mr-1"></i>
-                                舊版聚合資料無 doc id，請刷新本月後再操作
+                                ${escapeHtml(_tt('ADMIN_LEGACY_NO_DOC_ID', '舊版聚合資料無 doc id，請刷新本月後再操作'))}
                             </p>`;
                     }
 
@@ -418,7 +660,7 @@ async function renderAdminDailyRecords(dateKey, userId) {
                     // ✅ XSS防護：使用 DOMPurify 淨化 HTML
                     const recordHtml = `
                         <p class="font-medium text-gray-800 dark:text-white">${r.time} - ${t(typeKey)}${sourceBadge}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">地點: ${escapeHtml(locationDisplay)}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="LABEL_LOCATION">${escapeHtml(_tt('LABEL_LOCATION', '地點'))}</span>：${escapeHtml(locationDisplay)}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400"><span data-i18n="RECORD_NOTE_PREFIX">備註：</span>${escapeHtml(r.note)}</p>
                         ${actionBtnsHtml}
                     `;
@@ -546,7 +788,7 @@ function _initAdminAttendanceActions() {
             const docId = btn.dataset.docId;
             const adjType = btn.dataset.adjustmentType || '';
             if (!docId) return;
-            const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+            const tt = (k, fb) => _tt(k, fb);   // 見上方 _tt 說明（t 找不到會回 key 本身）
             // 同一天可能有多筆同時間紀錄（如誤按下班後又按上班），確認訊息必須標明是哪一筆
             const recLabel = [
                 btn.dataset.recordTime || '',
@@ -556,7 +798,7 @@ function _initAdminAttendanceActions() {
             const confirmMsg = tt('MSG_ADMIN_DELETE_CONFIRM', '確定要刪除這筆紀錄？此操作無法復原。') +
                 (recLabel ? `\n\n${recLabel}` : '');
             const ok = typeof showConfirmDialog === 'function'
-                ? await showConfirmDialog(confirmMsg)
+                ? await showConfirmDialog(confirmMsg, { variant: 'danger' })
                 : window.confirm(confirmMsg);
             if (!ok) return;
             btn.disabled = true;
@@ -566,7 +808,7 @@ function _initAdminAttendanceActions() {
                     showNotification(tt('MSG_ADMIN_DELETE_SUCCESS', '紀錄已刪除'), 'success');
                     _refreshAdminAfterMutation();
                 } else {
-                    showNotification((res && res.msg) || tt('MSG_ADMIN_DELETE_FAILED', '刪除失敗'), 'error');
+                    showNotification(_errText(res, 'MSG_ADMIN_DELETE_FAILED'), 'error');
                     btn.disabled = false;
                 }
             } catch (err) {
@@ -619,7 +861,7 @@ function _refreshAdminAfterMutation() {
  * @param {object} rec { id, type, time ('HH:mm'), date ('YYYY-MM-DD'), note, audit, locationName }
  */
 function _openAdminEditModal(rec) {
-    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    const tt = (k, fb) => _tt(k, fb);   // 見上方 _tt 說明（t 找不到會回 key 本身）
     const modalId = 'admin-edit-record-modal';
     let modal = document.getElementById(modalId);
     if (modal) modal.remove();
@@ -629,10 +871,11 @@ function _openAdminEditModal(rec) {
 
     // 請假記錄：以「假別」編輯取代「上班/下班 類型」與「地點」欄
     const isLeave = rec.adjustmentType === '系統請假記錄';
-    // 需與後端 updateLeaveAsAdmin.js 的 LEAVE_KINDS 白名單一致，否則存檔會被擋
-    const LEAVE_KINDS = { '請假': ['病假', '事假', '其他'], '休假': ['年假', '特休', '補休', '颱風假'] };
+    // option value 必須是後端 _helpers.js LEAVE_KINDS 白名單的正規中文，否則存檔被擋；
+    // 顯示文字走 i18n（U-L5），現值同時吃得懂舊的各語言文字與新的固定代碼（U-M4）。
     const curGroup = isLeave ? (rec.type === '休假' ? '休假' : '請假') : '';
-    const curKind = isLeave ? String(rec.locationName || '') : '';
+    const curKindRaw = isLeave ? String(rec.locationName || '') : '';
+    const curKindZh = leaveKindCanonicalZh(curKindRaw);
 
     modal = document.createElement('div');
     modal.id = modalId;
@@ -642,21 +885,28 @@ function _openAdminEditModal(rec) {
         `<option value="${escapeHtml(val)}" ${val === current ? 'selected' : ''}>${escapeHtml(label)}</option>`;
 
     // 員工以非中文介面提交時，假別存的是 i18n 翻譯值（make-up.js 的 option value
-    // 取 t()，如越南文事假存成 'Nghỉ việc riêng'），不在中文白名單內。
-    // 若不補進選項，下拉會找不到現值而預選第一項（請假組=病假），admin 只改
-    // 備註按儲存也會連假別一起被改掉，扣薪跟著算錯 → 必須保留現值。
-    const kindOpts = LEAVE_KINDS[curGroup] || [];
-    const kindOptsWithCur = (curKind && !kindOpts.includes(curKind))
-        ? [curKind, ...kindOpts]
+    // 取 t()，如越南文事假存成 'Nghỉ việc riêng'），不在中文白名單內；未來也可能
+    // 是固定代碼（'personal'）。兩者都先正規化成中文再對照，對得上就直接選中；
+    // 完全認不出的舊值（自由文字）才額外補一個「保留現值」選項 ——
+    // 否則下拉會預選第一項（請假組=病假），admin 只改備註按儲存也會連假別
+    // 一起被改掉，扣薪跟著算錯。
+    const kindCodes = LEAVE_GROUP_KINDS[curGroup] || [];
+    const kindOpts = kindCodes.map((code) => ({
+        value: LEAVE_KIND_ZH[code],
+        label: _tt(LEAVE_KIND_I18N[code], LEAVE_KIND_ZH[code]),
+    }));
+    const selectedKindValue = curKindZh || curKindRaw;
+    const kindOptsWithCur = (curKindRaw && !curKindZh)
+        ? [{ value: curKindRaw, label: curKindRaw }, ...kindOpts]
         : kindOpts;
 
     modal.innerHTML = DOMPurify.sanitize(`
         <div class="bg-white dark:bg-gray-800 rounded-xl p-5 w-full max-w-md shadow-2xl">
             <div class="flex items-center justify-between mb-3">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">
+                <h3 id="admin-edit-title" class="text-lg font-bold text-gray-900 dark:text-white">
                     <i class="fas fa-pen mr-2 text-indigo-600"></i>${tt('ADMIN_EDIT_TITLE', '編輯打卡紀錄')}
                 </h3>
-                <button id="admin-edit-close" class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none">&times;</button>
+                <button id="admin-edit-close" aria-label="${escapeHtml(tt('BTN_CLOSE', '關閉'))}" class="text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-2xl leading-none">&times;</button>
             </div>
 
             <div class="space-y-3">
@@ -675,7 +925,7 @@ function _openAdminEditModal(rec) {
                         ${tt('ADMIN_EDIT_LEAVE_KIND', '假別')}
                     </label>
                     <select id="admin-edit-leave-kind" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
-                        ${kindOptsWithCur.map((k) => selOpt(k, k, curKind)).join('')}
+                        ${kindOptsWithCur.map((k) => selOpt(k.value, k.label, selectedKindValue)).join('')}
                     </select>
                 </div>
                 ` : `
@@ -748,7 +998,14 @@ function _openAdminEditModal(rec) {
 
     document.body.appendChild(modal);
 
-    const close = () => modal.remove();
+    // U-M12：開啟時焦點移進 modal、Esc 可關、關閉後焦點還原
+    const removeEditModal = () => modal.remove();
+    const close = (typeof attachModalA11y === 'function')
+        ? attachModalA11y(modal, removeEditModal, {
+            initialFocus: isLeave ? '#admin-edit-leave-group' : '#admin-edit-type',
+            labelledBy: 'admin-edit-title',
+        })
+        : removeEditModal;
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
     document.getElementById('admin-edit-close').addEventListener('click', close);
     document.getElementById('admin-edit-cancel').addEventListener('click', close);
@@ -759,15 +1016,17 @@ function _openAdminEditModal(rec) {
         const kindSel = document.getElementById('admin-edit-leave-kind');
         if (grpSel && kindSel) {
             grpSel.addEventListener('change', () => {
-                const opts = LEAVE_KINDS[grpSel.value] || [];
-                kindSel.innerHTML = opts.map((k) => `<option value="${k}">${k}</option>`).join('');
+                const codes = LEAVE_GROUP_KINDS[grpSel.value] || [];
+                kindSel.innerHTML = codes
+                    .map((code) => selOpt(LEAVE_KIND_ZH[code], _tt(LEAVE_KIND_I18N[code], LEAVE_KIND_ZH[code]), ''))
+                    .join('');
             });
         }
     }
 
     document.getElementById('admin-edit-submit').addEventListener('click', async () => {
         const submitBtn = document.getElementById('admin-edit-submit');
-        const tt2 = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+        const tt2 = (k, fb) => _tt(k, fb);  // 見上方 _tt 說明
 
         const newDatetime = document.getElementById('admin-edit-datetime').value;
         const newAudit = document.getElementById('admin-edit-audit').value;
@@ -790,10 +1049,10 @@ function _openAdminEditModal(rec) {
             if (isLeave) {
                 const grp = document.getElementById('admin-edit-leave-group').value;
                 const kind = document.getElementById('admin-edit-leave-kind').value;
-                if (grp && kind && (grp !== curGroup || kind !== curKind)) {
+                if (grp && kind && (grp !== curGroup || kind !== selectedKindValue)) {
                     const lr = await callApifetch({ action: 'updateLeaveAsAdmin', id: rec.id, leaveGroup: grp, leaveKind: kind });
                     if (!lr || !lr.ok) {
-                        showNotification(tt2(lr?.code || 'UNKNOWN_ERROR', lr?.msg || '假別修改失敗'), 'error');
+                        showNotification(_errText(lr, 'ADMIN_UPDATE_LEAVE_FAILED'), 'error');
                         submitBtn.disabled = false;
                         submitBtn.textContent = tt2('BTN_SAVE', '儲存');
                         return;
@@ -818,7 +1077,7 @@ function _openAdminEditModal(rec) {
             if (needAttUpdate) {
                 const res = await callApifetch(payload);
                 if (!res || !res.ok) {
-                    showNotification(tt2(res?.code || 'UNKNOWN_ERROR', res?.msg || '修改失敗'), 'error');
+                    showNotification(_errText(res, 'ADMIN_UPDATE_RECORD_FAILED'), 'error');
                     submitBtn.disabled = false;
                     submitBtn.textContent = tt2('BTN_SAVE', '儲存');
                     return;
@@ -854,7 +1113,7 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
     modal.id = modalId;
     modal.className = 'fixed inset-0 z-[1200] flex items-center justify-center bg-black/50';
 
-    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    const tt = (k, fb) => _tt(k, fb);   // 見上方 _tt 說明（t 找不到會回 key 本身）
     let currentMode = 'full'; // 'in' | 'out' | 'full'
 
     // 渲染整個 modal 內容（mode 切換時 re-render）
@@ -926,7 +1185,12 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
     renderModal();
     document.body.appendChild(modal);
 
-    const close = () => modal.remove();
+    // U-M12：開啟時焦點移進 modal、Esc 可關、關閉後焦點還原
+    // （mode 切換會整段 re-render，attachModalA11y 內部是動態查詢，不受影響）
+    const removeMakeupModal = () => modal.remove();
+    const close = (typeof attachModalA11y === 'function')
+        ? attachModalA11y(modal, removeMakeupModal, { initialFocus: '.admin-makeup-mode-btn' })
+        : removeMakeupModal;
 
     // 用事件委派處理 mode 切換、cancel、submit、backdrop
     modal.addEventListener('click', async (e) => {
@@ -982,12 +1246,12 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
                     action: 'adjustPunchAsAdmin', targetUserId, type: '上班',
                     datetime: inDateTime.toISOString(), note,
                 });
-                if (!r1 || !r1.ok) throw new Error(r1?.msg || r1?.code || tt('ERR_MAKEUP_IN_FAILED', '上班補卡失敗'));
+                if (!r1 || !r1.ok) throw _translatedError(_errText(r1, 'ERR_MAKEUP_IN_FAILED'));
                 const r2 = await callApifetch({
                     action: 'adjustPunchAsAdmin', targetUserId, type: '下班',
                     datetime: outDateTime.toISOString(), note,
                 });
-                if (!r2 || !r2.ok) throw new Error(r2?.msg || r2?.code || tt('ERR_MAKEUP_OUT_FAILED', '下班補卡失敗'));
+                if (!r2 || !r2.ok) throw _translatedError(_errText(r2, 'ERR_MAKEUP_OUT_FAILED'));
                 showNotification(tt('MSG_ADMIN_MAKEUP_SUCCESS_FULL', '代員工補卡成功（上下班共 2 筆）'), 'success');
             } else {
                 const ts = isIn ? new Date(`${dateKey}T${inTime}:00`) : new Date(`${dateKey}T${outTime}:00`);
@@ -997,8 +1261,7 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
                     datetime: ts.toISOString(), note,
                 });
                 if (!r || !r.ok) {
-                    throw new Error(r?.msg || r?.code ||
-                        (isIn ? tt('ERR_MAKEUP_IN_FAILED', '上班補卡失敗') : tt('ERR_MAKEUP_OUT_FAILED', '下班補卡失敗')));
+                    throw _translatedError(_errText(r, isIn ? 'ERR_MAKEUP_IN_FAILED' : 'ERR_MAKEUP_OUT_FAILED'));
                 }
                 const typeLabel = isIn ? tt('PUNCH_IN', '上班') : tt('PUNCH_OUT', '下班');
                 showNotification(
@@ -1015,7 +1278,11 @@ async function _openAdminMakeupModal(dateKey, targetUserId) {
             }
         } catch (err) {
             console.error('admin makeup 失敗:', err);
-            showNotification(err.message || tt('MSG_MAKEUP_FAILED', '補卡失敗'), 'error');
+            // 只有自己丟的、已翻譯的錯誤才直接顯示；網路層原生 Error（英文 message）
+            // 一律退回通用文案，不把 stack / 英文原文丟給管理員。
+            showNotification(
+                (err && err.isTranslated) ? err.message : _tt('MSG_MAKEUP_FAILED', '補卡失敗'),
+                'error');
             submitBtn.disabled = false;
             renderModal(); // 還原按鈕
         }
@@ -1110,7 +1377,8 @@ async function fetchAndRenderReviewRequests() {
                 renderReviewRequests(pendingRequests);
             }
         } else {
-            showNotification(t("MSG_FETCH_REVIEW_FAILED", { msg: res.msg || "" }), "error"); // 來自 core.js
+            // U-M8：MSG_FETCH_REVIEW_FAILED 文案帶 {msg} 佔位，直接接後端原文會露出英文碼
+            showNotification(_errText(res, 'MSG_FETCH_REVIEW_NETWORK_ERROR'), "error"); // 來自 core.js
             emptyEl.style.display = 'block';
         }
     } catch (error) {
@@ -1138,14 +1406,16 @@ function renderReviewRequests(requests) {
         // 判斷是補打卡還是請假/休假
         const isLeaveRequest = req.remark && req.remark !== "補打卡";
 
-        // 構建詳情文字
-        let detailText = req.name || "（未知）";
+        // 構建詳情文字（U-L5：硬編中文改走 i18n）
+        const unknownText = _tt('UNKNOWN', '（未知）');
+        const noReasonText = _tt('VALUE_NO_REASON', '（無原因）');
+        let detailText = req.name || unknownText;
         if (isLeaveRequest) {
-            // 請假/休假記錄：顯示 "姓名 - 原因"
-            detailText = `${ req.name || "（未知）" } - ${ req.remark || "（無原因）" } `;
+            // 請假/休假記錄：顯示 "姓名 - 假別"
+            // U-M4：remark 是假別（可能是舊的各語言文字或新的固定代碼），
+            // 一律過 leaveKindLabel：代碼翻成當前語言、舊值原樣顯示。
+            detailText = `${req.name || unknownText} - ${req.remark ? leaveKindLabel(req.remark) : noReasonText}`;
         }
-
-        const unknownText = t('UNKNOWN') || '（未知）';
         const labelTimeKey = isLeaveRequest ? 'LABEL_LEAVE_VACATION_TIME' : 'LABEL_REPAIR_TIME';
         const badgeKey = isLeaveRequest ? 'BADGE_LEAVE_VACATION' : 'BADGE_REPAIR';
 
@@ -1201,11 +1471,11 @@ function renderReviewRequests(requests) {
  */
 async function _showLeaveProofLightbox(docId) {
     if (!docId) return;
-    const tt = (k, fb) => (typeof t === 'function' ? (t(k) || fb) : fb);
+    const tt = (k, fb) => _tt(k, fb);   // 見上方 _tt 說明（t 找不到會回 key 本身）
     try {
         const res = await callApifetch({ action: 'getLeaveProof', id: docId });
         if (!res || !res.ok || !res.photo) {
-            showNotification(tt(res?.code || 'MSG_PROOF_LOAD_FAILED', '無法載入證明照片'), 'error');
+            showNotification(_errText(res, 'MSG_PROOF_LOAD_FAILED'), 'error');
             return;
         }
         const existing = document.getElementById('proof-lightbox');
@@ -1222,7 +1492,7 @@ async function _showLeaveProofLightbox(docId) {
             <div class="w-full" style="max-width:42rem;position:relative;">
                 <div class="flex items-center justify-between mb-2">
                     <h3 class="font-bold" style="color:#fff;" data-i18n="PROOF_MODAL_TITLE">${tt('PROOF_MODAL_TITLE', '病假證明')}</h3>
-                    <button id="proof-lightbox-close" class="text-3xl leading-none" style="color:#fff;" aria-label="關閉">&times;</button>
+                    <button id="proof-lightbox-close" class="text-3xl leading-none" style="color:#fff;" aria-label="${escapeHtml(tt('BTN_CLOSE', '關閉'))}">&times;</button>
                 </div>
                 <img id="proof-lightbox-img" alt="proof" class="w-full rounded-lg" style="max-height:80vh;object-fit:contain;background:#fff;">
             </div>
@@ -1230,13 +1500,44 @@ async function _showLeaveProofLightbox(docId) {
         document.body.appendChild(overlay);
         const img = document.getElementById('proof-lightbox-img');
         if (img) img.src = res.photo;
-        const close = () => overlay.remove();
+        // U-M12：焦點移到關閉鈕、Esc 可關、關閉後焦點還原
+        const removeOverlay = () => overlay.remove();
+        const close = (typeof attachModalA11y === 'function')
+            ? attachModalA11y(overlay, removeOverlay, { initialFocus: '#proof-lightbox-close' })
+            : removeOverlay;
         overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
         const closeBtn = document.getElementById('proof-lightbox-close');
         if (closeBtn) closeBtn.addEventListener('click', close);
     } catch (err) {
         console.error('載入證明照片失敗:', err);
         showNotification(tt('MSG_PROOF_LOAD_FAILED', '無法載入證明照片'), 'error');
+    }
+}
+
+/**
+ * U-L12：審核完成後只更新該筆，不整批重抓
+ *
+ * 從 pendingRequests 移除該 id，並把對應的 <li> 從 DOM 拿掉；
+ * 清空時顯示既有的空狀態元素。
+ *
+ * @param {string} recordId 已審核的申請 id
+ */
+function _removeReviewRequestFromList(recordId) {
+    const safeId = String(recordId || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!safeId) return;
+
+    pendingRequests = (pendingRequests || []).filter(
+        (r) => r && String(r.id).replace(/[^a-zA-Z0-9_-]/g, '') !== safeId
+    );
+
+    const listEl = pendingRequestsList;
+    if (listEl) {
+        const btn = listEl.querySelector(`.approve-btn[data-id="${safeId}"]`);
+        const li = btn && btn.closest('li');
+        if (li) li.remove();
+    }
+    if (requestsEmpty && (!pendingRequests || pendingRequests.length === 0)) {
+        requestsEmpty.style.display = 'block';
     }
 }
 
@@ -1259,7 +1560,7 @@ async function handleReviewAction(button, id, action) {
         (r) => r && String(r.id).replace(/[^a-zA-Z0-9_-]/g, '') === String(id)
     );
     if (!request) {
-        showNotification(t('REVIEW_FAILED', { msg: 'record not found' }) || '找不到該申請，請重新整理', 'error');
+        showNotification(_tt('MSG_REVIEW_RECORD_NOT_FOUND', '找不到該申請，請重新整理後再試'), 'error');
         return;
     }
 
@@ -1268,13 +1569,19 @@ async function handleReviewAction(button, id, action) {
     const loadingText = t('LOADING') || '處理中...';
 
     // 退回：詢問原因（員工會在「我的申請」看到）；核准：一般二次確認
+    // U-L8：改用自製對話框（原生 prompt 在 iOS PWA 會被瀏覽器封鎖、也無法翻譯/套主題）
     let rejectReason = '';
     if (action === 'reject') {
-        const input = window.prompt(t('ENTER_REJECTION_REASON') || '請輸入退回原因（員工會看到，可留空）：', '');
+        const input = await showReasonDialog({
+            titleKey: 'ENTER_REJECTION_REASON',
+            titleFallback: '請輸入退回原因（員工會看到，可留空）',
+            detail: [request.name || '', request.type || '', request.targetTime || '']
+                .filter(Boolean).join(' · '),
+        });
         if (input === null) {
             return; // 取消退回
         }
-        rejectReason = String(input).trim();
+        rejectReason = input;
     } else {
         const actionText = t('ACTION_APPROVE');
         const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
@@ -1301,14 +1608,15 @@ async function handleReviewAction(button, id, action) {
             // 2026-06-10：審核會改變該日 reason（如 STATUS_LEAVE_APPROVED），
             // 月曆/enriched 薪資快取也要清，否則月曆與薪資 Excel 顯示舊狀態直到 reload
             _invalidateAdminCaches();
-            await new Promise(resolve => setTimeout(resolve, 500));
-            // 成功後重新整理列表
-            fetchAndRenderReviewRequests();
+            // U-L12：舊版固定等 500ms 再整批重抓（30 筆待審 = 每審一筆重讀一次全表，
+            // 畫面還會整個閃掉）。改成只把這一筆從清單移除；後端寫入已完成，
+            // 不需要延遲，也不需要重抓。
+            _removeReviewRequestFromList(recordId);
         } else {
-            showNotification(t('REVIEW_FAILED', { msg: res.msg }), "error");
+            showNotification(_errText(res, 'REVIEW_FAILED_GENERIC'), "error");
         }
     } catch (err) {
-        showNotification(t("REVIEW_NETWORK_ERROR"), "error");
+        showNotification(_errText(err, 'REVIEW_NETWORK_ERROR'), "error");
         console.error(err);
     } finally {
         generalButtonState(button, 'idle'); // generalButtonState 來自 ui.js
@@ -1383,12 +1691,12 @@ async function loadEmployeeList() {
                     group.appendChild(option);
                 });
                 adminSelectEmployeeMgmt.appendChild(group);
-                console.log(`員工選單：${activeEmployees.length} 位啟用 + ${inactiveEmployees.length} 位停用/離職（可於設定頁重新啟用）`);
+                debugLog(`員工選單：${activeEmployees.length} 位啟用 + ${inactiveEmployees.length} 位停用/離職（可於設定頁重新啟用）`);
             }
         } else {
-            const errorMessage = data?.message || data?.code || t("FAILED_TO_LOAD_EMPLOYEES");
-            console.error("載入員工列表時 API 回傳失敗:", data, errorMessage);
-            showNotification(errorMessage, "error");
+            // U-M8：data.message 是後端英文原文，data.code 是代碼，都不能直接顯示
+            console.error("載入員工列表時 API 回傳失敗:", data?.code || '');
+            showNotification(_errText(data, 'FAILED_TO_LOAD_EMPLOYEES'), "error");
         }
     } catch (e) {
         console.error("loadEmployeeList 呼叫流程錯誤:", e);
@@ -1574,7 +1882,7 @@ function initAdminEvents() {
                     label: t('IS_ADMIN') || '管理員權限',
                     checked: isCurrentlyAdmin,
                     colorScheme: 'yellow',
-                    statusText: { on: '啟用', off: '關閉' },
+                    statusText: { on: _tt('STATUS_ENABLED', '啟用'), off: _tt('STATUS_DISABLED', '關閉') },
                     i18nKey: 'IS_ADMIN',
                     onchange: (e) => toggleAdminStatus(currentManagingEmployee.userId, e.target.checked, e.target)
                 });
@@ -1586,7 +1894,7 @@ function initAdminEvents() {
                     label: t('ACCOUNT_STATUS') || '帳號啟用狀態',
                     checked: employee.status === "啟用",
                     colorScheme: 'green',
-                    statusText: { on: '啟用', off: '關閉' },
+                    statusText: { on: _tt('STATUS_ENABLED', '啟用'), off: _tt('STATUS_DISABLED', '關閉') },
                     i18nKey: 'ACCOUNT_STATUS',
                     onchange: (e) => toggleAccountStatus(currentManagingEmployee.userId, e.target.checked, e.target)
                 });
@@ -1598,7 +1906,7 @@ function initAdminEvents() {
                     label: t('PUNCH_REMINDER') || 'LINE 漏打卡提醒',
                     checked: employee.punchReminder === true,
                     colorScheme: 'blue',
-                    statusText: { on: '啟用', off: '關閉' },
+                    statusText: { on: _tt('STATUS_ENABLED', '啟用'), off: _tt('STATUS_DISABLED', '關閉') },
                     i18nKey: 'PUNCH_REMINDER',
                     onchange: (e) => togglePunchReminder(currentManagingEmployee.userId, e.target.checked, e.target)
                 });
@@ -1612,11 +1920,16 @@ function initAdminEvents() {
                     const resignedAt = employee.resignedAt
                         ? new Date(employee.resignedAt).toLocaleDateString('zh-TW')
                         : '';
+                    // U-L5：硬編中文改走 i18n，{date} 由前端代入（可空）
+                    const resignedNoticeTpl = _tt(
+                        'ADMIN_EMPLOYEE_RESIGNED_NOTICE',
+                        '此員工已標記為「已離職」{date}。如需重新啟用，請開啟上方「帳號啟用狀態」。');
+                    const resignedNotice = resignedNoticeTpl
+                        .replace('{date}', resignedAt ? `（${resignedAt}）` : '');
                     resignWrapper.innerHTML = DOMPurify.sanitize(
                         `<p class="text-sm text-gray-600 dark:text-gray-400">
                             <i class="fas fa-info-circle mr-1"></i>
-                            此員工已標記為「已離職」${resignedAt ? `（${resignedAt}）` : ''}。
-                            如需重新啟用，請開啟上方「帳號啟用狀態」。
+                            ${escapeHtml(resignedNotice)}
                         </p>`
                     );
                 } else {
@@ -1764,9 +2077,8 @@ function initAdminEvents() {
                 getLocationBtn.disabled = false;
                 addLocationBtn.disabled = true;
             } else {
-                // 優先用錯誤碼的翻譯（t() 對 param 值是翻譯 key 時會自動翻），
-                // 沒有 code 才退回後端英文 msg
-                showNotification(t("MSG_ADD_LOCATION_FAILED", { msg: res.code || res.msg || "" }), "error");
+                // U-M8：MSG_ADD_LOCATION_FAILED 帶 {msg} 佔位，接後端原文會露出英文碼
+                showNotification(_errText(res, 'MSG_ADD_LOCATION_FAILED_GENERIC'), "error");
             }
         } catch (err) {
             console.error(err);
@@ -1785,35 +2097,17 @@ function initAdminEvents() {
     setupSalaryProfileForm();
     // Phase M3：詳細薪資 Excel 匯出
     setupDetailedPayrollExport();
-    // 修復：weekly-chart.js 在 vite dev mode 偶發無法掛 window，主動補載
-    ensureWeeklyChartLoaded();
 }
 
-/**
- * 修復 weekly-chart.js 在 vite dev mode 經 <script defer> 載入時
- * window.renderWeeklyChart 沒被掛上的問題（vite legacy plugin 對 script 做了
- * transformation 導致末端 init code 跳過）。
- *
- * 用 fetch + indirect eval (0, eval)(txt) 在 global scope 重跑一次，
- * 這樣 function declarations 會掛到 global，檔尾 window.assign 也會生效。
- */
-async function ensureWeeklyChartLoaded() {
-    if (typeof window.renderWeeklyChart === 'function') return;
-    try {
-        const r = await fetch('/js/weekly-chart.js?_ensure=' + Date.now());
-        const txt = await r.text();
-        // (0, eval) = indirect eval，在 global scope 跑，避免 local function decl
-        // eslint-disable-next-line no-eval
-        (0, eval)(txt);
-        if (typeof window.renderWeeklyChart === 'function') {
-            console.log('✓ weekly-chart 補載完成');
-        } else {
-            console.warn('weekly-chart 補載後 window.renderWeeklyChart 仍 undefined');
-        }
-    } catch (err) {
-        console.error('weekly-chart 補載失敗：', err);
-    }
-}
+// F-L1（2026-09-09）：移除 ensureWeeklyChartLoaded()。
+// 原本用 fetch + indirect eval `(0, eval)(txt)` 在 global scope 重跑
+// weekly-chart.js，補 vite dev mode 偶發沒掛上 window.renderWeeklyChart 的問題。
+// 移除理由：
+//   1. 正式環境 CSP 沒有 'unsafe-eval'，這段從來不會成功執行；
+//   2. `?_ensure=<timestamp>` 每次都是新 URL，會在 Service Worker 快取塞進
+//      無上限的同檔副本；
+//   3. 部署是直接推根目錄、不走 vite build，dev mode 的那個 bug 不影響上線。
+// 真的遇到 dev mode 沒掛上時，重新整理即可（index.html 的 <script defer> 會載）。
 
 // ===================================
 // #region 員工帳號狀態：管理員權限 / 帳號啟用 toggle
@@ -1859,8 +2153,7 @@ async function _setEmployeeStatusField(userId, field, value, checkbox, updates, 
             cacheManager.invalidate('employeeList');
             showNotification(t('MSG_EMPLOYEE_STATUS_UPDATED') || '更新成功', 'success');
         } else {
-            const code = res?.code || 'UNKNOWN_ERROR';
-            showNotification(t(code) || res?.msg || '更新失敗', 'error');
+            showNotification(_errText(res, 'MSG_EMPLOYEE_STATUS_UPDATE_FAILED'), 'error');
             if (checkbox) checkbox.checked = !value; // rollback
         }
     } catch (err) {
@@ -1914,15 +2207,17 @@ async function togglePunchReminder(userId, value, checkbox) {
 async function handleResignEmployee(userId, employeeName) {
     if (!userId) return;
     const name = employeeName || userId.slice(0, 8);
-    const confirmMsg =
-        `確定將「${name}」標記為離職？\n\n` +
-        `離職後：\n` +
-        `• 員工無法登入打卡\n` +
-        `• 不會收到 LINE 漏打卡提醒\n` +
-        `• 出勤紀錄保留（勞基法要求 5 年）\n` +
-        `• 可由管理員重新啟用`;
+    // U-L5：五點清單全部走 i18n（{name} 由此代入）
+    const confirmMsg = _tt(
+        'ADMIN_CONFIRM_RESIGN',
+        '確定將「{name}」標記為離職？\n\n離職後：\n' +
+        '• 員工無法登入打卡\n' +
+        '• 不會收到 LINE 漏打卡提醒\n' +
+        '• 出勤紀錄保留（勞基法要求 5 年）\n' +
+        '• 可由管理員重新啟用'
+    ).replace('{name}', name);
     const ok = typeof showConfirmDialog === 'function'
-        ? await showConfirmDialog(confirmMsg)
+        ? await showConfirmDialog(confirmMsg, { variant: 'danger' })
         : window.confirm(confirmMsg);
     if (!ok) return;
 
@@ -1951,8 +2246,7 @@ async function handleResignEmployee(userId, employeeName) {
                 adminSelectEmployeeMgmt.dispatchEvent(new Event('change'));
             }
         } else {
-            const code = res?.code || 'UNKNOWN_ERROR';
-            showNotification(t(code) || res?.msg || '離職標記失敗', 'error');
+            showNotification(_errText(res, 'MSG_RESIGN_FAILED'), 'error');
         }
     } catch (err) {
         console.error('handleResignEmployee 失敗：', err);
@@ -1974,9 +2268,16 @@ if (typeof window !== 'undefined') {
 // #region Phase L7：員工薪資與勞保設定
 // ===================================
 
+// 勞基法常數統一定義在 js/labor-hours.js 的 LABOR_CONSTANTS（單一來源）。
+// 這裡只取別名，數值本身不在 admin.js 維護 —— 過去兩檔各寫一份，
+// 調基本工資或倍率時很容易只改一邊，Excel 薪資就靜默算錯。
+// labor-hours.js 在 index.html 早於 admin.js 載入，取用時必定已存在。
+const LABOR = (typeof LABOR_CONSTANTS !== 'undefined')
+    ? LABOR_CONSTANTS
+    : (typeof window !== 'undefined' ? window.LABOR_CONSTANTS : undefined);
 // 2026/01/01 起：基本月薪 29,500、基本時薪 190
-const MIN_MONTHLY_WAGE_2026 = 29500;
-const MIN_HOURLY_WAGE_2026 = 190;
+const MIN_MONTHLY_WAGE_2026 = LABOR.MIN_MONTHLY_WAGE;
+const MIN_HOURLY_WAGE_2026 = LABOR.MIN_HOURLY_WAGE;
 
 /**
  * 切換薪資制度顯示（monthly / hourly）
@@ -2060,7 +2361,7 @@ function _refreshSalaryPreview() {
         monthlyVal = Number(monthlyInput.value) || 0;
         const hourly = (typeof window.monthlyToHourly === 'function')
             ? window.monthlyToHourly(monthlyVal)
-            : Math.round(monthlyVal / 240);
+            : Math.round(monthlyVal / LABOR.HOURLY_DIVISOR);
         if (previewHourlyEl) {
             previewHourlyEl.textContent = hourly > 0 ? t('LABOR_HOURLY_UNIT', { hourly }) : '--';
         }
@@ -2246,8 +2547,7 @@ async function handleSalaryProfileSubmit(e) {
             // 重 render KPI（會顯示新的估算月薪）
             renderEmployeeKpi(adminSelectedUserId, adminCurrentDate).catch(console.error);
         } else {
-            const code = res?.code || 'UNKNOWN_ERROR';
-            showNotification(t(code) || res?.msg || '儲存失敗', 'error');
+            showNotification(_errText(res, 'MSG_SALARY_SAVE_FAILED'), 'error');
         }
     } catch (err) {
         console.error('handleSalaryProfileSubmit 失敗：', err);
@@ -2345,11 +2645,22 @@ function setupKpiLaborHelpModal() {
         renderTranslations(body);
     };
 
+    // U-M12：開啟時把焦點移進 modal、Esc 可關、關閉後焦點還原。
+    // 每次 open 重新掛（attachModalA11y 會在它回傳的 close 裡自行解除監聽）。
+    const hide = () => { modal.style.display = 'none'; };
+    let wrappedClose = null;
+    const close = () => {
+        const fn = wrappedClose || hide;
+        wrappedClose = null;
+        fn();
+    };
     const open = () => {
         renderBody();
         modal.style.display = 'flex';
+        wrappedClose = (typeof attachModalA11y === 'function')
+            ? attachModalA11y(modal, hide, { initialFocus: '#kpi-labor-help-ok-btn' })
+            : hide;
     };
-    const close = () => { modal.style.display = 'none'; };
 
     helpBtn.addEventListener('click', (e) => {
         // 阻止 details toggle（summary 內按鈕點擊會冒泡觸發 details 開關）
@@ -2402,14 +2713,19 @@ async function loadAdminDashboard() {
 // 這裡暫時保留在 admin.js，但建議移動到 app.js/bindEvents
 // ===================================
 
-document.getElementById('test-api-btn').addEventListener('click', async () => {
+const _testApiBtn = document.getElementById('test-api-btn');
+// F-L13：開發用的 API 測試鈕已從正式 UI 移除。加上 null 檢查後，index.html
+// 不必再為了避免 admin.js 載入期 TypeError 而保留一個隱藏節點。
+if (_testApiBtn) _testApiBtn.addEventListener('click', async () => {
     const testAction = "testEndpoint";
     try {
         const res = await callApifetch({ action: testAction });
         if (res && res.ok) {
-            showNotification(t("MSG_API_TEST_SUCCESS", { response: JSON.stringify(res) }), "success");
+            // 完整回應留在 console，畫面只給一句話（原本把整包 JSON 塞進 toast）
+            debugLog('testEndpoint 回應：', res);
+            showNotification(t("MSG_API_TEST_SUCCESS", { response: '' }), "success");
         } else {
-            showNotification(t("MSG_API_TEST_FAILED", { msg: (res && res.msg) || "" }), "error");
+            showNotification(_errText(res, 'MSG_API_TEST_FAILED_GENERIC'), "error");
         }
     } catch (error) {
         console.error("API 呼叫發生錯誤:", error);
@@ -2480,7 +2796,7 @@ const switchAdminSubTab = (subTabId) => {
     }
 
     // 6. 根據子頁籤 ID 執行特定動作 (例如：載入資料)
-    console.log(`切換到管理員子頁籤: ${ subTabId } `);
+    debugLog(`切換到管理員子頁籤: ${ subTabId } `);
     if (subTabId === 'form-review-view') {
         fetchAndRenderReviewRequests(); // 切到表單審核就重抓，避免顯示過時清單而漏審/重複審
     } else if (subTabId === 'employee-settings-view') {
@@ -2572,7 +2888,8 @@ function setupAdminExport() {
             ? selectEl.value
             : (currentManagingEmployee && currentManagingEmployee.userId);
         if (!userId) {
-            alert(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT'));
+            // U-L8：原生 alert 會鎖住整個分頁，改用專案的 toast
+            showNotification(t('MSG_PLEASE_SELECT_EMPLOYEE_ALERT'), 'error');
             return;
         }
 
@@ -2593,7 +2910,7 @@ function setupAdminExport() {
                 userId: userId
             });
             if (!response.ok) {
-                alert(t('MSG_FETCH_RECORDS_FAILED'));
+                showNotification(_errText(response, 'MSG_FETCH_RECORDS_FAILED'), 'error');
                 return;
             }
 
@@ -2656,11 +2973,11 @@ function setupAdminExport() {
                 URL.revokeObjectURL(url);
             } catch (err) {
                 console.error('Excel 匯出失敗', err);
-                alert(t('MSG_EXPORT_FAILED'));
+                showNotification(t('MSG_EXPORT_FAILED'), 'error');
             }
         } catch (err) {
             console.error('取得打卡記錄失敗', err);
-            alert(t('MSG_FETCH_RECORDS_RETRY'));
+            showNotification(t('MSG_FETCH_RECORDS_RETRY'), 'error');
         }
     });
 }
@@ -2776,24 +3093,25 @@ async function handleDetailedPayrollExport(userId, year, month) {
         ? Number(employee.hourlyRate || 0)
         : (typeof window.monthlyToHourly === 'function'
             ? window.monthlyToHourly(monthlySalary)
-            : Math.round(monthlySalary / 240));
+            : Math.round(monthlySalary / LABOR.HOURLY_DIVISOR));
 
     // 月度合計
     const sum = (typeof window.aggregateMonthLaborStats === 'function')
         ? window.aggregateMonthLaborStats(dailyStatusRaw || [])
         : { equivalentHours: 0 };
 
-    // 加班時薪：用勞動部試算範例的小數倍率 1.34 / 1.67 / 2.67
-    // （與 labor-hours.js 一致；台灣業界薪資單慣例）
+    // 加班時薪：倍率一律取自 labor-hours.js 的 LABOR_CONSTANTS.OT_RATE
+    // （勞動部試算範例的兩位小數；台灣業界薪資單慣例）
+    const R = LABOR.OT_RATE;
     const otRates = {
-        plain1:    Math.round(hourlyRate * 1.34 * 100) / 100,    // 平日 ×1.34
-        plain2:    Math.round(hourlyRate * 1.67 * 100) / 100,    // 平日 ×1.67
-        rest1:     Math.round(hourlyRate * 1.34 * 100) / 100,    // 休息日 ×1.34
-        rest2:     Math.round(hourlyRate * 1.67 * 100) / 100,    // 休息日 ×1.67
-        rest3:     Math.round(hourlyRate * 2.67 * 100) / 100,    // 休息日 ×2.67
-        regular:   Math.round(hourlyRate * 2    * 100) / 100,    // 例假日 ×2
-        public1:   Math.round(hourlyRate * 1.34 * 100) / 100,    // 國定 ×1.34
-        public2:   Math.round(hourlyRate * 1.67 * 100) / 100,    // 國定 ×1.67
+        plain1:    Math.round(hourlyRate * R.WORKDAY_1 * 100) / 100,   // 平日 ×1.34
+        plain2:    Math.round(hourlyRate * R.WORKDAY_2 * 100) / 100,   // 平日 ×1.67
+        rest1:     Math.round(hourlyRate * R.REST_1    * 100) / 100,   // 休息日 ×1.34
+        rest2:     Math.round(hourlyRate * R.REST_2    * 100) / 100,   // 休息日 ×1.67
+        rest3:     Math.round(hourlyRate * R.REST_3    * 100) / 100,   // 休息日 ×2.67
+        regular:   Math.round(hourlyRate * R.REGULAR   * 100) / 100,   // 例假日 ×2
+        public1:   Math.round(hourlyRate * R.PUBLIC_1  * 100) / 100,   // 國定 ×1.34
+        public2:   Math.round(hourlyRate * R.PUBLIC_2  * 100) / 100,   // 國定 ×1.67
     };
 
     // 工資計算（依各段倍率 × 時薪）
@@ -2804,7 +3122,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
         rest_ot1:      r(sum.rest_ot1      * otRates.rest1),
         rest_ot2:      r(sum.rest_ot2      * otRates.rest2),
         rest_ot3:      r(sum.rest_ot3      * otRates.rest3),
-        regular_ot:    r(sum.regular_ot    * hourlyRate * 2),  // 例假日逾 8h × 2 倍時薪
+        regular_ot:    r(sum.regular_ot    * hourlyRate * R.REGULAR),  // 例假日逾 8h × 2 倍時薪
         public_ot1:    r(sum.public_ot1    * otRates.public1),
         public_ot2:    r(sum.public_ot2    * otRates.public2),
     };
@@ -2876,7 +3194,7 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const absenceDeductDays = (salaryType === 'monthly')
         ? Math.round(fullDays.reduce((acc, day) => acc + _leaveDeductUnits(day), 0) * 100) / 100
         : 0;
-    const absenceDed = Math.round(monthlySalary / 30 * absenceDeductDays);
+    const absenceDed = Math.round(monthlySalary / LABOR.MONTHLY_DAYS * absenceDeductDays);
 
     // 所得稅：基數為「本薪 + 加班費 − 請假/曠職扣薪」，即應發總額扣掉缺勤倒扣後
     // 再乘扣繳率（勞健保與住宿費不從稅基扣除）。缺勤扣超過應發時夾在 0，
@@ -3163,6 +3481,12 @@ async function handleDetailedPayrollExport(userId, year, month) {
     personalRows.push(['', '實支額', '', netPay]);
 
     // ===== Sheet 2: 規則說明 =====
+    // 倍率/費率一律由 LABOR_CONSTANTS 代入，避免說明文字與實際計算漂移
+    const _pct = (v) => `${Math.round(v * 100000) / 1000}%`;
+    const _ins = LABOR.INSURANCE;
+    const _rates = (typeof EMPLOYEE_CONTRIBUTION_RATES !== 'undefined')
+        ? EMPLOYEE_CONTRIBUTION_RATES
+        : window.EMPLOYEE_CONTRIBUTION_RATES;
     const rulesRows = [
         ['【勞基法工時計算規則】'],
         [],
@@ -3173,24 +3497,25 @@ async function handleDetailedPayrollExport(userId, year, month) {
         ['國定假日', '依台灣勞動部公告（春節、清明、端午、中秋、雙十、元旦等）'],
         [],
         ['平日工時段（淨工時）'],
-        ['0–8h',  '正常工資 ×1.0'],
-        ['8–10h', '加班 OT1 ×1.34'],
-        ['10h+',  '加班 OT2 ×1.67'],
+        [`0–${LABOR.STANDARD_HOURS}h`,  '正常工資 ×1.0'],
+        [`${LABOR.STANDARD_HOURS}–10h`, `加班 OT1 ×${R.WORKDAY_1}`],
+        ['10h+',  `加班 OT2 ×${R.WORKDAY_2}`],
         [],
         ['休息日工時段（全部視為加班）'],
-        ['0–2h',  '×1.34'],
-        ['2–8h',  '×1.67'],
-        ['8h 以上', '×2.67（合法上限 12h，超過列入「突發事件工時」警告但仍計薪）'],
+        ['0–2h',  `×${R.REST_1}`],
+        ['2–8h',  `×${R.REST_2}`],
+        [`${LABOR.OT_TIER.REST_OT2_END_HOURS}h 以上`,
+            `×${R.REST_3}（合法上限 ${LABOR.DAILY_LEGAL_MAX_HOURS}h，超過列入「突發事件工時」警告但仍計薪）`],
         [],
-        ['國定假日工時段（出勤即至少給 8h）'],
-        ['出勤',  '保證 8h 工資'],
-        ['9–10h', '加班 ×1.34'],
-        ['10h+',  '加班 ×1.67'],
+        [`國定假日工時段（出勤即至少給 ${LABOR.STANDARD_HOURS}h）`],
+        ['出勤',  `保證 ${LABOR.STANDARD_HOURS}h 工資`],
+        ['9–10h', `加班 ×${R.PUBLIC_1}`],
+        ['10h+',  `加班 ×${R.PUBLIC_2}`],
         [],
         ['例假日工時段（強制休）'],
-        ['出勤',  '1 日工資 = 8h × 時薪'],
-        ['補休',  '折現 8h × 時薪'],
-        ['超 8h', '×2 倍工資'],
+        ['出勤',  `1 日工資 = ${LABOR.STANDARD_HOURS}h × 時薪`],
+        ['補休',  `折現 ${LABOR.STANDARD_HOURS}h × 時薪`],
+        [`超 ${LABOR.STANDARD_HOURS}h`, `×${R.REGULAR} 倍工資`],
         [],
         ['淨工時計算（前端介面預設使用）'],
         ['公式',  '總工時 = 下班 − 上班 (同日內，分鐘級)'],
@@ -3199,18 +3524,26 @@ async function handleDetailedPayrollExport(userId, year, month) {
         [],
         ['等價工時（僅工資計算用，介面會明確標示 ⚠️）'],
         ['定義',  '等價工時 = 各段淨工時 × 對應倍率'],
-        ['範例',  '平日加班 2h（×1.34）→ 等價 2.68h'],
-        ['',      '休息日 2H + 6H + 4H → 等價 2×1.34 + 6×1.67 + 4×2.67 = 23.36h'],
-        ['',      '例假日 出勤 8h+ 4h → 等價 8（base）+ 8（補休折現）+ 4×2 = 24h'],
+        ['範例',  `平日加班 2h（×${R.WORKDAY_1}）→ 等價 ${Math.round(2 * R.WORKDAY_1 * 100) / 100}h`],
+        ['',      `休息日 2H + 6H + 4H → 等價 2×${R.REST_1} + 6×${R.REST_2} + 4×${R.REST_3}`
+                  + ` = ${Math.round((2 * R.REST_1 + 6 * R.REST_2 + 4 * R.REST_3) * 100) / 100}h`],
+        ['',      `例假日 出勤 ${LABOR.STANDARD_HOURS}h+ 4h → 等價 ${LABOR.STANDARD_HOURS}（base）`
+                  + `+ ${LABOR.STANDARD_HOURS}（補休折現）+ 4×${R.REGULAR}`
+                  + ` = ${LABOR.STANDARD_HOURS * 2 + 4 * R.REGULAR}h`],
         ['用途',  '× 一倍時薪 = 該段加班費；前端 KPI / 月曆 / 週圖表預設不顯示'],
         [],
         ['月薪 → 時薪換算'],
-        ['公式', '勞基法施行細則第 31 條：時薪 = 月薪 ÷ 30 ÷ 8 = 月薪 ÷ 240'],
+        ['公式', `勞基法施行細則第 31 條：時薪 = 月薪 ÷ ${LABOR.MONTHLY_DAYS} ÷ ${LABOR.STANDARD_HOURS}`
+                 + ` = 月薪 ÷ ${LABOR.HOURLY_DIVISOR}`],
         [],
         ['員工自付費率（2026 年起）'],
-        ['勞保（本國）', '投保薪資 × 12.5%（普通 11.5% + 就保 1%）× 員工 20% = 2.5%'],
-        ['勞保（外籍）', '投保薪資 × 11.5%（無就保）× 員工 20% = 2.3%'],
-        ['健保',         '投保薪資 × 5.17% × 員工 30% = 1.551%（不分國籍）'],
+        ['勞保（本國）', `投保薪資 × ${_pct(_ins.LABOR_TOTAL_TAIWANESE)}（普通 ${_pct(_ins.LABOR_TOTAL_FOREIGN)}`
+                        + ` + 就保 ${_pct(_ins.LABOR_TOTAL_TAIWANESE - _ins.LABOR_TOTAL_FOREIGN)}）`
+                        + `× 員工 ${_pct(_ins.LABOR_EMPLOYEE_SHARE)} = ${_pct(_rates.laborInsuranceTaiwanese)}`],
+        ['勞保（外籍）', `投保薪資 × ${_pct(_ins.LABOR_TOTAL_FOREIGN)}（無就保）`
+                        + `× 員工 ${_pct(_ins.LABOR_EMPLOYEE_SHARE)} = ${_pct(_rates.laborInsuranceForeign)}`],
+        ['健保',         `投保薪資 × ${_pct(_ins.HEALTH_TOTAL)} × 員工 ${_pct(_ins.HEALTH_EMPLOYEE_SHARE)}`
+                        + ` = ${_pct(_rates.healthInsurance)}（不分國籍）`],
         ['自提勞退',     '投保薪資 × 員工自選提繳率 0~6%（外籍移工通常無）'],
     ];
 
@@ -3261,10 +3594,17 @@ async function handleDetailedPayrollExport(userId, year, month) {
         });
         setF(`V${sumRow}`, `SUM(K${sumRow}:R${sumRow})`);
 
-        // (2) 第 rateRow 列：加班時薪 = 月薪/240 × 倍率
-        const RATES = { K: 1.34, L: 1.67, M: 1.34, N: 1.67, O: 2.67, P: 2, Q: 1.34, R: 1.67 };
+        // (2) 第 rateRow 列：加班時薪 = 月薪/240 × 倍率（倍率取自 LABOR_CONSTANTS）
+        const RT = LABOR.OT_RATE;
+        const DIV = LABOR.HOURLY_DIVISOR;
+        const RATES = {
+            K: RT.WORKDAY_1, L: RT.WORKDAY_2,
+            M: RT.REST_1, N: RT.REST_2, O: RT.REST_3,
+            P: RT.REGULAR,
+            Q: RT.PUBLIC_1, R: RT.PUBLIC_2,
+        };
         Object.entries(RATES).forEach(([col, rate]) => {
-            setF(`${col}${rateRow}`, `${SAL}/240*${rate}`);
+            setF(`${col}${rateRow}`, `${SAL}/${DIV}*${rate}`);
         });
 
         // (3) 第 payRow 列：各段加班費 = 時數 × 時薪 + V 欄合計
@@ -3294,11 +3634,11 @@ async function handleDetailedPayrollExport(userId, year, month) {
         setF(`C${applyBaseRow}`, `${SAL}`);
         if (regularDays > 0) {
             // 例假日 N 天 = 月薪/240 × 8h × 2（base + comp）× 天數
-            setF(`C${applyOt2Row}`, `${SAL}/240*8*2*${regularDays}`);
+            setF(`C${applyOt2Row}`, `${SAL}/${DIV}*${LABOR.STANDARD_HOURS}*${RT.REGULAR}*${regularDays}`);
         }
         if (publicDays > 0) {
             // 國定假日 N 天 = 月薪/240 × 8h × 天數
-            setF(`C${applyRest1Row}`, `${SAL}/240*8*${publicDays}`);
+            setF(`C${applyRest1Row}`, `${SAL}/${DIV}*${LABOR.STANDARD_HOURS}*${publicDays}`);
         }
 
         // 右側「時數」G 欄：直接引用 sumRow 對應段（時數區已右移 2 欄 → K~R）
@@ -3340,9 +3680,18 @@ async function handleDetailedPayrollExport(userId, year, month) {
         // ⚠️ 全部用 ROUND(...,0) 包起來：政府規定保費四捨五入到「元」（整數），
         //    沒 ROUND 會在 29,500 級顯示 678.5 等小數，與官方分擔金額表不符。
         let curRow = deductTitleRow + 1;
-        const laborRateExcel = empNationality === 'foreign' ? 0.023 : 0.025;
+        // 員工自付率取自 labor-hours.js（0.023 / 0.025 字面值，見該檔註解說明
+        // 為何不寫成 0.115 × 0.20 —— 浮點乘積差一個 ulp，Math.round 會差 1 元）
+        const _RATES = (typeof EMPLOYEE_CONTRIBUTION_RATES !== 'undefined')
+            ? EMPLOYEE_CONTRIBUTION_RATES
+            : window.EMPLOYEE_CONTRIBUTION_RATES;
+        const laborRateExcel = empNationality === 'foreign'
+            ? _RATES.laborInsuranceForeign
+            : _RATES.laborInsuranceTaiwanese;
         setF(`D${curRow}`, `-ROUND(${insuredSalary}*${laborRateExcel},0)`); curRow++;
-        setF(`D${curRow}`, `-ROUND(${insuredSalary}*0.0517*0.3,0)`); curRow++;
+        setF(`D${curRow}`,
+            `-ROUND(${insuredSalary}*${LABOR.INSURANCE.HEALTH_TOTAL}*${LABOR.INSURANCE.HEALTH_EMPLOYEE_SHARE},0)`);
+        curRow++;
         if (pensionRate > 0) {
             setF(`D${curRow}`, `-ROUND(${insuredSalary}*${pensionRate}/100,0)`); curRow++;
         }
@@ -3484,13 +3833,13 @@ function setupTestNotificationButton() {
             const res = await callApifetch({ action: 'testNotification' }, 'loadingMsg');
             if (res && res.ok) {
                 const adminCount = res.adminCount != null ? res.adminCount : '';
+                // U-M8：res.msg 是後端訊息（可能是英文），一律用本地文案
                 showNotification(
-                    `${res.msg || t('TEST_NOTIFICATION_SUCCESS')}${t('TEST_NOTIFICATION_ADMIN_COUNT', { count: adminCount })}`,
+                    `${t('TEST_NOTIFICATION_SUCCESS')}${t('TEST_NOTIFICATION_ADMIN_COUNT', { count: adminCount })}`,
                     'success'
                 );
             } else {
-                const code = (res && res.code) || 'UNKNOWN_ERROR';
-                showNotification(t(code) || (res && res.msg) || t('TEST_NOTIFICATION_FAILED'), 'error');
+                showNotification(_errText(res, 'TEST_NOTIFICATION_FAILED'), 'error');
             }
         } catch (err) {
             console.error('testNotification 失敗', err);
@@ -3941,7 +4290,11 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
         if (day.reason !== 'STATUS_LEAVE_APPROVED' && day.reason !== 'STATUS_VACATION_APPROVED') return;
         const leaveRec = (day.record || []).find((r) => r.adjustmentType === '系統請假記錄');
         if (!leaveRec) return;
-        const category = leaveRec.location || (t('VALUE_NA') || '其他');
+        // U-M4：leaveRec.location 可能是舊的各語言文字（'Nghỉ ốm'/'Izin Sakit'）
+        // 或新的固定代碼（'sick'）。先正規化成代碼再累加，否則同一種病假會被
+        // 拆成好幾類；認不出的自由文字保留原樣當一類。
+        const raw = leaveRec.location || '';
+        const category = raw ? leaveKindStatKey(raw) : _tt('LEAVE_OTHER', '其他');
         if (leaveRec.type === '休假') {
             vacationStats[category] = (vacationStats[category] || 0) + 1;
         } else {
@@ -3995,9 +4348,14 @@ async function renderEmployeeStreakAndLeaveStats(userId, date) {
         if (entries.length === 0) return '';
         const total = entries.reduce((s, [, n]) => s + n, 0);
         const itemsHtml = entries.map(([cat, days]) => {
+            // U-M4：假別分組 key 是代碼時，掛上對應的 i18n key，切語言會自動更新；
+            // 認不出的舊自由文字則原樣顯示（不硬翻）。
+            const kindI18nKey = LEAVE_KIND_I18N[cat] || null;
             const label = useI18nKeyAsLabel
                 ? `<span data-i18n="${escapeHtml(cat)}" style="color:#4b5563;">${escapeHtml(t(cat))}</span>`
-                : `<span style="color:#4b5563;">${escapeHtml(cat)}</span>`;
+                : (kindI18nKey
+                    ? `<span data-i18n="${escapeHtml(kindI18nKey)}" style="color:#4b5563;">${escapeHtml(_tt(kindI18nKey, cat))}</span>`
+                    : `<span style="color:#4b5563;">${escapeHtml(cat)}</span>`);
             return `
             <li style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(156,163,175,0.18);font-size:0.875rem;">
                 ${label}
@@ -4109,7 +4467,21 @@ async function renderEmployeeRequestHistory(userId, audit = '?') {
     }
     const items = res.reviewRequest || [];
     if (items.length === 0) {
-        body.innerHTML = `<p class="dashboard-placeholder">${t('VALUE_NA') || '無資料'}</p>`;
+        // U-L12：舊版顯示 VALUE_NA（「N/A」/「尚未提供」），使用者看不出是「沒有資料」
+        // 還是「載入失敗」。依目前 tab 給明確的空狀態文案。
+        const EMPTY_KEY = {
+            '?': 'REQUEST_EMPTY_PENDING',
+            'v': 'REQUEST_EMPTY_APPROVED',
+            'x': 'REQUEST_EMPTY_REJECTED',
+        };
+        const EMPTY_FALLBACK = {
+            '?': '目前沒有待審核的申請',
+            'v': '目前沒有已批准的申請',
+            'x': '目前沒有已退回的申請',
+        };
+        const key = EMPTY_KEY[audit] || 'REQUEST_EMPTY_PENDING';
+        body.textContent = _tt(key, EMPTY_FALLBACK[audit] || '目前沒有申請紀錄');
+        body.setAttribute('data-i18n', key);
         return;
     }
 
@@ -4129,8 +4501,9 @@ async function renderEmployeeRequestHistory(userId, audit = '?') {
             : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200';
         const statusBadge = STATUS_BADGE[req.audit] || STATUS_BADGE['?'];
         const showActions = req.audit === '?';
+        // U-M4：假別代碼翻成當前語言；舊的各語言文字原樣顯示
         const remarkLine = (isLeave && req.remark)
-            ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${escapeHtml(req.remark)}</p>`
+            ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${escapeHtml(leaveKindLabel(req.remark))}</p>`
             : '';
         return `
         <li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -4183,16 +4556,32 @@ async function handleEmployeeRequestAction(button, userId, currentAudit) {
         return;
     }
 
-    const actionText = t(action === 'approve' ? 'ACTION_APPROVE' : 'ACTION_REJECT');
-    const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
-    const confirmed = await showConfirmDialog(confirmMsg);
-    if (!confirmed) return;
+    // U-M1：退回一律問原因（員工會在「我的申請」看到），與表單審核路徑
+    // handleReviewAction 用同一套自製對話框；核准維持一般二次確認。
+    let rejectReason = '';
+    if (action === 'reject') {
+        const input = await showReasonDialog({
+            titleKey: 'ENTER_REJECTION_REASON',
+            titleFallback: '請輸入退回原因（員工會看到，可留空）',
+        });
+        if (input === null) return;
+        rejectReason = input;
+    } else {
+        const actionText = t('ACTION_APPROVE');
+        const confirmMsg = t('CONFIRM_REVIEW_ACTION', { action: actionText });
+        const confirmed = await showConfirmDialog(confirmMsg);
+        if (!confirmed) return;
+    }
 
     const loadingText = t('LOADING') || '處理中...';
     generalButtonState(button, 'processing', loadingText);
     try {
         const endpoint = action === 'approve' ? 'approveReview' : 'rejectReview';
-        const res = await callApifetch({ action: endpoint, id });
+        const res = await callApifetch({
+            action: endpoint,
+            id,
+            reason: action === 'reject' ? rejectReason : undefined,
+        });
         if (res && res.ok) {
             const key = action === 'approve' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
             showNotification(t(key) || (action === 'approve' ? '已批准' : '已拒絕'), 'success');
@@ -4201,10 +4590,10 @@ async function handleEmployeeRequestAction(button, userId, currentAudit) {
             _invalidateAdminCaches(userId);
             await renderEmployeeRequestHistory(userId, currentAudit);
         } else {
-            showNotification(t('REVIEW_FAILED', { msg: (res && res.msg) || '' }) || '審核失敗', 'error');
+            showNotification(_errText(res, 'REVIEW_FAILED_GENERIC'), 'error');
         }
     } catch (err) {
-        showNotification(t('REVIEW_NETWORK_ERROR') || '網路錯誤', 'error');
+        showNotification(_errText(err, 'REVIEW_NETWORK_ERROR'), 'error');
         console.error(err);
     } finally {
         generalButtonState(button, 'idle');
@@ -4353,7 +4742,7 @@ async function renderEmployeeKpi(userId, date) {
         : (emp?.monthlySalary
             ? (typeof window.monthlyToHourly === 'function'
                 ? window.monthlyToHourly(emp.monthlySalary)
-                : Math.round(emp.monthlySalary / 240))
+                : Math.round(emp.monthlySalary / LABOR.HOURLY_DIVISOR))
             : 0);
     if (!emp || hourly <= 0 || !sum) {
         estimationEl.style.display = 'none';
@@ -4608,9 +4997,8 @@ function setupBreakTimesEditor() {
                 invalidateEnrichedMonthCache();
                 loadBreakTimes(true).catch(() => { /* 已記錄 */ });
             } else {
-                const code = (res && res.code) || 'UNKNOWN_ERROR';
-                const msg = t(code) || (res && res.msg) || '';
-                showNotification(t('MSG_BREAK_TIMES_SAVE_FAILED', { msg }), 'error');
+                // U-M8：只用翻譯過的訊息，不接後端 msg
+                showNotification(_errText(res, 'MSG_BREAK_TIMES_SAVE_FAILED_GENERIC'), 'error');
             }
         } catch (err) {
             console.error('setBreakTimes 失敗', err);

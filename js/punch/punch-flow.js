@@ -27,6 +27,25 @@ const PUNCH_COOLDOWN_MS = 60 * 1000;        // 60 秒冷卻（兩次打卡間隔
 const _lastPunchTimes = {};                  // { '上班': 1733000000, '下班': ... }
 const _punchInProgress = {};                 // { '上班': true/false, '下班': ... }
 
+// 後端回這兩個碼代表「人不在打卡範圍內」
+const OUT_OF_RANGE_CODES = ['ERR_OUT_OF_RANGE', 'ERR_OUT_OF_RANGE_WITH_DISTANCE'];
+
+/**
+ * U-H2：超出範圍的訊息補一句可執行建議。
+ * 原本只說「不在允許的打卡地點範圍內」，員工不知道要往哪走、還差多遠。
+ * @param {string} msg 已翻譯的原始訊息
+ * @param {{ok?: boolean, code?: string, params?: {location?: string}}} res 後端回應
+ * @returns {string}
+ */
+function withOutOfRangeTip(msg, res) {
+    if (!res || res.ok || !OUT_OF_RANGE_CODES.includes(res.code)) return msg;
+    const location = res.params && res.params.location;
+    const tip = location
+        ? tOr('MSG_OUT_OF_RANGE_TIP', '請走近「{location}」再按一次打卡。', { location })
+        : tOr('MSG_OUT_OF_RANGE_TIP_NO_LOCATION', '請確認您已到打卡地點附近再試一次。');
+    return `${msg} ${tip}`;
+}
+
 async function doPunch(type) {
     const punchButtonId = type === '上班' ? 'punch-in-btn' : 'punch-out-btn';
 
@@ -85,12 +104,19 @@ async function doPunch(type) {
                 type: type,
                 lat: lat,
                 lng: lng,
-                note: `精確度: ${Math.round(accuracy)}m | ${navigator.userAgent}`
+                // F-L5：原本把整串 navigator.userAgent 存進打卡備註（人資紀錄，管理員畫面
+                // 會整串顯示）。改成極簡裝置標記，排查夠用又不留瀏覽器指紋。
+                note: `精確度: ${Math.round(accuracy)}m | ${typeof deviceTag === 'function' ? deviceTag() : ''}`
             });
             const apiEnd = performance.now();
             const apiTime = apiEnd - apiStart;
 
-            const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
+            // U-H2：「超出範圍」只講失敗、沒講下一步。補一句可執行建議
+            // （後端 ERR_OUT_OF_RANGE_WITH_DISTANCE 會帶 params.location）。
+            const msg = withOutOfRangeTip(
+                t(res.code || "UNKNOWN_ERROR", res.params || {}),
+                res
+            );
             showNotification(msg, res.ok ? "success" : "error");
             generalButtonState(button, 'idle');
 
@@ -109,20 +135,20 @@ async function doPunch(type) {
 
                 const totalTime = apiEnd - punchStartTime;
                 // 🚀 P5-1 性能統計輸出
-                console.log(`✅ 打卡成功！`);
-                console.log(`   總耗時: ${totalTime.toFixed(0)}ms`);
-                console.log(`   ├─ GPS獲取: ${geoTime.toFixed(0)}ms`);
-                console.log(`   ├─ API提交: ${apiTime.toFixed(0)}ms`);
-                console.log(`   └─ 其他: ${(totalTime - geoTime - apiTime).toFixed(0)}ms`);
+                debugLog(`✅ 打卡成功！`);
+                debugLog(`   總耗時: ${totalTime.toFixed(0)}ms`);
+                debugLog(`   ├─ GPS獲取: ${geoTime.toFixed(0)}ms`);
+                debugLog(`   ├─ API提交: ${apiTime.toFixed(0)}ms`);
+                debugLog(`   └─ 其他: ${(totalTime - geoTime - apiTime).toFixed(0)}ms`);
 
                 // 🚀 P5-3 優化：顯示後端詳細計時
                 if (res.backend_timings) {
-                    console.log(`\n🔍 後端耗時分析:`);
-                    console.log(`   ├─ checkSession: ${res.backend_timings.session}ms`);
-                    console.log(`   ├─ validateCoordinates: ${res.backend_timings.validate}ms`);
-                    console.log(`   ├─ getLocationsCached: ${res.backend_timings.locations}ms`);
-                    console.log(`   ├─ 距離計算: ${res.backend_timings.distance}ms`);
-                    console.log(`   └─ appendRow: ${res.backend_timings.append}ms`);
+                    debugLog(`\n🔍 後端耗時分析:`);
+                    debugLog(`   ├─ checkSession: ${res.backend_timings.session}ms`);
+                    debugLog(`   ├─ validateCoordinates: ${res.backend_timings.validate}ms`);
+                    debugLog(`   ├─ getLocationsCached: ${res.backend_timings.locations}ms`);
+                    debugLog(`   ├─ 距離計算: ${res.backend_timings.distance}ms`);
+                    debugLog(`   └─ appendRow: ${res.backend_timings.append}ms`);
                 }
             }
         } catch (err) {
@@ -217,7 +243,8 @@ async function submitPunchWithoutLocation(button) {
         const res = await callApifetch({
             action: 'punchWithoutLocation',
             type: punchType,
-            note: '管理員手動授權 - 無GPS定位 | ' + navigator.userAgent
+            // F-L5：同上，不再把整串 userAgent 寫進人資紀錄
+            note: '管理員手動授權 - 無GPS定位 | ' + (typeof deviceTag === 'function' ? deviceTag() : '')
         });
 
         const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
@@ -235,7 +262,6 @@ async function submitPunchWithoutLocation(button) {
 }
 // #endregion
 
-console.log('✓ punch-flow 模組已加載');
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {
@@ -243,5 +269,6 @@ if (typeof module !== 'undefined' && module.exports) {
         doPunch,
         handleLocationPermissionDenied,
         submitPunchWithoutLocation,
+        withOutOfRangeTip,
     };
 }

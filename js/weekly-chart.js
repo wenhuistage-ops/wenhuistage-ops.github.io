@@ -303,7 +303,6 @@ function renderWeeklyChart(container, records, selectedDateKey, mode = 'total') 
     });
 }
 
-console.log('✓ weekly-chart 模組已加載');
 
 // 顯式暴露到 window 全域（Vite dev mode 下 const 不會自動掛 global）
 if (typeof window !== 'undefined') {

@@ -1,9 +1,9 @@
 /**
  * 台灣國定假日 client
  *
- * 對應原 GS 的「假日表」+ fetchTaiwanHolidaysWithWeek()，
- * 從 https://api.pin-yi.me/taiwan-calendar/{year}/ 抓資料
- * 並 cache 在 localStorage（一年內不再 refetch）。
+ * 對應原 GS 的「假日表」+ fetchTaiwanHolidaysWithWeek()。
+ * 2026-09 起優先向後端 getHolidays 取得（後端統一抓 api.pin-yi.me 並快取在
+ * Firestore），後端不可用時才直接打第三方；兩者都會 cache 在 localStorage。
  *
  * 對外：
  *   await ensureHolidaysLoaded(year)   // 確保該年資料已就緒
@@ -44,7 +44,27 @@ function _buildIndex(records) {
     return idx;
 }
 
+/**
+ * 取得某年的假日資料（F-M6）
+ *
+ * 優先走後端 getHolidays：全公司共用一份 Firestore 快取，第三方掛掉時後端會回上次
+ * 的資料，不會突然變成「全年沒有假日」而讓加班倍率整批算錯。
+ *
+ * 後端不可用時（尚未部署、未登入、離線）才退回直接打第三方，維持既有行為。
+ */
 async function _fetchYear(year) {
+    if (typeof callApifetch === 'function') {
+        try {
+            const res = await callApifetch({ action: 'getHolidays', year: Number(year) });
+            if (res && res.ok && Array.isArray(res.records) && res.records.length) {
+                if (res.stale) console.warn(`[holidays] ${year} 來源暫時失聯，使用後端上次快取`);
+                return res.records;
+            }
+            console.warn(`[holidays] 後端 getHolidays 無法使用（${res && res.code}），改直接向來源取得`);
+        } catch (err) {
+            console.warn('[holidays] 後端 getHolidays 呼叫失敗，改直接向來源取得：', err && err.message);
+        }
+    }
     const url = HOLIDAY_API(year);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -185,7 +205,6 @@ if (typeof window !== 'undefined') {
     window.getDayKind = getDayKind;
 }
 
-console.log('✓ holidays-client 模組已加載');
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { ensureHolidaysLoaded, isHoliday, getHolidayName, getDayKind };

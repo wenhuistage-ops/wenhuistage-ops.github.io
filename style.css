@@ -227,29 +227,35 @@ html.dark .btn-secondary:hover {
     color: #1f2937;
 }
 
+/* U-L2：原為 #ef4444 on #fecaca = 2.60:1，遠低於 WCAG AA 的 4.5:1。
+   改 red-800 後為 5.74:1，底色不變（沿用既有視覺語彙）。 */
 .day-cell.abnormal-day {
     background-color: #fecaca;
-    color: #ef4444;
+    color: #991b1b;
 }
 
+/* U-L2：原為 #d97706 on #fde68a = 2.56:1 → amber-800 後 5.69:1。 */
 .day-cell.pending-adjustment {
     background-color: #fde68a;
-    color: #d97706;
+    color: #92400e;
 }
 
+/* U-L2：3.95:1 → 6.41:1 */
 .day-cell.pending-virtual {
     background-color: #e9d5ff;
-    color: #9333ea;
+    color: #6b21a8;
 }
 
+/* U-L2：3.64:1 → 6.14:1 */
 .day-cell.approved-virtual {
     background-color: #bfdbfe;
-    color: #2563eb;
+    color: #1e40af;
 }
 
+/* U-L2：3.71:1 → 5.40:1 */
 .day-cell.leave-pending {
     background-color: #fed7aa;
-    color: #b45309;
+    color: #9a3412;
 }
 
 .day-cell.leave-approved {
@@ -267,9 +273,10 @@ html.dark .btn-secondary:hover {
     color: #4c1d95;
 }
 
+/* U-L2：3.32:1 → 6.73:1 */
 .day-cell.day-off {
     background-color: #ccfbf1;
-    color: #0d9488;
+    color: #115e59;
 }
 
 .day-cell.today {
@@ -472,4 +479,168 @@ html.dark .leaflet-control-attribution {
 
 html.dark .makeup-modal-panel {
     background-color: #1f2937;
+}
+
+/* =========================================================================
+ * 2026-09-09 稽核修正：觸控面積、深色模式漏網、確認框按鈕語意
+ * ========================================================================= */
+
+/* --- U-L1：觸控面積至少 44×44（WCAG 2.5.5 / Apple HIG）--- */
+/* 月份導覽 ◄ ↻ ►：原本只有 p-2 包一個字，實測約 32×32。 */
+#prev-month,
+#next-month,
+#refresh-month,
+#my-requests-refresh {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 我的申請篩選 chip：原本 py-1 約 28px 高。 */
+.my-req-filter-btn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* header 的語言 / 主題 / 登出 / 提醒開關（U-L13 重排後仍要維持可點面積）。 */
+.header-control {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* 主題切換是純圖示按鈕，需要自己撐出 44×44 的正方形可點區 */
+#theme-toggle.header-control {
+    min-width: 44px;
+    justify-content: center;
+}
+
+.header-control input[type="checkbox"] {
+    /* checkbox 本身只有 16px，靠 label 的 44px 高度撐開可點區域 */
+    flex-shrink: 0;
+}
+
+/* --- U-L2：分頁按鈕的深色模式 ---
+ * 這幾顆 tab 的選取狀態是由 JS 以
+ *   classList.replace('bg-gray-200', 'bg-indigo-600')
+ *   classList.replace('text-gray-600', 'text-white')
+ * 切換的（js/ui.js:1029-1041、js/admin.js:2457-2472、2522-2527）。
+ * 若直接在 HTML 加 dark:bg-gray-700 / dark:text-gray-300，選取後那兩個 dark 類別
+ * 仍留在元素上，深色模式下會蓋掉 bg-indigo-600 / text-white，選取態就看不出來。
+ * 因此改用「同時具備兩個未選取類別」的複合選擇器，只在未選取時生效。 */
+html.dark .bg-gray-200.text-gray-600 {
+    background-color: #374151;
+    /* gray-700 */
+    color: #d1d5db;
+    /* gray-300 */
+}
+
+html.dark .bg-gray-200.text-gray-600:hover {
+    background-color: #4b5563;
+    /* gray-600 */
+}
+
+/* --- U-L8：確認框「確認」鍵不再永遠是紅色 ---
+ * 預設中性藍（補打卡、核准、送出這類非破壞性操作）；
+ * 只有破壞性操作（刪除紀錄、標記離職…）才由 core.js 設 data-variant="danger" 轉紅。
+ * 紅色專屬於「真的會刪東西」，警示才不會被稀釋。 */
+.confirm-ok-btn {
+    background-color: #4f46e5;
+    /* indigo-600 */
+    color: #ffffff;
+    transition: background-color .15s;
+}
+
+.confirm-ok-btn:hover {
+    background-color: #4338ca;
+}
+
+.confirm-ok-btn[data-variant="danger"] {
+    background-color: #dc2626;
+    /* red-600 */
+}
+
+.confirm-ok-btn[data-variant="danger"]:hover {
+    background-color: #b91c1c;
+}
+
+.confirm-ok-btn[data-variant="warning"] {
+    background-color: #ea580c;
+    /* orange-600 */
+}
+
+.confirm-ok-btn[data-variant="warning"]:hover {
+    background-color: #c2410c;
+}
+
+html.dark .confirm-ok-btn {
+    background-color: #4338ca;
+}
+
+html.dark .confirm-ok-btn:hover {
+    background-color: #4f46e5;
+}
+
+/* 注意順序與權重：html.dark .confirm-ok-btn 的權重(0,2,1)高於
+   .confirm-ok-btn[data-variant="danger"](0,2,0)，少了下面這兩條的話
+   深色模式的破壞性操作會被畫成中性藍。 */
+html.dark .confirm-ok-btn[data-variant="danger"] {
+    background-color: #dc2626;
+}
+
+html.dark .confirm-ok-btn[data-variant="danger"]:hover {
+    background-color: #ef4444;
+}
+
+html.dark .confirm-ok-btn[data-variant="warning"] {
+    background-color: #ea580c;
+}
+
+html.dark .confirm-ok-btn[data-variant="warning"]:hover {
+    background-color: #f97316;
+}
+
+/* --- U-L9：PWA 安裝橫幅改為主題感知（配色 token，pwa.js 只讀不硬編）--- */
+.pwa-banner {
+    background: #ffffff;
+    color: #1f2937;
+    border: 1px solid #e5e7eb;
+}
+
+.pwa-banner .pwa-banner-close {
+    color: #6b7280;
+}
+
+.pwa-banner .pwa-banner-action {
+    background: #4f46e5;
+    color: #ffffff;
+}
+
+.pwa-banner .pwa-banner-later {
+    background: transparent;
+    color: #4b5563;
+    border: 1px solid #d1d5db;
+}
+
+html.dark .pwa-banner {
+    background: #1f2937;
+    color: #f3f4f6;
+    border-color: #374151;
+}
+
+html.dark .pwa-banner .pwa-banner-close {
+    color: #9ca3af;
+}
+
+html.dark .pwa-banner .pwa-banner-action {
+    background: #6366f1;
+}
+
+html.dark .pwa-banner .pwa-banner-later {
+    color: #d1d5db;
+    border-color: #4b5563;
 }

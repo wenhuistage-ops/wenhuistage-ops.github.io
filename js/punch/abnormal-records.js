@@ -13,6 +13,25 @@
 // #region 異常紀錄檢查
 // ===================================
 
+// U-M6：這些狀態代表「申請已經送出、等主管審核」，不是員工還要再處理的異常。
+// 用紅字列出會讓員工以為沒送成功而重複申請。
+const PENDING_REASON_CODES = [
+    'STATUS_REPAIR_PENDING',
+    'STATUS_LEAVE_PENDING',
+    'STATUS_VACATION_PENDING',
+];
+
+/**
+ * 這筆異常紀錄是不是「審核中」（決定用琥珀色＋審核中標籤，而非紅字）。
+ * @param {{status?: string, reason?: string}} record
+ * @returns {boolean}
+ */
+function isPendingAbnormalRecord(record) {
+    if (!record) return false;
+    if (record.status === 'pending' || record.status === 'reviewing') return true;
+    return PENDING_REASON_CODES.includes(record.reason);
+}
+
 /**
  * 純前端異常偵測（對齊後端 _attendance.js detectAbnormal 邏輯）
  *
@@ -64,7 +83,7 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
     const abnormalCache = !forceRefresh ? cacheManager.get('abnormal', 'records') : null;
 
     if (abnormalCache) {
-        console.log(`使用快取的異常記錄`);
+        debugLog(`使用快取的異常記錄`);
         renderAbnormalRecords(abnormalCache);
         return;
     }
@@ -73,7 +92,7 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
     const currentMonth = currentDate.getFullYear() + "-" + String(currentDate.getMonth() + 1).padStart(2, "0");
     const sessionUserId = localStorage.getItem("sessionUserId");
 
-    console.log("檢查異常記錄 - 當前月份:", currentMonth, "檢查月份數:", monthsToCheck, "用戶ID:", sessionUserId);
+    debugLog("檢查異常記錄 - 當前月份:", currentMonth, "檢查月份數:", monthsToCheck, "用戶ID:", sessionUserId);
 
     // 2026-04-27 合併：原本呼叫 getAbnormalRecords 後端，但後端內部就是
     // getMonthlyAttendance + summarizeByDay + detectAbnormal，與 getCalendarSummary
@@ -105,13 +124,13 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
             displayDate: record.date,
         }));
         allAbnormalRecords = allAbnormalRecords.concat(recordsWithMonth);
-        console.log(`月份 ${month} 找到 ${abnormal.length} 條異常記錄`);
+        debugLog(`月份 ${month} 找到 ${abnormal.length} 條異常記錄`);
     }
 
     // 按日期排序（最新的在前面）
     allAbnormalRecords.sort((a, b) => new Date(b.displayDate) - new Date(a.displayDate));
 
-    console.log("總共找到 " + allAbnormalRecords.length + " 條異常記錄");
+    debugLog("總共找到 " + allAbnormalRecords.length + " 條異常記錄");
 
     // 隱藏載入動畫
     const recordsLoading = recordsLoadingEl;
@@ -119,7 +138,7 @@ async function checkAbnormal(monthsToCheck = 1, forceRefresh = false) {
 
     // 🌟 P1-3 改進：使用統一的 CacheManager 保存快取（自動 5 分鐘 TTL）
     cacheManager.set('abnormal', 'records', allAbnormalRecords);
-    console.log("異常記錄已快取");
+    debugLog("異常記錄已快取");
 
     // 查詢待審核申請，並將狀態合併到異常記錄中
     await enrichAbnormalRecordsWithApplicationStatus(allAbnormalRecords);
@@ -163,7 +182,7 @@ async function enrichAbnormalRecordsWithApplicationStatus(records) {
                 if (applicationsByDate[displayDate] && applicationsByDate[displayDate].length > 0) {
                     record.status = 'pending'; // 有待審核申請
                     record.applications = applicationsByDate[displayDate];
-                    console.log(`異常記錄 ${displayDate} 有 ${record.applications.length} 個待審核申請`);
+                    debugLog(`異常記錄 ${displayDate} 有 ${record.applications.length} 個待審核申請`);
                 }
             });
         }
@@ -191,7 +210,7 @@ function renderAbnormalRecords(records) {
         const fragment = document.createDocumentFragment();
 
         records.forEach(record => {
-            console.log("Abnormal Record:", record.displayDate, record.reason, "Status:", record.status);
+            debugLog("Abnormal Record:", record.displayDate, record.reason, "Status:", record.status);
 
             // 判斷異常類型
             const displayReason = record.reason; // 直接使用 reason 作為顯示鍵
@@ -201,6 +220,10 @@ function renderAbnormalRecords(records) {
 
             // 檢查是否有待審核申請（status: 'pending' 或 'reviewing'）
             const hasPendingApplication = record.status === 'pending' || record.status === 'reviewing';
+
+            // U-M6：已送出申請的日子仍以紅字列出，員工以為沒送成功會再送一次。
+            // 「有待審核申請」與「當日狀態本身就是 XXX(審核中)」都算審核中。
+            const isPendingRecord = isPendingAbnormalRecord(record);
 
             // 檢查是否有請假/休假申請（待審核或已批准）
             const hasLeaveOrVacationRequest = [
@@ -249,20 +272,27 @@ function renderAbnormalRecords(records) {
                     </button>`;
             }
 
-            // 如果有待審核申請，顯示狀態標籤
+            // U-M6：審核中的日子顯示狀態標籤（灰/黃系），文案走 i18n（原本硬編中文「審核中」）。
+            // 圖示改用 emoji：Font Awesome 全站未載入（U-H7），.fas 會是一塊空白。
             let statusBadge = '';
-            if (hasPendingApplication) {
+            if (isPendingRecord) {
                 statusBadge = `
-                    <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs rounded-full font-medium">
-                        <i class="fas fa-hourglass-half mr-1"></i>審核中
+                    <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs rounded-full font-medium"
+                          data-i18n="STATUS_PENDING">
+                        <span aria-hidden="true">⏳</span> ${(typeof t === 'function' ? t('STATUS_PENDING') : '') || '審核中'}
                     </span>`;
             }
+
+            // U-M6：審核中不再用紅字（紅＝出事了＝再送一次），改用琥珀色＝進行中
+            const reasonClass = isPendingRecord
+                ? 'text-amber-600 dark:text-amber-400'
+                : 'text-red-600 dark:text-red-400';
 
             // ✅ XSS防護：使用 DOMPurify 淨化 HTML
             const safeHtml = `
                 <div>
                     <p class="font-medium text-gray-800 dark:text-white">${record.displayDate}</p>
-                    <p class="text-sm text-red-600 dark:text-red-400"
+                    <p class="text-sm ${reasonClass}"
                        data-i18n-dynamic="true"
                        data-i18n-key="${displayReason}">
                    </p>
@@ -289,7 +319,6 @@ function renderAbnormalRecords(records) {
 }
 // #endregion
 
-console.log('✓ abnormal-records 模組已加載');
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {
@@ -297,5 +326,7 @@ if (typeof module !== 'undefined' && module.exports) {
         checkAbnormal,
         enrichAbnormalRecordsWithApplicationStatus,
         renderAbnormalRecords,
+        isPendingAbnormalRecord,
+        PENDING_REASON_CODES,
     };
 }

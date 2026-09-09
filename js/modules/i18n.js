@@ -18,12 +18,12 @@ const preloadedTranslations = {}; // {lang: {key: value}}
 async function preloadTranslations(langs = ['en-US', 'ja']) {
   for (const lang of langs) {
     if (preloadedTranslations[lang]) {
-      console.log(`⏭️ 語言 ${lang} 已預加載，跳過`);
+      debugLog(`⏭️ 語言 ${lang} 已預加載，跳過`);
       continue;
     }
 
     try {
-      console.log(`⏳ 正在預加載語言 ${lang}...`);
+      debugLog(`⏳ 正在預加載語言 ${lang}...`);
       const res = await fetch(`./i18n/${lang}.json`);
       if (!res.ok) {
         throw new Error(`HTTP 錯誤: ${res.status}`);
@@ -31,7 +31,7 @@ async function preloadTranslations(langs = ['en-US', 'ja']) {
 
       const translationData = await res.json();
       preloadedTranslations[lang] = translationData;
-      console.log(`✅ 語言 ${lang} 已預加載（${Object.keys(translationData).length} 個鍵值）`);
+      debugLog(`✅ 語言 ${lang} 已預加載（${Object.keys(translationData).length} 個鍵值）`);
     } catch (err) {
       console.warn(`⚠️ 預加載語言 ${lang} 失敗:`, err.message);
     }
@@ -49,11 +49,11 @@ async function loadTranslations(lang) {
 
     // 📊 優先檢查預加載快取
     if (preloadedTranslations[lang]) {
-      console.log(`⚡ 使用預加載的快取語言 ${lang}`);
+      debugLog(`⚡ 使用預加載的快取語言 ${lang}`);
       translationData = preloadedTranslations[lang];
     } else {
       // 從網路 fetch
-      console.log(`🌐 從網路加載語言 ${lang}...`);
+      debugLog(`🌐 從網路加載語言 ${lang}...`);
       const res = await fetch(`./i18n/${lang}.json`);
       if (!res.ok) {
         throw new Error(`HTTP 錯誤: ${res.status}`);
@@ -70,13 +70,17 @@ async function loadTranslations(lang) {
     currentLang = lang;
     localStorage.setItem("lang", lang);
 
+    // U-M10：同步 <html lang>。讀屏（VoiceOver / TalkBack）依這個屬性挑發音引擎，
+    // 不更新的話越南文/日文內容會被中文引擎唸出來。
+    applyDocumentLang(lang);
+
     // 檢查翻譯完整性
     checkTranslationCompleteness(lang);
 
     // 更新頁面翻譯
     renderTranslations();
 
-    console.log(`✅ 語言 ${lang} 已加載`);
+    debugLog(`✅ 語言 ${lang} 已加載`);
   } catch (err) {
     console.error("載入語系失敗:", err);
   }
@@ -107,12 +111,12 @@ function checkTranslationCompleteness(lang) {
     console.warn(`⚠️ 語言 ${lang} 缺少以下翻譯鍵值:`, missingKeys);
     console.warn(`建議檢查 i18n/${lang}.json 文件`);
   } else {
-    console.log(`✅ 語言 ${lang} 的核心翻譯鍵值完整`);
+    debugLog(`✅ 語言 ${lang} 的核心翻譯鍵值完整`);
   }
 
   // 記錄翻譯統計資訊
   const totalKeys = Object.keys(translations).length;
-  console.log(`語言 ${lang} 共有 ${totalKeys} 個翻譯鍵值`);
+  debugLog(`語言 ${lang} 共有 ${totalKeys} 個翻譯鍵值`);
 }
 
 /**
@@ -153,9 +157,51 @@ function t(code, params = {}) {
   return text;
 }
 
+/**
+ * 同步 <html lang="…">（U-M10）
+ * BCP-47 用連字號，i18n 檔名剛好同格式（zh-TW / en-US / vi / id / ja）
+ * @param {string} lang
+ */
+function applyDocumentLang(lang) {
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  if (!lang || typeof lang !== 'string') return;
+  document.documentElement.setAttribute('lang', lang);
+}
+
+/**
+ * 把後端錯誤轉成「使用者看得懂的一句話」（U-M8）
+ *
+ * 絕不把 res.code（ERR_FIRESTORE_CALL_FAILED）、res.msg（後端英文原文）或
+ * err.message / stack 直接顯示給員工或管理員。流程：
+ *   1. 取 code（字串本身、res.code、err.code）
+ *   2. code 有對應翻譯 → 用翻譯
+ *   3. 否則用呼叫端指定的 fallbackKey（有翻譯才用）
+ *   4. 再否則一律 t('UNKNOWN_ERROR')
+ *
+ * @param {object|string|Error|null} err  API 回應物件 / 錯誤物件 / 錯誤碼字串
+ * @param {string} [fallbackKey] 找不到 code 翻譯時要用的通用文案 key
+ * @returns {string} 已翻譯的訊息
+ */
+function apiErrorText(err, fallbackKey) {
+  let code = '';
+  if (typeof err === 'string') code = err;
+  else if (err && typeof err === 'object') code = err.code || err.errorCode || '';
+
+  // 只接受「看起來像錯誤碼」的字串（全大寫底線），避免把後端英文長句當 key 查
+  if (code && typeof code === 'string' && /^[A-Z][A-Z0-9_]{2,}$/.test(code)) {
+    const text = t(code);
+    if (text && text !== code) return text;
+  }
+  if (fallbackKey) {
+    const fb = t(fallbackKey);
+    if (fb && fb !== fallbackKey) return fb;
+  }
+  return t('UNKNOWN_ERROR');
+}
+
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { t, loadTranslations, switchLanguage, preloadTranslations, renderTranslations };
+  module.exports = { t, loadTranslations, switchLanguage, preloadTranslations, renderTranslations, apiErrorText, applyDocumentLang };
 }
 
 // 可翻譯的屬性：用 data-i18n-<屬性名>="KEY" 標記
@@ -246,4 +292,13 @@ async function switchLanguage(lang) {
   }
 }
 
-console.log('✓ i18n 模塊已加載 (P2-1: 支持翻譯預加載)');
+// 暴露給其他非模組腳本（ui.js / admin.js / my-requests.js / location.js）
+if (typeof window !== 'undefined') {
+  window.apiErrorText = apiErrorText;
+  window.applyDocumentLang = applyDocumentLang;
+  // 首屏就把 <html lang> 對齊目前語言（loadTranslations 之前就會被讀屏讀到）
+  try {
+    applyDocumentLang(localStorage.getItem('lang') || document.documentElement.lang || 'zh-TW');
+  } catch (_) { /* localStorage 被封鎖時略過 */ }
+}
+

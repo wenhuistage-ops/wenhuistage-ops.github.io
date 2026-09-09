@@ -34,24 +34,100 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 // #region 補打卡 UI 與 API 邏輯
 // ===================================
 
-function validateAdjustTime(value) {
-    const selected = new Date(value);
-    const now = new Date();
-    // 這裡我們只檢查選取的時間是否在當前月份內且不晚於今天
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59); // 設置到今天最後一秒
+/**
+ * U-H1：可補卡的回溯天數。
+ *
+ * 原本下限寫死「本月 1 日」，於是每月 1 號依 LINE 漏打卡提醒回來補「上個月最後一天」
+ * 一定被擋死，而且填完送出才跳錯，也沒說該怎麼辦。舞台場次常壓在月底，這條路很常走到。
+ * 45 天足以涵蓋跨月結算（月底的班到次月中旬仍可補）；要調整改這一個數字即可。
+ */
+const MAKEUP_MAX_BACKDAYS = 45;
 
-    if (selected < monthStart) {
-        showNotification(t("ERR_BEFORE_MONTH_START"), "error");
+/** 今天 00:00（本地時區） */
+function _startOfToday(now = new Date()) {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+/** 可補卡的最早時間：今天往前 MAKEUP_MAX_BACKDAYS 天的 00:00 */
+function getMakeupMinDate(now = new Date()) {
+    const d = _startOfToday(now);
+    d.setDate(d.getDate() - MAKEUP_MAX_BACKDAYS);
+    return d;
+}
+
+/** 可補卡的最晚時間：今天 23:59:59（不能補未來） */
+function getMakeupMaxDate(now = new Date()) {
+    const d = _startOfToday(now);
+    d.setHours(23, 59, 59, 999);
+    return d;
+}
+
+/**
+ * 轉成 datetime-local / date 需要的本地時間字串。
+ * 不能用 toISOString()（那是 UTC，台灣會整整差 8 小時，跨日就選錯天）。
+ * @param {Date} d
+ * @param {boolean} [dateOnly] true 時只回 'YYYY-MM-DD'
+ */
+function _toLocalInputValue(d, dateOnly = false) {
+    const p = (n) => String(n).padStart(2, '0');
+    const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return dateOnly ? date : `${date}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * 給 datetime-local 輸入框套上 min/max，手機原生選單直接就選不到不可補的日期
+ * （U-H1：把「送出才知道」提前成「根本選不到」）。
+ * @param {HTMLElement} container 表單容器
+ */
+function _applyMakeupDateLimits(container) {
+    if (!container || typeof container.querySelectorAll !== 'function') return;
+    const min = _toLocalInputValue(getMakeupMinDate());
+    const max = _toLocalInputValue(getMakeupMaxDate());
+    container.querySelectorAll('input[type="datetime-local"]').forEach((el) => {
+        el.min = min;
+        el.max = max;
+    });
+}
+
+/**
+ * 驗證補卡時間是否落在可補範圍內。
+ * @param {string} value datetime-local 的值（'YYYY-MM-DDTHH:mm'）
+ * @param {Date} [now] 測試用；預設為現在
+ */
+function validateAdjustTime(value, now = new Date()) {
+    const selected = new Date(value);
+    if (isNaN(selected.getTime())) {
+        showNotification(t("MSG_PLEASE_SELECT_REPAIR_DATETIME"), "error");
+        return false;
+    }
+
+    const minDate = getMakeupMinDate(now);
+    const maxDate = getMakeupMaxDate(now);
+
+    // 太舊：訊息要講清楚「可以補哪一段」，否則員工只知道被拒絕
+    if (selected < minDate) {
+        showNotification(tOr("ERR_MAKEUP_OUT_OF_WINDOW",
+            "只能補最近 {days} 天（{from} ~ {to}）的打卡，更早的請找管理員處理。", {
+            days: MAKEUP_MAX_BACKDAYS,
+            from: _toLocalInputValue(minDate, true),
+            to: _toLocalInputValue(maxDate, true),
+        }), "error");
         return false;
     }
     // 不允許選今天以後
-    if (selected > today) {
+    if (selected > maxDate) {
         showNotification(t("ERR_AFTER_TODAY"), "error");
         return false;
     }
     return true;
 }
+
+// U-M3：補卡送出中的防重入旗標（補全日會連打兩支 API，中途重按會重複申請）
+let _adjustSubmitInFlight = false;
+
+// U-M3：{ 'YYYY-MM-DD': true } — 該日「上班」補卡申請已成功送出。
+// 補全日的下班那筆失敗時保留，使用者重送時就只補下班，不會再送一次上班。
+const _fullDayInSubmitted = {};
 
 // ===================================
 // 2026-05-14：月曆獨立補卡 Modal helpers
@@ -134,6 +210,9 @@ function _renderMakeupFormHtml(container, date, mode, showModeSelector) {
 
     container.innerHTML = DOMPurify.sanitize(formHtml);
     if (typeof renderTranslations === 'function') renderTranslations(container);
+
+    // U-H1：min/max 用 JS 設（而非寫在 HTML 字串裡），確保不受 DOMPurify 屬性白名單影響
+    _applyMakeupDateLimits(container);
 
     // 設置默認時間值
     if (isFull) {
@@ -403,11 +482,16 @@ function bindPunchEvents() {
                         <p class="font-semibold mb-2 text-orange-600">${t('LEAVE_TITLE') || '請假：'}<span class="text-orange-600">${date}</span></p>
                         <div class="form-group mb-3">
                             <label for="leaveReason" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('LEAVE_REASON_LABEL') || '請假原因：'}</label>
-                            <select id="leaveReason"
+                            <select id="leaveReason" required
                                     class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
-                                <option value="${t('LEAVE_SICK') || '病假'}">${t('LEAVE_SICK') || '病假'}</option>
-                                <option value="${t('LEAVE_PERSONAL') || '事假'}">${t('LEAVE_PERSONAL') || '事假'}</option>
-                                <option value="${t('LEAVE_OTHER') || '其他'}">${t('LEAVE_OTHER') || '其他'}</option>
+                                <!-- U-M4：value 是固定代碼，不是翻譯後的文字。
+                                     以前 value 用 t('LEAVE_SICK')，越南籍員工的病假存成 'Nghỉ ốm'，
+                                     薪資扣款規則（只認中文）比不到、管理端統計被拆成好幾類。
+                                     後端 _helpers.js normalizeLeaveKind() 會把代碼正規化成中文再存。 -->
+                                <option value="">${tOr('SELECT_LEAVE_REASON', '請選擇請假原因')}</option>
+                                <option value="sick">${tOr('LEAVE_SICK', '病假')}</option>
+                                <option value="personal">${tOr('LEAVE_PERSONAL', '事假')}</option>
+                                <option value="other">${tOr('LEAVE_OTHER', '其他')}</option>
                             </select>
                         </div>
                         <div class="form-group mb-3">
@@ -426,6 +510,10 @@ function bindPunchEvents() {
                 // ✅ XSS防護：使用 DOMPurify 淨化 HTML（保留 data-* 與 input capture）
                 targetContainer.innerHTML = DOMPurify.sanitize(formHtml);
                 if (typeof renderTranslations === 'function') renderTranslations(targetContainer);
+                // U-L7：預設停在「請選擇請假原因」（空值），逼使用者自己選，
+                // 避免整批請假都被記成「病假」。用 JS 設而非 selected 屬性，不受淨化影響。
+                const leaveReasonSel = targetContainer.querySelector('#leaveReason');
+                if (leaveReasonSel) leaveReasonSel.value = '';
             } else if (e.target.classList.contains('vacation-btn')) {
                 // 休假按鈕處理邏輯
                 const date = e.target.dataset.date;
@@ -442,10 +530,10 @@ function bindPunchEvents() {
                             <label for="vacationType" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">${t('VACATION_TYPE_LABEL') || '休假類型：'}</label>
                             <select id="vacationType"
                                     class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white">
-                                <option value="${t('VACATION_ANNUAL') || '年假'}">${t('VACATION_ANNUAL') || '年假'}</option>
-                                <option value="${t('VACATION_SPECIAL') || '特休'}">${t('VACATION_SPECIAL') || '特休'}</option>
-                                <option value="${t('VACATION_COMPENSATORY') || '補休'}">${t('VACATION_COMPENSATORY') || '補休'}</option>
-                                <option value="${t('VACATION_TYPHOON') || '颱風假'}">${t('VACATION_TYPHOON') || '颱風假'}</option>
+                                <option value="annual">${tOr('VACATION_ANNUAL', '年假')}</option>
+                                <option value="special">${tOr('VACATION_SPECIAL', '特休')}</option>
+                                <option value="compensatory">${tOr('VACATION_COMPENSATORY', '補休')}</option>
+                                <option value="typhoon">${tOr('VACATION_TYPHOON', '颱風假')}</option>
                             </select>
                         </div>
                         <div class="form-group mb-3">
@@ -484,6 +572,12 @@ function bindPunchEvents() {
                 // 🌟 修正點 (問題8.6)：補打卡前添加確認
                 const loadingText = t('LOADING') || '處理中...';
                 const type = adjustButton.dataset.type;
+
+                // U-M3 防重入：補全日會連打兩支 API，中途再點一次按鈕就會重複送出上班申請
+                if (_adjustSubmitInFlight) {
+                    showNotification(t('MSG_PUNCH_IN_PROGRESS') || '正在提交中，請稍候...', 'warning');
+                    return;
+                }
 
                 // 判斷是否為全日打卡（兩個時間輸入框都存在）
                 const adjustInTimeInput = document.getElementById("adjustInTime");
@@ -534,26 +628,38 @@ function bindPunchEvents() {
                 }
 
                 generalButtonState(adjustButton, 'processing', loadingText);
+                _adjustSubmitInFlight = true;
 
                 const lat = 0; // 補卡不需精確 GPS
                 const lng = 0;
+                // F-L5：備註只留極簡裝置標記（例：iOS/LINE），不再把整串 userAgent
+                // 寫進人資紀錄並顯示給管理員
+                const noteTag = (typeof deviceTag === 'function') ? deviceTag() : '';
 
                 try {
                     if (type === 'full') {
                         // 全日打卡：需要提交上班和下班兩次
-                        const inRes = await callApifetch({
-                            action: 'adjustPunch',
-                            type: "上班",
-                            lat: lat,
-                            lng: lng,
-                            datetime: new Date(inDateTime).toISOString(),
-                            note: encodeURIComponent(navigator.userAgent)
-                        }, "loadingMsg");
+                        // U-M3：上班成功、下班失敗時，若使用者直接再按一次「補全日」，
+                        // 上班那筆會被重複送出（後端會多一筆待審核）。用 _fullDayInSubmitted
+                        // 記住「這一天的上班已經送出去了」，重送時只補下班。
+                        const dayKey = String(inDateTime).slice(0, 10);
 
-                        if (!inRes.ok) {
-                            const msg = t(inRes.code || "UNKNOWN_ERROR", inRes.params || {});
-                            showNotification(t("MSG_PUNCH_IN_FAILED", { msg: msg }), "error");
-                            return;
+                        if (!_fullDayInSubmitted[dayKey]) {
+                            const inRes = await callApifetch({
+                                action: 'adjustPunch',
+                                type: "上班",
+                                lat: lat,
+                                lng: lng,
+                                datetime: new Date(inDateTime).toISOString(),
+                                note: noteTag
+                            }, "loadingMsg");
+
+                            if (!inRes.ok) {
+                                const msg = t(inRes.code || "UNKNOWN_ERROR", inRes.params || {});
+                                showNotification(t("MSG_PUNCH_IN_FAILED", { msg: msg }), "error");
+                                return;
+                            }
+                            _fullDayInSubmitted[dayKey] = true;
                         }
 
                         const outRes = await callApifetch({
@@ -562,20 +668,27 @@ function bindPunchEvents() {
                             lat: lat,
                             lng: lng,
                             datetime: new Date(outDateTime).toISOString(),
-                            note: encodeURIComponent(navigator.userAgent)
+                            note: noteTag
                         }, "loadingMsg");
 
-                        const msg = t(outRes.code || "UNKNOWN_ERROR", outRes.params || {});
-                        showNotification(
-                            outRes.ok ? t("MSG_FULL_DAY_MAKEUP_SUCCESS") : t("MSG_PUNCH_OUT_FAILED", { msg }),
-                            outRes.ok ? "success" : "error"
-                        );
-
                         if (outRes.ok) {
+                            delete _fullDayInSubmitted[dayKey];
+                            showNotification(t("MSG_FULL_DAY_MAKEUP_SUCCESS"), "success");
                             hostContainer.replaceChildren();
                             if (inModal) _closeMakeupModal();
                             refreshAbnormalAfterApplication();
                             _refreshCalendarAfterMakeup();
+                        } else {
+                            // 下班失敗：上班已經送出去了，所以把表單自動切成「只補下班」，
+                            // 使用者按第二次就只會補下班，不會再送一次上班。
+                            const msg = t(outRes.code || "UNKNOWN_ERROR", outRes.params || {});
+                            showNotification(tOr("MSG_PUNCH_IN_SENT_RETRY_OUT",
+                                "上班補卡已送出，只差下班：{msg}。請確認下班時間後再送一次。", { msg }), "warning");
+                            if (hostContainer) {
+                                _renderMakeupFormHtml(hostContainer, dayKey, 'out', inModal);
+                                const outEl = hostContainer.querySelector('#adjustDateTime');
+                                if (outEl) outEl.value = outDateTime;
+                            }
                         }
                     } else {
                         // 單次打卡
@@ -586,12 +699,14 @@ function bindPunchEvents() {
                             lat: lat,
                             lng: lng,
                             datetime: new Date(datetime).toISOString(),
-                            note: encodeURIComponent(navigator.userAgent)
+                            note: noteTag
                         }, "loadingMsg");
                         const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
                         showNotification(msg, res.ok ? "success" : "error");
 
                         if (res.ok) {
+                            // 只補下班成功 → 這一天的「上班已送出」旗標可以清掉了
+                            delete _fullDayInSubmitted[String(datetime).slice(0, 10)];
                             hostContainer.replaceChildren();
                             if (inModal) _closeMakeupModal();
                             refreshAbnormalAfterApplication();
@@ -603,13 +718,14 @@ function bindPunchEvents() {
                     console.error(err);
                     showNotification(t('NETWORK_ERROR') || '網絡錯誤', 'error');
                 } finally {
+                    _adjustSubmitInFlight = false;
                     if (hostContainer && hostContainer.children.length > 0) {
                         generalButtonState(adjustButton, 'idle');
                     }
                 }
             } else if (leaveButton) {
                 // 🌟 修正點 (問題8.6)：請假申請前添加確認
-                const loadingText = '提交中...';
+                const loadingText = tOr('MSG_SUBMITTING', '提交中...'); // U-L5：改走 i18n
                 const date = leaveButton.dataset.date;
                 const reason = document.getElementById("leaveReason").value;
                 const note = document.getElementById("leaveNote").value;
@@ -668,7 +784,7 @@ function bindPunchEvents() {
                 }
             } else if (vacationButton) {
                 // 🌟 修正點 (問題8.6)：休假申請前添加確認
-                const loadingText = '提交中...';
+                const loadingText = tOr('MSG_SUBMITTING', '提交中...'); // U-L5：改走 i18n
                 const date = vacationButton.dataset.date;
                 const vacationType = document.getElementById("vacationType").value;
                 const note = document.getElementById("vacationNote").value;
@@ -757,9 +873,15 @@ function refreshAbnormalAfterApplication() {
 }
 // #endregion
 
-console.log('✓ make-up 模組已加載');
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { validateAdjustTime, bindPunchEvents, checkMakeupDeepLink };
+    module.exports = {
+        validateAdjustTime,
+        bindPunchEvents,
+        checkMakeupDeepLink,
+        MAKEUP_MAX_BACKDAYS,
+        getMakeupMinDate,
+        getMakeupMaxDate,
+    };
 }

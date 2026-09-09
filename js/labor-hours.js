@@ -17,7 +17,62 @@
  * 純前端、無外部依賴（除 window.getDayKind）。
  */
 
-const STANDARD_HOURS = 8;
+// ============================================================
+// 勞基法常數（單一來源）
+//
+// ⚠️ 這裡的每一個數字都直接影響 Excel 上的薪資金額。
+//    admin.js 曾各自寫一份（35 處），與本檔的 14 處分頭維護，
+//    調整基本工資或費率時很容易只改一邊。2026-09-09 起一律引用本物件。
+//    admin.js 透過 window.LABOR_CONSTANTS 取用。
+//
+// ⚠️ 費率的「員工自付率」刻意保留字面值（0.025 / 0.023），不寫成
+//    0.125 * 0.20 這種乘式：0.115 * 0.20 在 IEEE754 下等於
+//    0.023000000000000003，與現行 0.023 不是同一個浮點數，
+//    Math.round 在邊界級距會差 1 元。
+// ============================================================
+const LABOR_CONSTANTS = {
+    // --- 工時 ---
+    STANDARD_HOURS: 8,              // 每日正常工時（§30）
+    DAILY_LEGAL_MAX_HOURS: 12,      // 每日含加班上限（§32），超過列入違法工時警告
+    MONTHLY_DAYS: 30,               // 日薪 = 月薪 ÷ 30（施行細則 §31）
+    HOURLY_DIVISOR: 240,            // 時薪 = 月薪 ÷ 30 ÷ 8 = ÷ 240（施行細則 §31）
+
+    // --- 加班分段門檻（小時）---
+    OT_TIER: {
+        WORKDAY_OT1_HOURS: 2,       // 平日 8~10h 走 ×1.34，超過走 ×1.67
+        REST_OT1_HOURS: 2,          // 休息日 0~2h
+        REST_OT2_HOURS: 6,          // 休息日 2~8h（2 + 6）
+        REST_OT2_END_HOURS: 8,      // 休息日 8h 以上走 ×2.67
+        PUBLIC_OT1_HOURS: 2,        // 國定假日 8~10h
+    },
+
+    // --- 加班倍率（勞動部試算範例慣用兩位小數；台灣業界薪資單一致）---
+    OT_RATE: {
+        WORKDAY_1: 1.34,            // 平日前 2 小時
+        WORKDAY_2: 1.67,            // 平日第 3 小時起
+        REST_1: 1.34,               // 休息日前 2 小時
+        REST_2: 1.67,               // 休息日 2~8 小時
+        REST_3: 2.67,               // 休息日 8 小時以上
+        PUBLIC_1: 1.34,             // 國定假日 8~10 小時
+        PUBLIC_2: 1.67,             // 國定假日 10 小時以上
+        REGULAR: 2,                 // 例假日逾 8 小時（× 2 倍時薪）
+    },
+
+    // --- 基本工資（2026/01/01 起，勞動部公告）---
+    MIN_MONTHLY_WAGE: 29500,
+    MIN_HOURLY_WAGE: 190,
+
+    // --- 保險費率（僅供顯示／Excel 公式使用，實際扣繳走 EMPLOYEE_CONTRIBUTION_RATES）---
+    INSURANCE: {
+        LABOR_TOTAL_TAIWANESE: 0.125,   // 普通事故 11.5% + 就業保險 1%
+        LABOR_TOTAL_FOREIGN: 0.115,     // 外籍不適用就保法 §5
+        LABOR_EMPLOYEE_SHARE: 0.20,     // 員工自付 20%
+        HEALTH_TOTAL: 0.0517,           // 健保一般保險費率
+        HEALTH_EMPLOYEE_SHARE: 0.30,    // 員工自付 30%
+    },
+};
+
+const STANDARD_HOURS = LABOR_CONSTANTS.STANDARD_HOURS;
 
 /**
  * 'HH:MM' → 分鐘
@@ -288,24 +343,33 @@ function enrichDayWithLaborStats(day, breakTimes) {
     // 略有利約 0.5%），與台灣業界主流薪資單一致。
     if (kind === 'workday') {
         stats.normal = Math.min(net, STANDARD_HOURS);
-        stats.ot1 = Math.min(Math.max(net - STANDARD_HOURS, 0), 2);
-        stats.ot2 = Math.max(net - STANDARD_HOURS - 2, 0);
-        stats.equivalentHours = stats.normal * 1.0 + stats.ot1 * 1.34 + stats.ot2 * 1.67;
+        stats.ot1 = Math.min(Math.max(net - STANDARD_HOURS, 0), LABOR_CONSTANTS.OT_TIER.WORKDAY_OT1_HOURS);
+        stats.ot2 = Math.max(net - STANDARD_HOURS - LABOR_CONSTANTS.OT_TIER.WORKDAY_OT1_HOURS, 0);
+        stats.equivalentHours = stats.normal * 1.0
+            + stats.ot1 * LABOR_CONSTANTS.OT_RATE.WORKDAY_1
+            + stats.ot2 * LABOR_CONSTANTS.OT_RATE.WORKDAY_2;
     } else if (kind === 'rest') {
         // 休息日：全部時數視為加班，3 段倍率
         // ⚠️ 不 cap 在 12h——員工真的超時上班還是要付薪資。
         //    超過 12h 的部分會列入 illegalHours 警告管理員（員工亂打 or 真的超時）。
-        stats.rest_ot1 = Math.min(net, 2);
-        stats.rest_ot2 = Math.min(Math.max(net - 2, 0), 6);
-        stats.rest_ot3 = Math.max(net - 8, 0); // 不再 cap，全部按 2.67 倍計算
-        stats.equivalentHours = stats.rest_ot1 * 1.34 + stats.rest_ot2 * 1.67 + stats.rest_ot3 * 2.67;
+        stats.rest_ot1 = Math.min(net, LABOR_CONSTANTS.OT_TIER.REST_OT1_HOURS);
+        stats.rest_ot2 = Math.min(
+            Math.max(net - LABOR_CONSTANTS.OT_TIER.REST_OT1_HOURS, 0),
+            LABOR_CONSTANTS.OT_TIER.REST_OT2_HOURS);
+        // 不再 cap，全部按 2.67 倍計算
+        stats.rest_ot3 = Math.max(net - LABOR_CONSTANTS.OT_TIER.REST_OT2_END_HOURS, 0);
+        stats.equivalentHours = stats.rest_ot1 * LABOR_CONSTANTS.OT_RATE.REST_1
+            + stats.rest_ot2 * LABOR_CONSTANTS.OT_RATE.REST_2
+            + stats.rest_ot3 * LABOR_CONSTANTS.OT_RATE.REST_3;
     } else if (kind === 'public') {
         // 國定假日：出勤即至少給 8h（保證），超過分段
         if (net > 0) {
             stats.public_base = STANDARD_HOURS; // 8h 保證
-            stats.public_ot1 = Math.min(Math.max(net - STANDARD_HOURS, 0), 2);
-            stats.public_ot2 = Math.max(net - STANDARD_HOURS - 2, 0);
-            stats.equivalentHours = stats.public_base + stats.public_ot1 * 1.34 + stats.public_ot2 * 1.67;
+            stats.public_ot1 = Math.min(Math.max(net - STANDARD_HOURS, 0), LABOR_CONSTANTS.OT_TIER.PUBLIC_OT1_HOURS);
+            stats.public_ot2 = Math.max(net - STANDARD_HOURS - LABOR_CONSTANTS.OT_TIER.PUBLIC_OT1_HOURS, 0);
+            stats.equivalentHours = stats.public_base
+                + stats.public_ot1 * LABOR_CONSTANTS.OT_RATE.PUBLIC_1
+                + stats.public_ot2 * LABOR_CONSTANTS.OT_RATE.PUBLIC_2;
         }
     } else if (kind === 'regular') {
         // 例假日：出勤即 1 日工資 + 補休折現；regular_ot 存「實際時數」與其他段
@@ -314,7 +378,8 @@ function enrichDayWithLaborStats(day, breakTimes) {
             stats.regular_base = STANDARD_HOURS;     // 8h
             stats.regular_comp = STANDARD_HOURS;     // 補休折現 8h
             stats.regular_ot = Math.max(net - STANDARD_HOURS, 0); // 超 8h 實際時數
-            stats.equivalentHours = stats.regular_base + stats.regular_comp + stats.regular_ot * 2;
+            stats.equivalentHours = stats.regular_base + stats.regular_comp
+                + stats.regular_ot * LABOR_CONSTANTS.OT_RATE.REGULAR;
         }
     }
 
@@ -324,7 +389,7 @@ function enrichDayWithLaborStats(day, breakTimes) {
     if (kind === 'regular') {
         stats.illegalHours = net; // 例假日出勤本身違法
     } else {
-        stats.illegalHours = Math.max(net - 12, 0); // 其他日：> 12h 違法
+        stats.illegalHours = Math.max(net - LABOR_CONSTANTS.DAILY_LEGAL_MAX_HOURS, 0); // 其他日：> 12h 違法
     }
 
     // 四捨五入到小數第 2 位
@@ -374,7 +439,7 @@ function aggregateMonthLaborStats(enrichedDays) {
  * 月薪換算時薪（勞基法施行細則第 31 條）
  */
 function monthlyToHourly(monthlySalary) {
-    return Math.round((Number(monthlySalary) || 0) / 240);
+    return Math.round((Number(monthlySalary) || 0) / LABOR_CONSTANTS.HOURLY_DIVISOR);
 }
 
 // ============================================================
@@ -389,7 +454,7 @@ const LABOR_RATES_YEAR = 2026;
 // 來源 PDF：勞工保險普通事故保險費分擔金額表(自115年1月1日起適用)
 // 共 11 級，第 1 級為基本工資 29,500 元，最高級 45,800 元
 const LABOR_INSURANCE_GRADES = [
-    { grade: 1, salary: 29500 },   // 基本工資（2026/01/01 起 29,500）
+    { grade: 1, salary: LABOR_CONSTANTS.MIN_MONTHLY_WAGE },   // 基本工資（2026/01/01 起 29,500）
     { grade: 2, salary: 30300 },
     { grade: 3, salary: 31800 },
     { grade: 4, salary: 33300 },
@@ -427,7 +492,7 @@ function inferGradeFromSalary(monthlySalary) {
 //   [ ] LABOR_INSURANCE_GRADES（勞保分級表）
 //   [ ] laborInsuranceTaiwanese / laborInsuranceForeign 費率
 //   [ ] healthInsurance 費率（健保署公告，跟著健保總費率動）
-//   [ ] MIN_MONTHLY_WAGE_2026 / MIN_HOURLY_WAGE_2026（admin.js）
+//   [ ] LABOR_CONSTANTS.MIN_MONTHLY_WAGE / MIN_HOURLY_WAGE（本檔上方；admin.js 引用）
 //   [ ] MIN_MONTHLY_WAGE（firebase-functions/setEmployeeSalaryProfile.js）
 //   [ ] index.html / i18n/*.json 的「2026 基本工資 X 元」文字
 // ============================================================
@@ -495,11 +560,12 @@ if (typeof window !== 'undefined') {
     window.aggregateMonthLaborStats = aggregateMonthLaborStats;
     window.monthlyToHourly = monthlyToHourly;
     window.LABOR_INSURANCE_GRADES = LABOR_INSURANCE_GRADES;
+    window.LABOR_CONSTANTS = LABOR_CONSTANTS;
+    window.EMPLOYEE_CONTRIBUTION_RATES = EMPLOYEE_CONTRIBUTION_RATES;
     window.inferGradeFromSalary = inferGradeFromSalary;
     window.calcEmployeeDeductions = calcEmployeeDeductions;
 }
 
-console.log('✓ labor-hours 模組已加載');
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -517,5 +583,6 @@ if (typeof module !== 'undefined' && module.exports) {
         calcEmployeeDeductions,
         EMPLOYEE_CONTRIBUTION_RATES,
         LABOR_RATES_YEAR,
+        LABOR_CONSTANTS,
     };
 }

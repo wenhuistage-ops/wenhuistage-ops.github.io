@@ -143,4 +143,3 @@ function getUserId() {
 
 // ===================================
 
-console.log('✓ state 模塊已加載');

@@ -141,7 +141,7 @@ class UIManager {
     this.elements.floatingLineBtn = document.getElementById('floating-line-btn');
 
     this.initialized = true;
-    console.log(`✓ UIManager 初始化完成（管理 ${Object.keys(this.elements).length} 個 DOM 元素）`);
+    debugLog(`✓ UIManager 初始化完成（管理 ${Object.keys(this.elements).length} 個 DOM 元素）`);
   }
 
   /**
@@ -189,4 +189,3 @@ class UIManager {
 const uiManager = new UIManager();
 
 
-console.log('✓ ui-manager 模塊已加載');

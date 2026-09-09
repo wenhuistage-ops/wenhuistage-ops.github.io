@@ -122,6 +122,28 @@ async function executeAdminOperation(adminOperation) {
 // #endregion
 // ===================================
 
+/* ===== 除錯輸出 ===== */
+/**
+ * 只在除錯模式下印訊息（F-L4）。
+ *
+ * 原本全站 78 個 console.log 在正式環境照印，其中數個會印出 LINE userId、
+ * GPS 座標與整筆出勤紀錄 —— 任何借用手機的人打開開發者工具就看得到。
+ * console.error / console.warn 保留不動（那是真的異常，需要能追）。
+ *
+ * 開啟方式：localStorage.setItem('debug','1') 後重整；localhost 自動開啟。
+ */
+const DEBUG_ENABLED = (() => {
+    try {
+        if (localStorage.getItem('debug') === '1') return true;
+    } catch (_) { /* localStorage 不可用 */ }
+    const h = (typeof location !== 'undefined' && location.hostname) || '';
+    return h === 'localhost' || h === '127.0.0.1';
+})();
+
+function debugLog(...args) {
+    if (DEBUG_ENABLED) console.log(...args);
+}
+
 /* ===== HTML 轉義 ===== */
 /**
  * 把使用者可控的字串（備註、請假原因、姓名、地點名稱…）轉成安全文字後再拼進 innerHTML。
@@ -177,9 +199,13 @@ const showNotification = (message, type = 'success') => {
 /**
  * 顯示確認對話框
  * @param {string} message - 確認訊息
+ * @param {{variant?: 'neutral'|'warning'|'danger'}} [options]
+ *        U-L8：確認鍵的顏色。style.css 依 `.confirm-ok-btn[data-variant]` 上色，
+ *        預設中性；只有刪除紀錄、標記離職這類破壞性操作才傳 'danger'。
+ *        舊呼叫端只傳 message，行為不變（＝中性色）。
  * @returns {Promise<boolean>} 用戶是否點擊確認
  */
-function showConfirmDialog(message) {
+function showConfirmDialog(message, options = {}) {
     return new Promise((resolve) => {
         const dialog = document.getElementById('confirm-dialog');
         const messageEl = document.getElementById('confirm-message');
@@ -195,17 +221,47 @@ function showConfirmDialog(message) {
         messageEl.textContent = message;
         dialog.style.display = 'flex';
 
+        // U-L8：每次開啟都重設 variant，否則上一次的破壞性紅色會殘留到下一個對話框
+        if (okBtn) {
+            const variant = options && options.variant;
+            okBtn.dataset.variant = (variant === 'danger' || variant === 'warning') ? variant : 'neutral';
+        }
+
         // 防止背景滾動，避免對話框偏移
         document.body.style.overflow = 'hidden';
+
+        // U-M12：對話框缺 role/aria-modal，讀屏軟體不知道這是強制回應的對話框。
+        // index.html 由他人維護，改由此處在開啟時補上（等效且不必動 HTML）。
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        if (!dialog.hasAttribute('tabindex')) dialog.setAttribute('tabindex', '-1');
+
+        // U-M12：記住觸發者，關閉後把焦點還回去（否則焦點掉回 <body>，
+        // 鍵盤使用者要從頭 Tab 一遍才能回到原本的位置）。
+        const previouslyFocused = document.activeElement;
+
+        // 焦點放到第一個可操作元素（DOM 順序上是「取消」）。
+        // 這一步是 Esc 能生效的前提：keydown 綁在 dialog 上，焦點不在裡面就收不到。
+        // 順帶讓誤按 Enter 落在「取消」而非破壞性的「確認」。
+        const focusTarget = cancelBtn || okBtn || dialog;
+        try { focusTarget.focus({ preventScroll: true }); } catch (_) { try { focusTarget.focus(); } catch (__) { /* ignore */ } }
 
         // 定義一個函數來清理事件監聽器和恢復滾動
         const cleanup = () => {
             dialog.style.display = 'none';
-            okBtn.removeEventListener('click', onOk);
-            cancelBtn.removeEventListener('click', onCancel);
+            if (okBtn) okBtn.removeEventListener('click', onOk);
+            if (cancelBtn) cancelBtn.removeEventListener('click', onCancel);
             dialog.removeEventListener('keydown', onKeyDown);
+            document.removeEventListener('keydown', onKeyDown, true);
+            // 不移除 role/aria-modal：index.html 本來就寫了這些屬性，
+            // 關閉時清掉等於把靜態標記也一起弄丟（對話框關閉時是 display:none，讀屏本就會略過）
             // 恢復背景滾動
             document.body.style.overflow = '';
+            // 還原焦點（元素可能已被重繪移除，故先確認還在文件內）
+            if (previouslyFocused && typeof previouslyFocused.focus === 'function' &&
+                document.contains(previouslyFocused)) {
+                try { previouslyFocused.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+            }
         };
 
         const onOk = () => {
@@ -220,15 +276,82 @@ function showConfirmDialog(message) {
 
         const onKeyDown = (e) => {
             if (e.key === 'Escape') {
+                e.preventDefault();
                 cleanup();
                 resolve(false);
+                return;
+            }
+            // 簡易焦點循環：只有兩顆按鈕，Tab / Shift+Tab 在兩者之間繞，
+            // 避免焦點跑到對話框後面的頁面上（看不見卻可操作）。
+            if (e.key === 'Tab' && okBtn && cancelBtn) {
+                e.preventDefault();
+                const next = (document.activeElement === cancelBtn) ? okBtn : cancelBtn;
+                try { next.focus({ preventScroll: true }); } catch (_) { /* ignore */ }
             }
         };
 
-        okBtn.addEventListener('click', onOk);
-        cancelBtn.addEventListener('click', onCancel);
+        if (okBtn) okBtn.addEventListener('click', onOk);
+        if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
         dialog.addEventListener('keydown', onKeyDown);
+        // 保險：若焦點被其他程式碼搶走（例如剛關閉的 modal 還原焦點），
+        // capture 階段的 document 監聽仍能讓 Esc 關掉這個對話框。
+        document.addEventListener('keydown', onKeyDown, true);
     });
+}
+
+// ===================================
+// #region 5. 翻譯後備（key 還沒進 i18n 檔時不要把 key 秀給使用者）
+// ===================================
+
+/**
+ * 取翻譯；找不到就用中文 fallback。
+ *
+ * t() 找不到 key 時會回傳 key 本身（例如 'MSG_SUBMITTING'），而它是 truthy，
+ * 所以常見的 `t('X') || '中文'` 寫法其實永遠拿不到 fallback，按鈕會直接顯示
+ * 大寫英文 key。新增 key 尚未併進 i18n/*.json 的空窗期都靠這支擋著。
+ * （geolocation.js 的 tr_geo 是同樣做法，這裡提供給其他模組共用。）
+ *
+ * @param {string} key i18n 鍵
+ * @param {string} fallback 找不到時顯示的中文（同樣支援 {param} 佔位符）
+ * @param {object} [params] 參數替換
+ * @returns {string}
+ */
+function tOr(key, fallback, params = {}) {
+    let value = null;
+    try {
+        if (typeof t === 'function') value = t(key, params);
+    } catch (_) { /* ignore */ }
+    if (value && value !== key) return value;
+
+    let text = String(fallback ?? '');
+    for (const k in params) text = text.replace(`{${k}}`, params[k]);
+    return text;
+}
+
+// ===================================
+// #region 6. 裝置標記（取代把整串 userAgent 寫進人資紀錄）
+// ===================================
+
+/**
+ * F-L5：打卡備註原本塞整串 navigator.userAgent，等於把瀏覽器指紋寫進人資紀錄，
+ * 管理員畫面還會整串顯示。改成極簡的「作業系統/瀏覽器」標記，足夠排查又不留指紋。
+ * @returns {string} 例如 'iOS/LINE'、'Android/Chrome'、'Windows/Edge'
+ */
+function deviceTag() {
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    const os = /iPhone|iPad|iPod/i.test(ua) ? 'iOS'
+        : /Android/i.test(ua) ? 'Android'
+            : /Macintosh|Mac OS X/i.test(ua) ? 'Mac'
+                : /Windows/i.test(ua) ? 'Windows'
+                    : 'Other';
+    // 順序有意義：LINE 內建瀏覽器的 UA 也含 Safari/Chrome，必須先判斷
+    const browser = /\bLine\//i.test(ua) ? 'LINE'
+        : /Edg(iOS|A)?\//i.test(ua) ? 'Edge'
+            : /CriOS\/|Chrome\//i.test(ua) ? 'Chrome'
+                : /FxiOS\/|Firefox\//i.test(ua) ? 'Firefox'
+                    : /Safari\//i.test(ua) ? 'Safari'
+                        : 'Other';
+    return `${os}/${browser}`;
 }
 
 // #endregion

@@ -18,6 +18,48 @@ along with 0riginAttendance-System. If not, see <https://www.gnu.org/licenses/>.
 Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this project.
  */
 // ===================================
+// #region 0. 共用常數與小工具
+// ===================================
+
+/**
+ * F-M5 / F-L10：預設頭像。
+ * 原本用 https://placehold.co/40x40（外部服務，只為兩張佔位圖就得在 CSP img-src 開一個網域），
+ * 現改成內嵌 SVG data URI —— 免一次外部請求、離線可用，CSP 也能把 placehold.co 拿掉。
+ */
+const DEFAULT_AVATAR_SRC =
+    "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2040%2040'%3E" +
+    "%3Crect%20width='40'%20height='40'%20rx='20'%20fill='%23e5e7eb'/%3E" +
+    "%3Ccircle%20cx='20'%20cy='15.5'%20r='6'%20fill='%239ca3af'/%3E" +
+    "%3Cpath%20d='M7.5%2036c0-7 5.6-11.5 12.5-11.5S32.5%2029%2032.5%2036z'%20fill='%239ca3af'/%3E%3C/svg%3E";
+
+/**
+ * U-M15：toast 的 aria-live 依訊息類型調整。
+ *
+ * index.html 已靜態給 role="status" aria-live="polite"（安全預設），但錯誤/警告應該打斷
+ * 讀屏軟體目前的朗讀，需要 assertive。showNotification() 位於 js/core.js（他人維護），
+ * 且是 const 宣告、無法 monkey patch，因此改用 MutationObserver 觀察它加上的顏色 class。
+ *
+ * 時序關鍵：core.js 是先寫 textContent、再設 className，兩者在同一個 task 內；
+ * MutationObserver callback 屬於同一 task 結尾的 microtask，會在瀏覽器把 live region
+ * 交給輔助技術「之前」執行完，所以此時改 aria-live 仍然來得及。
+ */
+function setupNotificationLiveRegion() {
+    const el = document.getElementById('notification');
+    if (!el || typeof MutationObserver === 'undefined') return;
+    const observer = new MutationObserver(() => {
+        const urgent = el.classList.contains('bg-red-500') || el.classList.contains('bg-yellow-500');
+        const wantLive = urgent ? 'assertive' : 'polite';
+        const wantRole = urgent ? 'alert' : 'status';
+        if (el.getAttribute('aria-live') !== wantLive) el.setAttribute('aria-live', wantLive);
+        if (el.getAttribute('role') !== wantRole) el.setAttribute('role', wantRole);
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ['class'] });
+}
+
+// #endregion
+// ===================================
+
+// ===================================
 // #region 1. 檢查登錄 (修正 ensureLogin 函式)
 // ===================================
 
@@ -49,11 +91,14 @@ async function ensureLogin() {
                     }
 
                     document.getElementById("user-name").textContent = res.user.name;
-                    document.getElementById("profile-img").src = res.user.picture || res.user.rate;
+                    // F-L10：原本 fallback 寫 `res.user.picture || res.user.rate`。rate 是不存在的欄位，
+                    // 只是「剛好 undefined」才沒出事；日後後端補上 rate（時薪）就會把數字塞進 <img src>，
+                    // 變成對自家網域的無效請求。改用本地預設頭像常數。
+                    document.getElementById("profile-img").src = res.user.picture || DEFAULT_AVATAR_SRC;
                     document.getElementById("punch-reminder-toggle").checked = res.user.punchReminder === true;
                     localStorage.setItem("sessionUserId", res.user.userId);
                     localStorage.setItem("userName", res.user.name);
-                    localStorage.setItem("userPicture", res.user.picture || res.user.rate);
+                    localStorage.setItem("userPicture", res.user.picture || DEFAULT_AVATAR_SRC);
                     localStorage.setItem("userDept", res.user.dept); // 保存用戶部門信息用於後續管理員驗證
                     userId = res.user.userId;
                     showNotification(t("LOGIN_SUCCESS"));
@@ -235,8 +280,20 @@ function bindEvents() {
     };
 
     // === 核心業務：打卡事件 (呼叫 punch.js 中的 doPunch) ===
-    punchInBtn.addEventListener('click', () => doPunch("上班"));
-    punchOutBtn.addEventListener('click', () => doPunch("下班"));
+    // U-L9：PWA 安裝提示改成「打卡成功一次之後」才跳（原本 iOS 載入 1.5 秒就跳、Android
+    // beforeinstallprompt 立刻跳，登入前就打擾使用者）。doPunch 在 js/punch/punch-flow.js
+    // （他人維護）內沒有回傳成功與否，這裡改以「今日紀錄多了一筆」判定 —— punch-flow.js:128
+    // 只有在 res.ok 時才會呼叫 appendTodayPunch()，且那是 await 之後、doPunch resolve 之前。
+    const _todayPunchCount = () => document.querySelectorAll('#today-punches-list li').length;
+    const _punchThenNotify = async (type) => {
+        const before = _todayPunchCount();
+        await doPunch(type);
+        if (_todayPunchCount() > before) {
+            window.dispatchEvent(new CustomEvent('attendance:punch-success', { detail: { type } }));
+        }
+    };
+    punchInBtn.addEventListener('click', () => _punchThenNotify("上班"));
+    punchOutBtn.addEventListener('click', () => _punchThenNotify("下班"));
 
     // === 導航 Tab 切換事件 ===
     tabDashboardBtn.addEventListener('click', () => switchTab('dashboard-view'));
@@ -310,8 +367,14 @@ function bindEvents() {
         }
     });
     // === 語系切換事件 ===
-    document.getElementById('language-switcher').addEventListener('change', (e) => {
+    // U-M10：登入畫面（#login-language-switcher）與登入後 header（#language-switcher）
+    // 各有一顆，行為完全相同，兩顆互相同步 value，避免顯示不一致。
+    const _langSelects = ['language-switcher', 'login-language-switcher']
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
+    const onLanguageChange = (e) => {
         const newLang = e.target.value;
+        _langSelects.forEach((sel) => { if (sel.value !== newLang) sel.value = newLang; });
         loadTranslations(newLang);
         // 已登入就立刻同步到後端（LINE 漏打卡提醒用這個語言）；失敗不影響介面
         if (localStorage.getItem('sessionToken')) {
@@ -326,7 +389,8 @@ function bindEvents() {
             initLocationMap(true); // 來自 location.js
         }
         // 這裡可以根據需要重新渲染當前視圖，確保所有 i18n 元素被更新
-    });
+    };
+    _langSelects.forEach((sel) => sel.addEventListener('change', onLanguageChange));
 }
 // #endregion
 // ===================================
@@ -345,8 +409,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // I. 獲取所有 DOM 元素和狀態設置
     getDOMElements(); // 必須在最前面執行
-    document.getElementById('language-switcher').value = currentLang;
+    ['language-switcher', 'login-language-switcher'].forEach((id) => {
+        const sel = document.getElementById(id);
+        if (sel) sel.value = currentLang;
+    });
     localStorage.setItem("lang", currentLang);
+    setupNotificationLiveRegion(); // U-M15：toast 的 aria-live 依訊息類型切換
 
     // II. 載入基本狀態 (翻譯)
     // ✅ P1-1 改進：i18n 模塊已遷移至 js/modules/i18n.js
@@ -437,7 +505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sessionToken && sessionUserId) {
             // 🌟 修正點 (問題1.2)：不再從 localStorage 讀取 isAdmin
             // 改為使用 verifyAdminPermission 動態驗證
-            console.log("使用已存在的登入狀態，避免重新登入");
+            debugLog("使用已存在的登入狀態，避免重新登入");
 
             // 先檢查是否為管理員（用於顯示管理員按鈕）
             const isUserAdmin = await verifyAdminPermission();

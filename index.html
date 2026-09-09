@@ -24,11 +24,15 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
 <head>
     <meta charset="UTF-8">
+    <!-- F-L9：跨站只送 origin，不外洩完整路徑（OAuth 回跳網址可能帶 state 等參數）-->
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <!-- Content-Security-Policy（M8 縱深防禦）：script-src 不含 'unsafe-inline'，
          擋注入型 <script>/on* XSS。若新增外部服務需同步更新對應 *-src。
          連線白名單：Firebase(googleapis/cloudfunctions/run.app/gstatic)、
-         Nominatim 地理編碼、pin-yi 假日 API。style 因大量 inline 樣式保留 unsafe-inline。 -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://placehold.co https://cdnjs.cloudflare.com https://*.tile.openstreetmap.org https://*.line-scdn.net https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.a.run.app https://www.gstatic.com https://nominatim.openstreetmap.org https://api.pin-yi.me; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+         Nominatim 地理編碼、pin-yi 假日 API。style 因大量 inline 樣式保留 unsafe-inline。
+         font-src 需含 cdnjs：Font Awesome 的 CSS 從 cdnjs 載入，字型檔（fa-solid-900.woff2 等）
+         也在同一網域；少了它圖示會全部變空白方框。 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://cdnjs.cloudflare.com https://*.tile.openstreetmap.org https://*.line-scdn.net https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.a.run.app https://www.gstatic.com https://nominatim.openstreetmap.org https://api.pin-yi.me; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
     <link rel="icon" href="0rigin.png" type="image/x-icon">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title data-i18n="APP_TITLE">APP_TITLE</title>
@@ -105,7 +109,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         html.dark .employee-kpi-cell { background: rgba(99, 102, 241, 0.12); }
         .employee-kpi-label {
             font-size: 0.75rem;
-            color: #6b7280;
+            /* U-L2：#6b7280 在 KPI 卡的淡紫底上只有 4.49:1，差一點點；改 gray-600 → 7.0:1 */
+            color: #4b5563;
         }
         html.dark .employee-kpi-label { color: #9ca3af; }
         .employee-kpi-value {
@@ -118,18 +123,22 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         .employee-kpi-unit {
             font-size: 0.75rem;
             font-weight: 500;
-            color: #9ca3af;
+            /* U-L2：#9ca3af 僅 2.36:1，「小時 / 天」這種單位字幾乎看不見 */
+            color: #4b5563;
             margin-left: 0.25rem;
         }
+        html.dark .employee-kpi-unit { color: #d1d5db; }
 
         /* placeholder 卡片提示 */
         .dashboard-placeholder {
-            color: #9ca3af;
+            /* U-L2：#9ca3af 僅 2.54:1 */
+            color: #4b5563;
             font-size: 0.85rem;
             padding: 1.5rem 0;
             text-align: center;
             font-style: italic;
         }
+        html.dark .dashboard-placeholder { color: #9ca3af; }
 
         /* Phase 6：打卡紀錄表格 / 手機 card 切換 */
         @media (max-width: 639px) {
@@ -212,7 +221,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             padding: 0;
             margin: 0;
             font-size: 0.7rem;
-            color: #6b7280;
+            /* U-L2：11.2px 小字更需要對比，#6b7280 只有 4.49:1 */
+            color: #4b5563;
         }
         html.dark .kpi-labor-list { color: #d1d5db; }
         .kpi-labor-list li {
@@ -267,7 +277,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         html.dark .kpi-salary-cell { background: rgba(99, 102, 241, 0.10); }
         .kpi-salary-label {
             font-size: 0.7rem;
-            color: #6b7280;
+            /* U-L2：同上 */
+            color: #4b5563;
             margin-bottom: 0.25rem;
         }
         html.dark .kpi-salary-label { color: #d1d5db; }
@@ -326,6 +337,13 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous" />
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
         integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous"></script>
+    <!-- U-H7：Font Awesome（全站 21 個 <i class="fas …"> 原本因為從未載入而是空白）。
+         同樣走非阻塞：media="print" + data-defer-css，theme-init.js 於 DOM 就緒後切回 all。
+         注意 CSP 的 font-src 必須含 cdnjs，否則 CSS 載到了、字型檔仍被擋，圖示還是空白。 -->
+    <link rel="stylesheet" media="print" data-defer-css
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+        integrity="sha384-nRgPTkuX86pH8yjPJUAFuASXQSSl2/bBUiNV47vSYpKFxHJhbcrGnmlYpYJMeD7a"
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
 
 </head>
 
@@ -334,51 +352,76 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
              text-gray-900 dark:text-gray-100">
     <div id="app-container" class="w-full max-w-md mx-auto">
         <!-- User Profile & Header -->
-        <header id="user-header" class="flex items-center justify-between p-4 mb-6 card fade-in" style="display: none;">
+        <!-- U-L13：原本 header 是「左：頭像姓名／右：登出+主題+語言+提醒開關擠成三排」，
+             手機寬度下姓名被壓成一行一字、「登出」也折行。改成上下兩段：
+             第一段是身分＋工具列（語言／主題／登出），第二段是提醒開關與它的說明。
+             ⚠️ app.js 顯示時是設 style.display='flex'，所以這裡用 flex-col 控制方向。 -->
+        <header id="user-header" class="flex flex-col gap-3 p-4 mb-6 card fade-in" style="display: none;">
 
-            <div class="flex items-center space-x-3">
-                <img id="profile-img" src="https://placehold.co/40x40/e0e0e0/757575?text=U" alt="頭像"
+            <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center space-x-3 min-w-0">
+                <img id="profile-img" src="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2040%2040'%3E%3Crect%20width='40'%20height='40'%20rx='20'%20fill='%23e5e7eb'/%3E%3Ccircle%20cx='20'%20cy='15.5'%20r='6'%20fill='%239ca3af'/%3E%3Cpath%20d='M7.5%2036c0-7 5.6-11.5 12.5-11.5S32.5%2029%2032.5%2036z'%20fill='%239ca3af'/%3E%3C/svg%3E" alt="頭像"
                     data-i18n-alt="ALT_PROFILE_PHOTO" class="w-10 h-10 rounded-full">
-                <div>
-                    <p id="user-name" data-i18n="USER_NAME_LABEL" class="font-semibold">使用者名稱</p>
-                    <p id="welcome-mes" data-i18n="WELCOME_BACK" class="text-xs text-gray-500">歡迎回來！</p>
+                <div class="min-w-0 flex-1">
+                    <p id="user-name" data-i18n="USER_NAME_LABEL" class="font-semibold truncate">使用者名稱</p>
+                    <p id="welcome-mes" data-i18n="WELCOME_BACK" class="text-xs text-gray-500 dark:text-gray-400 truncate">歡迎回來！</p>
                 </div>
             </div>
 
-            <div class="flex flex-col items-end space-y-2">
+            <!-- 第一排右側只放最常用的兩顆（主題／登出），姓名才有足夠寬度不被截斷 -->
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button id="theme-toggle" type="button" aria-label="切換深色模式"
+                    data-i18n-aria-label="ARIA_THEME_TOGGLE"
+                    class="header-control justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                    <span id="theme-icon" aria-hidden="true">🌙</span>
+                </button>
+                <button id="logout-btn" type="button" data-i18n="BTN_LOGOUT"
+                    class="header-control px-2 text-sm font-medium whitespace-nowrap text-gray-600 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400">登出</button>
+            </div>
+            </div>
 
-
-                <div class="flex items-center space-x-3">
-                    <button id="logout-btn" data-i18n="BTN_LOGOUT"
-                        class="text-sm font-medium text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400">登出</button>
-                    <button id="theme-toggle"
-                        class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                        <span id="theme-icon">🌙</span>
-                    </button>
-                </div>
-                <select id="language-switcher"
-                    class="text-sm font-medium text-gray-600 rounded-md p-1 dark:text-gray-300 dark:bg-gray-700 max-w-xs">
+            <!-- 第二排：語言切換 + LINE 提醒開關（附說明，不必再讓人猜「什麼時候會提醒」）。 -->
+            <div class="flex items-start gap-3 border-t border-gray-100 dark:border-gray-700 pt-2">
+                <select id="language-switcher" aria-label="語言" data-i18n-aria-label="ARIA_LANGUAGE_SWITCHER"
+                    class="header-control flex-shrink-0 text-sm font-medium text-gray-700 rounded-md px-1 dark:text-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 max-w-[8rem]">
                     <option value="zh-TW">繁體中文</option>
                     <option value="en-US">English</option>
                     <option value="id">Bahasa Indonesia</option>
                     <option value="vi">Tiếng Việt</option>
                     <option value="ja">日本語</option>
                 </select>
-                <label class="flex items-center space-x-1 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
-                    <input type="checkbox" id="punch-reminder-toggle" class="w-4 h-4 text-indigo-600 rounded">
-                    <span data-i18n="PUNCH_REMINDER">LINE 漏打卡提醒</span>
+                <label for="punch-reminder-toggle"
+                    class="header-control flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="punch-reminder-toggle"
+                        class="w-4 h-4 mt-0.5 text-indigo-600 rounded flex-shrink-0">
+                    <span>
+                        <span data-i18n="PUNCH_REMINDER" class="font-medium">LINE 漏打卡提醒</span>
+                        <span data-i18n="PUNCH_REMINDER_HINT"
+                            class="block text-[0.7rem] leading-snug text-gray-500 dark:text-gray-400">每天早上 9:00，若前一天缺打卡就用 LINE 通知你</span>
+                    </span>
                 </label>
-
             </div>
 
         </header>
 
         <!-- Login Section -->
         <section id="login-section" class="text-center p-8 card fade-in">
+            <!-- U-M10：語言切換器原本只在登入後的 #user-header 內，新進外籍員工看到的第一頁全是中文。
+                 這裡再放一個入口，change 事件由 app.js 與 #language-switcher 共用同一套邏輯。 -->
+            <div class="flex justify-end mb-2">
+                <select id="login-language-switcher" aria-label="語言" data-i18n-aria-label="ARIA_LANGUAGE_SWITCHER"
+                    class="header-control text-sm font-medium text-gray-700 rounded-md px-2 border border-gray-300 dark:text-gray-200 dark:bg-gray-700 dark:border-gray-600 max-w-[10rem]">
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="en-US">English</option>
+                    <option value="id">Bahasa Indonesia</option>
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="ja">日本語</option>
+                </select>
+            </div>
             <img src="/0rigin.png" alt="打卡系統橫幅圖" data-i18n-alt="ALT_APP_BANNER" class="main-image">
             <h1 id="appTitle" data-i18n="SUBTITLE_LOGIN" class="text-2xl font-bold text-gray-800 mb-2 dark:text-white">
                 歡迎文輝考勤系統</h1>
-            <p class="text-gray-600 mb-6" data-i18n="LOGIN_INFO" id="status">請點擊登入以繼續。</p>
+            <p class="text-gray-600 mb-6 dark:text-gray-300" data-i18n="LOGIN_INFO" id="status">請點擊登入以繼續。</p>
             <div id="login" class="space-y-4">
                 <button id="login-btn" data-i18n="BTN_LOGOIN" class="w-full py-3 px-4 rounded-lg font-bold btn-primary"
                     style="display: none;">使用LINE登入</button>
@@ -415,34 +458,35 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     <h2 data-i18n="PUNCH_SECTION_TITLE" class="text-xl font-bold text-gray-800 dark:text-white mb-1">
                         打卡專區
                     </h2>
-                    <p data-i18n="PUNCH_SECTION_DESCRIPTION" class="text-gray-500 mb-4">請點擊下方按鈕進行上班或下班打卡。</p>
+                    <p data-i18n="PUNCH_SECTION_DESCRIPTION" class="text-gray-500 mb-4 dark:text-gray-400">請點擊下方按鈕進行上班或下班打卡。</p>
 
-                    <!-- 將地圖與定位狀態移到按鈕上方 -->
-                    <div class="mt-4 mb-6">
-                        <div id="map-container"
-                            class="w-full h-64 rounded-lg mb-4 bg-gray-200 flex items-center justify-center text-gray-500"
-                            style="position: relative; z-index: 10;">
-                            <div id="map-loading-text">
-                                <span data-i18n="MAP_LOADING">正在載入地圖...</span>
-                            </div>
-                        </div>
-                        <div class="bg-gray-50 p-4 dark:bg-gray-700 rounded-lg">
-                            <p class="text-sm text-gray-600 dark:text-white">
-                                <strong data-i18n="LOCATION_STATUS_LABEL">狀態：</strong>
-                                <span id="location-status" data-i18n="LOCATION_STATUS_PENDING">未偵測</span>
-                            </p>
-                            <p class="text-sm text-gray-600">
-                                <strong data-i18n="COORDINATES_LABEL">經緯度：</strong>
-                                <span id="location-coords" data-i18n="COORDINATES_UNKNOWN">未知</span>
-                            </p>
-                        </div>
-                    </div>
-
+                    <!-- U-M5：打卡按鈕原本被 h-64（256px）的地圖擠出手機首屏，一開頁看不到主要動作。
+                         改成「按鈕 → 定位狀態文字 → 地圖」，地圖仍在，但一進來就先看到打卡鍵。 -->
                     <div id="punch-actions" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <button id="punch-in-btn" data-i18n="PUNCH_IN_LABEL"
                             class="w-full py-3 px-4 rounded-lg font-bold btn-primary">上班打卡</button>
                         <button id="punch-out-btn" data-i18n="PUNCH_OUT_LABEL"
                             class="w-full py-3 px-4 rounded-lg font-bold btn-secondary">下班打卡</button>
+                    </div>
+
+                    <div class="mt-4 mb-2">
+                        <div class="bg-gray-50 p-4 dark:bg-gray-700 rounded-lg mb-4">
+                            <p class="text-sm text-gray-600 dark:text-gray-200">
+                                <strong data-i18n="LOCATION_STATUS_LABEL">狀態：</strong>
+                                <span id="location-status" data-i18n="LOCATION_STATUS_PENDING">未偵測</span>
+                            </p>
+                            <p class="text-sm text-gray-600 dark:text-gray-300">
+                                <strong data-i18n="COORDINATES_LABEL">經緯度：</strong>
+                                <span id="location-coords" data-i18n="COORDINATES_UNKNOWN">未知</span>
+                            </p>
+                        </div>
+                        <div id="map-container"
+                            class="w-full h-64 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300"
+                            style="position: relative; z-index: 10;">
+                            <div id="map-loading-text">
+                                <span data-i18n="MAP_LOADING">正在載入地圖...</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- 今日打卡紀錄（即時回饋）-->
@@ -452,7 +496,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             <span data-i18n="TODAY_PUNCHES_TITLE">今日打卡紀錄</span>
                         </h4>
                         <ul id="today-punches-list" class="space-y-1 text-sm text-gray-700 dark:text-gray-200"></ul>
-                        <p id="today-punches-empty" class="text-xs text-gray-500 dark:text-gray-400" data-i18n="TODAY_PUNCHES_EMPTY">尚未打卡</p>
+                        <p id="today-punches-empty" class="text-xs text-gray-600 dark:text-gray-300" data-i18n="TODAY_PUNCHES_EMPTY">尚未打卡</p>
                     </div>
                     <a href="https://lin.ee/9j5mzVH" target="_blank"
                         class="p-4 flex items-center justify-center font-bold text-white rounded-lg shadow-lg transition duration-150 mt-6"
@@ -469,12 +513,13 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                 <div id="abnormal-records-section" class="card p-6" style="display: none;">
                     <h2 data-i18n="ABNORMAL_RECORDS_TITLE"
-                        class="text-xl font-bold text-gray-800 mb-1  dark:text-white mb-1">考勤紀錄</h2>
-                    <p data-i18n="ABNORMAL_RECORDS_DESCRIPTION" class="text-gray-500 mb-4">系統會自動偵測本月異常紀錄，您可以在此進行補打卡。</p>
+                        class="text-xl font-bold text-gray-800 mb-1  dark:text-white mb-1">本月異常紀錄</h2>
+                    <p data-i18n="ABNORMAL_RECORDS_DESCRIPTION" class="text-gray-500 mb-4 dark:text-gray-400">系統會自動偵測本月異常紀錄，您可以在此進行補打卡。</p>
                     <div id="abnormal-records-container">
-                        <div id="records-loading" data-i18n="RECORDS_LOADING" class="text-center text-gray-500 py-4">
+                        <div id="records-loading" data-i18n="RECORDS_LOADING" class="text-center text-gray-500 py-4 dark:text-gray-400">
                             正在載入紀錄...</div>
-                        <div id="records-empty" class="text-center text-green-600 bg-green-50 p-4 rounded-lg"
+                        <div id="records-empty"
+                            class="text-center text-green-700 bg-green-50 dark:text-green-200 dark:bg-green-900/40 p-4 rounded-lg"
                             style="display: none;">
                             <p data-i18n="RECORDS_EMPTY_TITLE" class="font-semibold">太棒了！</p>
                             <p data-i18n="RECORDS_EMPTY_MESSAGE">本月目前沒有任何異常紀錄。</p>
@@ -489,15 +534,15 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
             <section id="monthly-view" class="space-y-6" style="display: none;">
                 <div class="card p-6">
                     <div class="flex justify-between items-center mb-4">
-                        <button id="prev-month" class="text-gray-600 p-2 rounded-full hover:bg-gray-100">◄</button>
+                        <button id="prev-month" class="text-gray-600 p-2 rounded-full hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">◄</button>
                         <div class="flex items-center justify-between">
                             <h3 id="month-title" class="font-bold text-xl text-gray-800 dark:text-white mb-1"></h3>
                             <button id="refresh-month"
-                                class="text-gray-600 p-2 rounded-full hover:bg-gray-100">↻</button>
+                                class="text-gray-600 p-2 rounded-full hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">↻</button>
                         </div>
-                        <button id="next-month" class="text-gray-600 p-2 rounded-full hover:bg-gray-100">►</button>
+                        <button id="next-month" class="text-gray-600 p-2 rounded-full hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">►</button>
                     </div>
-                    <div class="grid grid-cols-7 text-center text-sm font-semibold text-gray-500 mb-2">
+                    <div class="grid grid-cols-7 text-center text-sm font-semibold text-gray-500 mb-2 dark:text-gray-400">
                         <span data-i18n="WEEK_SUNDAY">日</span>
                         <span data-i18n="WEEK_MONDAY">一</span>
                         <span data-i18n="WEEK_TUESDAY">二</span>
@@ -513,10 +558,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                 <div id="daily-records-card" class="card p-6" style="display: none;">
                     <h4 id="daily-records-title" class="text-xl font-bold text-gray-800 mb-2 dark:text-white mb-1"></h4>
-                    <div id="daily-records-loading" data-i18n="RECORDS_LOADING" class="text-center text-gray-500 py-4" style="display: none;">
+                    <div id="daily-records-loading" data-i18n="RECORDS_LOADING" class="text-center text-gray-500 py-4 dark:text-gray-400" style="display: none;">
                         正在載入紀錄...</div>
                     <ul id="daily-records-list" class="space-y-3"></ul>
-                    <div id="daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" class="text-center text-gray-500 py-4"
+                    <div id="daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" class="text-center text-gray-500 py-4 dark:text-gray-400"
                         style="display: none;">
                         該日沒有打卡紀錄。
                     </div>
@@ -572,10 +617,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                 <div class="card p-6">
                     <h2 data-i18n="CURRENT_LOCATION_TITLE"
                         class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">當前位置</h2>
-                    <p data-i18n="CURRENT_LOCATION_DESCRIPTION" class="text-gray-500 mb-4">系統將透過 GPS 偵測您的位置。</p>
+                    <p data-i18n="CURRENT_LOCATION_DESCRIPTION" class="text-gray-500 mb-4 dark:text-gray-400">系統將透過 GPS 偵測您的位置。</p>
 
                     <!-- <div id="map-container"
-                        class="w-full h-64 rounded-lg mb-4 bg-gray-200 flex items-center justify-center text-gray-500">
+                        class="w-full h-64 rounded-lg mb-4 bg-gray-200 flex items-center justify-center text-gray-500 dark:text-gray-400 dark:bg-gray-700">
                         <div id="map-loading-text">
                             <span data-i18n="MAP_LOADING">正在載入地圖...</span>
                         </div>
@@ -585,7 +630,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             <strong data-i18n="LOCATION_STATUS_LABEL">狀態：</strong>
                             <span id="location-status" data-i18n="LOCATION_STATUS_PENDING">未偵測</span>
                         </p>
-                        <p class="text-sm text-gray-600">
+                        <p class="text-sm text-gray-600 dark:text-gray-300">
                             <strong data-i18n="COORDINATES_LABEL">經緯度：</strong>
                             <span id="location-coords" data-i18n="COORDINATES_UNKNOWN">未知</span>
                         </p>
@@ -597,7 +642,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                 <div class="card p-6">
                     <h2 data-i18n="FEATURE_LOCKED" class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
                         未解鎖功能</h2>
-                    <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4">請聯絡開發人員</p>
+                    <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4 dark:text-gray-400">請聯絡開發人員</p>
                 </div>
             </section>
 
@@ -628,7 +673,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                         class="mt-4 text-center py-8 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl">
                         <i class="fas fa-info-circle text-2xl text-indigo-400 mb-2"></i>
                         <p class="font-semibold" data-i18n="MSG_PLEASE_SELECT_EMPLOYEE">請先從上方選單選擇一位員工以查看或修改詳細設定。</p>
-                        <p data-i18n="HINT_DATA_AUTO_LOAD" class="text-sm mt-1 text-gray-500">（資料將自動載入）</p>
+                        <p data-i18n="HINT_DATA_AUTO_LOAD" class="text-sm mt-1 text-gray-500 dark:text-gray-400">（資料將自動載入）</p>
                     </div>
                 </div>
 
@@ -667,7 +712,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             <div class="card p-6 dash-full">
                                 <div class="flex items-center pb-4 mb-4 border-b border-gray-200 dark:border-gray-700">
                                     <img id="mgmt-employee-avatar"
-                                        src="https://placehold.co/80x80/E0F2FE/1E3A8A?text=User"
+                                        src="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2080%2080'%3E%3Crect%20width='80'%20height='80'%20rx='40'%20fill='%23dbeafe'/%3E%3Ccircle%20cx='40'%20cy='31'%20r='12'%20fill='%231e3a8a'/%3E%3Cpath%20d='M15%2072c0-14 11.2-23 25-23s25%209%2025%2023z'%20fill='%231e3a8a'/%3E%3C/svg%3E"
                                         alt="Employee Avatar"
                                         style="width:64px;height:64px;flex-shrink:0;"
                                         class="rounded-full object-cover mr-4 border-2 border-indigo-300 dark:border-indigo-500">
@@ -770,7 +815,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                                 <div id="kpi-illegal-summary" class="font-semibold text-amber-700 dark:text-amber-300">
                                                     本月偵測到突發事件工時 -- 小時，分布於 -- 天
                                                 </div>
-                                                <div class="text-xs text-amber-600 dark:text-amber-400 mt-1" data-i18n="KPI_ILLEGAL_LAW_NOTE">
+                                                <div class="text-xs text-amber-800 dark:text-amber-400 mt-1" data-i18n="KPI_ILLEGAL_LAW_NOTE">
                                                     勞基法 §32 §36：每日含加班最多 12 小時、例假日不得出勤。系統仍按實際工時計薪，請業主依 §40 判斷是否為天災／事變／突發事件之合法停假，或員工誤打卡。
                                                 </div>
                                             </div>
@@ -852,9 +897,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <h3 id="admin-daily-records-title" class="text-xl font-bold dark:text-white mb-4"></h3>
                                 <ul id="admin-daily-records-list" class="space-y-3"></ul>
                                 <div id="admin-records-loading" data-i18n="RECORDS_LOADING" style="display: none;"
-                                    class="text-center text-gray-500 py-4">正在載入紀錄...</div>
+                                    class="text-center text-gray-500 py-4 dark:text-gray-400">正在載入紀錄...</div>
                                 <div id="admin-daily-records-empty" data-i18n="DAILY_RECORDS_EMPTY" style="display: none;"
-                                    class="text-center text-gray-500 py-4">該日沒有打卡紀錄。</div>
+                                    class="text-center text-gray-500 py-4 dark:text-gray-400">該日沒有打卡紀錄。</div>
                             </div>
 
                             <!-- B4. 週工時圖（全寬，已是 .card p-6）-->
@@ -937,13 +982,8 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <!-- Toggle settings 由 JS 動態生成 -->
                             </div>
 
-                            <!-- 動作按鈕（測試通知）-->
-                            <div class="flex flex-col sm:flex-row gap-2 mt-6">
-                                <button id="test-notification-btn" data-i18n="BTN_TEST_NOTIFICATION"
-                                    class="flex-1 py-2 px-3 rounded-lg bg-blue-100 text-blue-800 dark:bg-blue-600 dark:text-white border border-blue-200 dark:border-blue-700 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-700">
-                                    測試通知功能
-                                </button>
-                            </div>
+                            <!-- F-L13：測試按鈕（test-notification-btn / test-api-btn）已自正式 UI 移除。
+                                 admin.js 綁定時有做 null 檢查，移除後不會出錯。 -->
                         </div>
 
                         <!-- Panel: 打卡政策 -->
@@ -987,9 +1027,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                             <form id="form-salary-profile" class="space-y-4">
                                 <!-- 國籍 radio（影響勞退提繳資格） -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                                        data-i18n="LABOR_NATIONALITY">國籍</label>
+                                <!-- U-L7：radio 群組的標題原本是孤兒 <label>（沒有 for，也不包住任何控制項），
+                                     讀屏軟體念不出「這兩顆 radio 屬於國籍」。改成 fieldset/legend。 -->
+                                <fieldset class="border-0 p-0 m-0">
+                                    <legend class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        data-i18n="LABOR_NATIONALITY">國籍</legend>
                                     <div class="flex gap-4">
                                         <label class="inline-flex items-center cursor-pointer">
                                             <input type="radio" name="nationality" value="taiwanese" id="nationality-taiwanese"
@@ -1004,12 +1046,12 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     </div>
                                     <p class="mt-1 text-xs text-gray-500 dark:text-gray-400"
                                         data-i18n="LABOR_NATIONALITY_HINT">外籍員工不需提繳勞退，選外籍會自動鎖定該選項</p>
-                                </div>
+                                </fieldset>
 
-                                <!-- 薪資制度 radio -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                                        data-i18n="LABOR_SALARY_TYPE">薪資制度</label>
+                                <!-- 薪資制度 radio（U-L7：同上，改 fieldset/legend）-->
+                                <fieldset class="border-0 p-0 m-0">
+                                    <legend class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                                        data-i18n="LABOR_SALARY_TYPE">薪資制度</legend>
                                     <div class="flex gap-4">
                                         <label class="inline-flex items-center cursor-pointer">
                                             <input type="radio" name="salaryType" value="monthly" id="salary-type-monthly"
@@ -1022,7 +1064,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                             <span data-i18n="LABOR_SALARY_TYPE_HOURLY">時薪制</span>
                                         </label>
                                     </div>
-                                </div>
+                                </fieldset>
 
                                 <!-- 月薪 (monthly mode) -->
                                 <div id="salary-monthly-block">
@@ -1074,12 +1116,12 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <div class="mt-2">
                                         <label for="salary-insured-custom-input" class="block text-xs text-gray-500 dark:text-gray-400 mb-1">
                                             <span data-i18n="LABOR_INSURED_CUSTOM_SALARY">自訂投保薪資</span>
-                                            <span class="text-[10px]">(NT$)</span>
+                                            <span class="text-xs">(NT$)</span>
                                         </label>
                                         <input type="number" id="salary-insured-custom-input" name="customInsuredSalary"
                                             min="0" step="100" value="0" placeholder="0"
                                             class="w-full p-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white">
-                                        <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-1" data-i18n="LABOR_INSURED_CUSTOM_HINT">填 0 用上方分級表；&gt;0 覆寫（用於歷史級距如 29500）</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-i18n="LABOR_INSURED_CUSTOM_HINT">填 0 用上方分級表；&gt;0 覆寫（用於歷史級距如 29500）</p>
                                     </div>
                                 </div>
 
@@ -1106,7 +1148,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <label for="salary-housing-input"
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         <span data-i18n="LABOR_HOUSING_EXPENSE">住宿費</span>
-                                        <span class="text-xs text-gray-500" data-i18n="LABOR_UNIT_NTD_PER_MONTH">(NT$ / 月)</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400" data-i18n="LABOR_UNIT_NTD_PER_MONTH">(NT$ / 月)</span>
                                     </label>
                                     <input type="number" id="salary-housing-input" name="housingExpense"
                                         min="0" step="100" value="0"
@@ -1118,7 +1160,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     <label for="salary-tax-rate-input"
                                         class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                         <span data-i18n="LABOR_INCOME_TAX_RATE">所得稅扣繳率</span>
-                                        <span class="text-xs text-gray-500" data-i18n="LABOR_TAX_RATE_HINT">(% 外籍常用 6)</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400" data-i18n="LABOR_TAX_RATE_HINT">(% 外籍常用 6)</span>
                                     </label>
                                     <input type="number" id="salary-tax-rate-input" name="incomeTaxRate"
                                         min="0" max="30" step="0.5" value="0"
@@ -1177,7 +1219,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     <div class="card p-6 mt-6">
                         <h2 data-i18n="ADD_LOCATION_TITLE"
                             class="text-xl font-bold text-gray-800 mb-2  dark:text-white mb-1">新增打卡地點</h2>
-                        <p data-i18n="ADD_LOCATION_DESCRIPTION" class="text-gray-500 mb-4">輸入地點名稱，並使用您的當前位置作為經緯度。</p>
+                        <p data-i18n="ADD_LOCATION_DESCRIPTION" class="text-gray-500 mb-4 dark:text-gray-400">輸入地點名稱，並使用您的當前位置作為經緯度。</p>
 
                         <!-- 地標搜尋（Admin 新增地點） -->
                         <div id="admin-map-search" class="mb-3">
@@ -1187,7 +1229,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                     data-i18n-placeholder="MAP_SEARCH_PLACEHOLDER" autocomplete="off"
                                     class="w-full py-2 px-3 rounded-md border border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
                                 <button id="admin-map-search-clear"
-                                    class="absolute right-2 top-1/2 transform -translate-y-1/2 text-sm text-gray-500"
+                                    class="absolute right-2 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400"
                                     data-i18n-aria-label="BTN_CLEAR_SEARCH"
                                     aria-label="清除搜尋" style="display:none">✕</button>
                             </div>
@@ -1205,34 +1247,38 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                         <div class="space-y-4">
                             <div>
                                 <label data-i18n="LOCATION_NAME_LABEL" for="location-name"
-                                    class="block text-sm font-medium text-gray-700">地點名稱</label>
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-200">地點名稱</label>
                                 <input type="text" id="location-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm
                                     dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                             </div>
-                            <div>
-                                <label data-i18n="COORDINATES_LAT_LNG_LABEL"
-                                    class="block text-sm font-medium text-gray-700">經緯度 (Latitude / Longitude)</label>
+                            <!-- U-L7：一個 label 標兩個 input 無法用 for 關聯，改 fieldset/legend，
+                                 兩個 input 各自再補 aria-label（緯度／經度）。 -->
+                            <fieldset class="border-0 p-0 m-0">
+                                <legend data-i18n="COORDINATES_LAT_LNG_LABEL"
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-200">經緯度 (Latitude / Longitude)</legend>
                                 <div class="mt-1 flex space-x-2">
                                     <input type="text" id="location-lat" placeholder="緯度" readonly
+                                        aria-label="緯度" data-i18n-aria-label="LATITUDE_PLACEHOLDER"
                                         data-i18n-placeholder="LATITUDE_PLACEHOLDER" class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm
                                         dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     <input type="text" id="location-lng" placeholder="經度" readonly
+                                        aria-label="經度" data-i18n-aria-label="LONGITUDE_PLACEHOLDER"
                                         data-i18n-placeholder="LONGITUDE_PLACEHOLDER" class="block w-1/2 rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm
                                         dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                 </div>
-                            </div>
+                            </fieldset>
 
                             <!-- 新增：設定打卡地點範圍（公尺） -->
                             <div>
                                 <label data-i18n="LABEL_PUNCH_RADIUS" for="location-radius-slider"
-                                    class="block text-sm font-medium text-gray-700">打卡範圍</label>
+                                    class="block text-sm font-medium text-gray-700 dark:text-gray-200">打卡範圍</label>
                                 <div class="mt-2 flex items-center space-x-3">
                                     <input id="location-radius-slider" type="range" min="10" max="500" step="10"
                                         value="100" class="w-full" />
                                     <span id="location-radius-display"
                                         class="w-20 text-sm text-gray-700 dark:text-gray-200 text-right">50 m</span>
                                 </div>
-                                <p data-i18n="HINT_PUNCH_RADIUS" class="text-xs text-gray-500 mt-1">拖移滑桿以調整允許打卡的半徑（公尺）。</p>
+                                <p data-i18n="HINT_PUNCH_RADIUS" class="text-xs text-gray-500 mt-1 dark:text-gray-400">拖移滑桿以調整允許打卡的半徑（公尺）。</p>
                             </div>
 
                             <button data-i18n="GET_LOCATION_BTN" id="get-location-btn"
@@ -1272,12 +1318,13 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <span id="toggle-requests-icon">▼</span>
                             </button>
                         </div>
-                        <p data-i18n="PENDING_REQUESTS_DESCRIPTION" class="text-gray-500 mb-4">請處理員工提出的補打卡或虛擬卡請求。</p>
+                        <p data-i18n="PENDING_REQUESTS_DESCRIPTION" class="text-gray-500 mb-4 dark:text-gray-400">請處理員工提出的補打卡或虛擬卡請求。</p>
                         <div id="pending-requests-content">
                             <div id="pending-requests-container">
                                 <div id="requests-loading" data-i18n="REQUESTS_LOADING"
-                                    class="text-center text-gray-500 py-4">正在載入請求...</div>
-                                <div id="requests-empty" class="text-center text-green-600 bg-green-50 p-4 rounded-lg"
+                                    class="text-center text-gray-500 py-4 dark:text-gray-400">正在載入請求...</div>
+                                <div id="requests-empty"
+                                    class="text-center text-green-700 bg-green-50 dark:text-green-200 dark:bg-green-900/40 p-4 rounded-lg"
                                     style="display: none;">
                                     <p data-i18n="REQUESTS_EMPTY_TITLE" class="font-semibold">太棒了！</p>
                                     <p data-i18n="REQUESTS_EMPTY_MESSAGE">目前沒有任何待審核的請求。</p>
@@ -1292,18 +1339,9 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     <div class="card p-6">
                         <h2 data-i18n="FEATURE_LOCKED" class="text-xl font-bold text-gray-800 mb-1 dark:text-white mb-1">
                             未解鎖功能</h2>
-                        <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4">請聯絡開發人員</p>
+                        <p data-i18n="CONTACT_DEVELOPER" class="text-gray-500 mb-4 dark:text-gray-400">請聯絡開發人員</p>
                     </div>
-                    <div class="card p-6 mt-6" style="display: none;">
-                        <h2 data-i18n="API_TEST_TITLE"
-                            class="text-xl font-bold text-gray-800 mb-2  dark:text-white mb-1">
-                            API 測試區</h2>
-                        <p data-i18n="API_TEST_DESCRIPTION" class="text-gray-500 mb-4">點擊下方按鈕以測試新的 API 功能。</p>
-                        <div>
-                            <button data-i18n="API_TEST_BTN" id="test-api-btn"
-                                class="w-full py-2 px-4 rounded-lg font-bold btn-primary">測試 API</button>
-                        </div>
-                    </div>
+
                 </section>
 
             </section>
@@ -1312,12 +1350,16 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <!-- 作者資訊區塊 -->
 
     <!-- Notification -->
-    <div id="notification" class="notification">
+    <!-- U-M15：原本沒有任何 aria，讀屏軟體完全不會念出提示。role="status" + aria-live="polite"
+         是安全的預設；錯誤/警告時由 app.js 的 observer 升級成 assertive（見 setupNotificationLiveRegion）。 -->
+    <div id="notification" class="notification" role="status" aria-live="polite" aria-atomic="true">
         <p id="notification-message"></p>
     </div>
 
     <!-- Confirmation Dialog (問題8.6：敏感操作確認) -->
-    <div id="confirm-dialog"
+    <!-- U-M12：補上 role / aria-modal / tabindex（比照 #makeup-modal），讓讀屏軟體知道這是強制回應的
+         對話框；core.js 開啟時也會補一次，兩者等效。aria-labelledby 指到訊息本體。 -->
+    <div id="confirm-dialog" role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="confirm-message"
         style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 9999;">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6 w-11/12 sm:w-full max-w-sm mx-4">
             <p id="confirm-message"
@@ -1328,8 +1370,10 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     class="px-4 py-2 sm:py-3 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-white text-sm sm:text-base font-semibold hover:bg-gray-400 dark:hover:bg-gray-500 flex-1 sm:flex-none">
                     <span data-i18n="BTN_CANCEL">取消</span>
                 </button>
-                <button id="confirm-ok-btn"
-                    class="px-4 py-2 sm:py-3 rounded-lg bg-red-500 text-white text-sm sm:text-base font-semibold hover:bg-red-600 flex-1 sm:flex-none">
+                <!-- U-L8：原本永遠是紅色，連補打卡、核准這種非破壞性操作也紅，稀釋了刪除/離職的警示。
+                     顏色改由 data-variant 決定：預設中性藍，破壞性操作才由 core.js 設 data-variant="danger"。 -->
+                <button id="confirm-ok-btn" data-variant="neutral"
+                    class="confirm-ok-btn px-4 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold flex-1 sm:flex-none">
                     <span data-i18n="BTN_CONFIRM">確認</span>
                 </button>
             </div>
@@ -1347,7 +1391,7 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                     <span data-i18n="LABOR_HELP_TITLE">勞基法工時計算說明</span>
                 </h3>
                 <button type="button" id="kpi-labor-help-close-btn"
-                    class="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl font-bold leading-none px-2"
+                    class="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl font-bold leading-none px-2 dark:text-gray-400"
                     data-i18n-aria-label="BTN_CLOSE" aria-label="關閉">×</button>
             </div>
             <div id="kpi-labor-help-body" class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed space-y-3">
@@ -1367,7 +1411,6 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
     <script src="js/vendor/purify-3.4.1.min.js"></script>
 
     <!-- 基礎設施層 -->
-    <!-- template-loader.js 已移除（模板機制未被使用），模板片段保留於 templates/ui-components.html -->
     <script defer src="js/ui-component-generator.js"></script>
     <script defer src="js/cache.js"></script>
     <script defer src="js/config.js"></script>

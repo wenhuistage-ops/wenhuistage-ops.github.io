@@ -4,6 +4,38 @@
  */
 
 /**
+ * 以「本地時區」解析 'YYYY-MM-DD'（U-M2）
+ *
+ * ⚠️ `new Date('2026-09-09')` 依 ECMA-262 是 UTC 午夜，在台灣（UTC+8）等於
+ *    當地 08:00。凌晨 00:00–07:59 拿它跟 `new Date()` 比大小，今天會被判成
+ *    「未來日期」→ 月曆點今天完全沒反應。日期字串一律走這個函式。
+ *
+ * @param {string|Date} dateStr 'YYYY-MM-DD'（可帶時間後綴，會被忽略）
+ * @returns {Date|null} 當地時間當日 00:00；格式不符回 null
+ */
+function parseLocalDate(dateStr) {
+  if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+  const m = String(dateStr || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * dateKey 是否晚於今天（只比日期，不含時分秒）
+ *
+ * @param {string} dateStr 'YYYY-MM-DD'
+ * @param {Date} [today] 覆寫「今天」（測試用）
+ * @returns {boolean} 解析失敗時回 false（寧可讓使用者點得到）
+ */
+function isFutureDateKey(dateStr, today = new Date()) {
+  const d = parseLocalDate(dateStr);
+  if (!d) return false;
+  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return d.getTime() > base.getTime();
+}
+
+/**
  * 生成日曆網格
  * @param {number} year - 年份
  * @param {number} month - 月份（0-11）
@@ -206,4 +238,8 @@ function clearAllMonthCache() {
 }
 
 
-console.log('✓ calendar 模塊已加載');
+if (typeof window !== 'undefined') {
+  window.parseLocalDate = parseLocalDate;
+  window.isFutureDateKey = isFutureDateKey;
+}
+

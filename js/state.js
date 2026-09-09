@@ -36,7 +36,31 @@ const PRELOAD_INCREMENT_DELAY = 250; // 每個預加載項目的額外延遲 (�
 
 let currentMonthDate = new Date(); // 當前月份（員工視圖）
 let translations = {}; // 翻譯字典（由 i18n 模塊管理）
-let currentLang = localStorage.getItem("lang") || 'zh-TW'; // 當前語言
+
+/**
+ * 偵測瀏覽器語言 → 專案支援的語系代碼（U-M10）
+ *
+ * ⚠️ 舊版寫成 `localStorage.getItem("lang") || 'zh-TW'`，'zh-TW' 這個
+ *    fallback 讓下方的偵測區塊變成永遠不執行的死碼；越南/印尼籍員工首次
+ *    開啟一律看到中文。改成「沒存過語言時才走偵測」。
+ *
+ * @param {string} [browserLang] 覆寫用（測試）；預設讀 navigator.language
+ * @returns {'zh-TW'|'ja'|'vi'|'id'|'en-US'}
+ */
+function detectBrowserLang(browserLang) {
+    const raw = browserLang
+        || (typeof navigator !== 'undefined' && (navigator.language || navigator.userLanguage))
+        || '';
+    const lang = String(raw).toLowerCase();
+    if (lang.startsWith('zh')) return 'zh-TW';
+    if (lang.startsWith('ja')) return 'ja';
+    if (lang.startsWith('vi')) return 'vi';
+    if (lang.startsWith('id') || lang.startsWith('in')) return 'id'; // 舊版 Android 送 'in' 代表印尼文
+    return 'en-US';
+}
+
+// 使用者選過語言就尊重選擇；沒選過才依瀏覽器語言決定
+let currentLang = localStorage.getItem("lang") || detectBrowserLang(); // 當前語言
 
 // 用戶相關（由 AppState 管理）
 let userId = localStorage.getItem("sessionUserId");
@@ -69,23 +93,10 @@ let circle = null;
 let locationMarkers = null; // 將在 location.js 中初始化
 let locationCircles = null; // 將在 location.js 中初始化
 
-console.log('✓ 應用常數和配置已加載');
+// 首屏就讓 <html lang> 與 currentLang 一致（讀屏發音引擎依這個屬性）
+if (typeof applyDocumentLang === 'function') applyDocumentLang(currentLang);
 
 
-if (!currentLang) {
-    const browserLang = navigator.language || navigator.userLanguage;
-    if (browserLang.startsWith("zh")) {
-        currentLang = "zh-TW";
-    } else if (browserLang.startsWith("ja")) {
-        currentLang = "ja";
-    } else if (browserLang.startsWith("vi")) {
-        currentLang = "vi";
-    } else if (browserLang.startsWith("id")) {
-        currentLang = "id";
-    } else {
-        currentLang = "en-US";
-    }
-}
 
 let requestsLoading = null;
 let requestsEmpty = null;

@@ -48,7 +48,6 @@ const API_CONFIG = {
 // 正式環境一律鎖死走 Cloud Functions。
 // --------------------------------------------------------------------------
 API_CONFIG.useFirestore = true;
-console.log("🔥 後端模式：Firestore（Cloud Functions，已鎖定）");
 
 /**
  * 根據當前頁面位置動態決定登入後的重定向 URL

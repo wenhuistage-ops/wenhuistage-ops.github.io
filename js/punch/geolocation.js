@@ -51,7 +51,7 @@ async function checkGeolocationPermission() {
         // 監聽權限變化
         result.addEventListener('change', () => {
             geolocationPermissionStatus = result.state;
-            console.log('地理位置權限狀態變更:', result.state);
+            debugLog('地理位置權限狀態變更:', result.state);
         });
 
         return result.state; // 'granted', 'denied', 'prompt'
@@ -97,6 +97,35 @@ async function requestGeolocationPermission() {
 // #region 精確定位（含重試）
 // ===================================
 
+/**
+ * U-H2：把 GeolocationPositionError.code 對應到既有的 5 語 i18n key。
+ * 原本直接顯示 `err.message`（瀏覽器英文原文）＋ `[code N]`，越南／印尼員工
+ * 看到的是三種語言混在一起的字串。code 是標準值：1 拒絕 / 2 抓不到 / 3 逾時。
+ * @param {{code?: number}} err
+ * @returns {string} 已翻譯的錯誤訊息
+ */
+function geolocationErrorKey(err) {
+    switch (err && err.code) {
+        case 1: return 'ERROR_GEOLOCATION_PERMISSION_DENIED';
+        case 2: return 'ERROR_GEOLOCATION_UNAVAILABLE';
+        case 3: return 'ERROR_GEOLOCATION_TIMEOUT';
+        default: return 'ERROR_GEOLOCATION_UNKNOWN';
+    }
+}
+
+/**
+ * 定位失敗訊息 ＋ 一句可執行的建議。
+ * code 2/3（訊號不足、逾時）走空曠處提示；code 1 是權限問題，另有引導彈窗，不加。
+ */
+function geolocationErrorMessage(err) {
+    const key = geolocationErrorKey(err);
+    const base = tr_geo(key, '無法取得定位');
+    if (key === 'ERROR_GEOLOCATION_UNAVAILABLE' || key === 'ERROR_GEOLOCATION_TIMEOUT') {
+        return `${base} ${tr_geo('GPS_TIP_OPEN_SKY', '請走到窗邊或空曠處，再按一次打卡。')}`;
+    }
+    return base;
+}
+
 // 獲取精確位置的函數，包含精確度檢查和重試機制
 async function getAccurateLocation(onSuccess, button, retryCount = 0) {
     const MAX_RETRIES = 1; // 🚀 P5-1 優化：只在完全失敗時重試一次
@@ -133,11 +162,15 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
 
                 // 只在精確度太差時提示，但仍然提交
                 if (quality === 'poor') {
+                    // U-H2：光講「精確度 120m（較差）」員工不知道要做什麼，補一句可執行建議
                     const accuracyMsg = t('GPS_ACCURACY_WARNING', {
                         accuracy: Math.round(accuracy),
                         quality: t(`GPS_QUALITY_${quality.toUpperCase()}`) || quality
-                    }) || `GPS精確度: ${Math.round(accuracy)}m (${quality})，將由後端驗證`;
-                    showNotification(accuracyMsg, "info");
+                    }) || `GPS精確度: ${Math.round(accuracy)}m (${quality})`;
+                    showNotification(
+                        `${accuracyMsg} ${tr_geo('GPS_TIP_OPEN_SKY', '請走到窗邊或空曠處，再按一次打卡。')}`,
+                        "info"
+                    );
                 }
 
                 // 呼叫成功回調
@@ -147,11 +180,11 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
             (err) => {
                 // 🚀 P5-1 優化：只在網路錯誤時重試，不在精確度差時重試
                 if (retryCount < MAX_RETRIES) {
-                    const retryMsg = t('GPS_RETRY_ON_ERROR', {
-                        error: err.message,
-                        retry: retryCount + 1,
-                        max: MAX_RETRIES
-                    }) || `GPS獲取失敗，正在重試 (${retryCount + 1}/${MAX_RETRIES})...`;
+                    // U-H2：改走帶參數的既有 key（{retry}/{max}）。原本還傳了 error: err.message，
+                    // 但文案裡沒有 {error} 佔位符，那串英文本來就被丟掉，拿掉以免誤導。
+                    const retryMsg = tr_geo('GPS_RETRY_ON_ERROR',
+                        `GPS獲取失敗，正在重試 (${retryCount + 1}/${MAX_RETRIES})...`,
+                        { retry: retryCount + 1, max: MAX_RETRIES });
 
                     showNotification(retryMsg, "warning");
 
@@ -164,10 +197,10 @@ async function getAccurateLocation(onSuccess, button, retryCount = 0) {
                 }
 
                 // 達到最大重試次數，顯示錯誤
-                const errorMsg = t("ERROR_GEOLOCATION", {
-                    msg: `${err.message || ''} [code ${err.code}] (已重試 ${MAX_RETRIES} 次)`
-                });
-                showNotification(errorMsg, "error");
+                // U-H2：改用依 err.code 對應的 5 語 key（不再拼瀏覽器英文原文與 [code N]）；
+                // 原始 code/message 只留在 console 供排查。
+                console.warn('定位失敗:', err && err.code, err && err.message);
+                showNotification(geolocationErrorMessage(err), "error");
                 generalButtonState(button, 'idle');
                 reject(err);
             },
@@ -321,7 +354,6 @@ function tr_geo(key, fallback, params) {
 }
 // #endregion
 
-console.log('✓ geolocation 模組已加載');
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {
@@ -332,5 +364,7 @@ if (typeof module !== 'undefined' && module.exports) {
         requestGeolocationPermission,
         getAccurateLocation,
         showLocationPermissionHelp,
+        geolocationErrorKey,
+        geolocationErrorMessage,
     };
 }

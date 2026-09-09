@@ -15,9 +15,13 @@
 // ===================================
 
 /**
- * 檢查 URL 參數，若有 ?action=punch 則自動觸發打卡。
+ * 檢查 URL 參數，若有 ?action=in|out 則詢問後觸發打卡。
+ *
+ * F-M2：原本一開連結就直接打卡，完全沒有確認 —— 任何人把 `?action=out` 貼給同事，
+ * 對方一點開就被打了下班卡。改成先跳確認框，由本人按下去才送出。
+ * @returns {Promise<void>}
  */
-function checkAutoPunch() {
+async function checkAutoPunch() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
 
@@ -30,26 +34,30 @@ function checkAutoPunch() {
         targetButton = punchOutBtn;
     }
 
-    if (targetButton) {
-        // sessionToken 是在 app.js 的登入流程中設置的，這裡直接檢查即可
-        if (localStorage.getItem("sessionToken")) {
-            showNotification(t("PUNCH_AUTO_TRIGGERED") || '正在自動打卡...', "info");
+    if (!targetButton) return;
 
-            setTimeout(() => {
-                // 觸發目標打卡按鈕的點擊事件
-                targetButton.click();
-                // 清除 URL 參數
-                history.replaceState(null, '', window.location.pathname);
-            }, 500);
-
-        } else {
-            showNotification(t("PUNCH_REQUIRE_LOGIN") || '請先登入才能自動打卡！', "warning");
-        }
+    // sessionToken 是在 app.js 的登入流程中設置的，這裡直接檢查即可
+    if (!localStorage.getItem("sessionToken")) {
+        showNotification(t("PUNCH_REQUIRE_LOGIN") || '請先登入才能自動打卡！', "warning");
+        return;
     }
+
+    // 先把 URL 參數清掉：無論按確認或取消都不該留著，
+    // 否則重新整理／PWA 還原分頁時又會再問一次（甚至又打一次卡）。
+    const typeText = t(action === 'in' ? 'PUNCH_IN' : 'PUNCH_OUT');
+    history.replaceState(null, '', window.location.pathname);
+
+    const confirmed = (typeof showConfirmDialog === 'function')
+        ? await showConfirmDialog(tOr('CONFIRM_AUTO_PUNCH', '確定要打「{type}」卡嗎？', { type: typeText }))
+        : true;
+    if (!confirmed) return;
+
+    showNotification(t("PUNCH_AUTO_TRIGGERED") || '正在自動打卡...', "info");
+    // 保留原本的小延遲，讓通知先畫出來、也避開確認框關閉動畫
+    setTimeout(() => targetButton.click(), 300);
 }
 // #endregion
 
-console.log('✓ auto-punch 模組已加載');
 
 // CommonJS export（僅 Node.js/Jest，瀏覽器無影響）
 if (typeof module !== 'undefined' && module.exports) {

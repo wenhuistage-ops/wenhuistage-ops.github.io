@@ -34,7 +34,6 @@ class CacheManager {
       ttl: options.ttl || null // null 表示無限期
     };
 
-    console.log(`✓ 快取 "${name}" 已註冊 (maxSize: ${this.configs[name].maxSize}, ttl: ${this.configs[name].ttl}ms)`);
   }
 
   /**
@@ -203,7 +202,7 @@ class CacheManager {
     console.group('📊 快取統計');
     Object.keys(this.caches).forEach(name => {
       const stats = this.getStats(name);
-      console.log(`${name}: ${stats.size}/${stats.maxSize} (TTL: ${stats.ttl}ms)`);
+      debugLog(`${name}: ${stats.size}/${stats.maxSize} (TTL: ${stats.ttl}ms)`);
     });
     console.groupEnd();
   }
@@ -220,4 +219,3 @@ cacheManager.register('adminMonth', { maxSize: 12 }); // 管理員月份快取
 cacheManager.register('employeeList', { ttl: 10 * 60 * 1000 }); // 員工列表快取（10分鐘 TTL）
 cacheManager.register('reviewRequest', { ttl: 60 * 1000 }); // 審核列表快取（60秒 TTL，approve/reject 後 invalidate）
 
-console.log('✓ 快取管理器已初始化');

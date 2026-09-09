@@ -33,13 +33,13 @@ let _mapResizeObserver = null;
  * 供其他模塊調用（如 ui.js 的 switchTab）
  */
 function ensureMapInitialized() {
-    console.log('🔍 [DEBUG] ensureMapInitialized() 被調用，_mapInitialized =', _mapInitialized);
+    debugLog('🔍 [DEBUG] ensureMapInitialized() 被調用，_mapInitialized =', _mapInitialized);
     if (_mapInitialized) {
-        console.log('📍 地圖已初始化，復用實例');
+        debugLog('📍 地圖已初始化，復用實例');
         return;
     }
 
-    console.log('📍 開始初始化地圖...');
+    debugLog('📍 開始初始化地圖...');
     _mapInitialized = true;
     initLocationMap();
 }
@@ -79,10 +79,15 @@ async function fetchAndRenderLocationsOnMap() {
             locationMarkers.addTo(mapInstance);
             locationCircles.addTo(mapInstance);
 
-            console.log("地點標記和範圍已成功載入地圖。");
+            debugLog("地點標記和範圍已成功載入地圖。");
         } else {
-            showNotification(t("MSG_FETCH_LOCATIONS_FAILED", { msg: res.msg || "" }), "error");
-            console.error("Failed to fetch locations:", res.msg);
+            // U-M8：不把後端原文（res.msg）顯示給使用者，只顯示已翻譯的文案
+            showNotification(
+                (typeof apiErrorText === 'function')
+                    ? apiErrorText(res, 'ERROR_FETCH_LOCATIONS')
+                    : t('UNKNOWN_ERROR'),
+                "error");
+            console.error("Failed to fetch locations:", res.code || '');
         }
     } catch (error) {
         showNotification(t("MSG_FETCH_LOCATIONS_NETWORK_ERROR"), "error");
@@ -91,23 +96,23 @@ async function fetchAndRenderLocationsOnMap() {
         // 確保地圖加載文本被隱藏（即使 API 失敗）
         if (mapLoadingText) {
             mapLoadingText.style.display = 'none';
-            console.log('✅ 地圖加載文本已隱藏（在 fetchAndRenderLocationsOnMap 中）');
+            debugLog('✅ 地圖加載文本已隱藏（在 fetchAndRenderLocationsOnMap 中）');
         }
     }
 }
 // 初始化地圖並取得使用者位置
 function initLocationMap(forceReload = false) {
-    console.log('🔍 [DEBUG] initLocationMap() 被調用，forceReload =', forceReload);
+    debugLog('🔍 [DEBUG] initLocationMap() 被調用，forceReload =', forceReload);
     const mapContainer = document.getElementById('map-container');
     const statusEl = document.getElementById('location-status');
     const coordsEl = document.getElementById('location-coords');
 
-    console.log('🔍 [DEBUG] mapContainer =', mapContainer, ', statusEl =', statusEl, ', coordsEl =', coordsEl);
+    debugLog('🔍 [DEBUG] mapContainer =', mapContainer, ', statusEl =', statusEl, ', coordsEl =', coordsEl);
 
     // 取得載入文字元素
     if (!mapLoadingText) {
         mapLoadingText = document.getElementById('map-loading-text');
-        console.log('🔍 [DEBUG] 獲取 mapLoadingText =', mapLoadingText);
+        debugLog('🔍 [DEBUG] 獲取 mapLoadingText =', mapLoadingText);
     }
 
     // 檢查地圖實例是否已存在
@@ -126,7 +131,7 @@ function initLocationMap(forceReload = false) {
     // 顯示載入中的文字（安全檢查）
     if (mapLoadingText) {
         mapLoadingText.style.display = 'block';
-        console.log('✅ 地圖載入文本已顯示');
+        debugLog('✅ 地圖載入文本已顯示');
     } else {
         console.warn('⚠️ [警告] mapLoadingText 元素未找到！');
     }
@@ -146,11 +151,11 @@ function initLocationMap(forceReload = false) {
     // 這些變數在 state.js 中宣告但未初始化，會導致 fetchAndRenderLocationsOnMap() 調用時出錯
     if (!locationMarkers) {
         locationMarkers = L.featureGroup().addTo(mapInstance);
-        console.log('✅ locationMarkers FeatureGroup 已初始化');
+        debugLog('✅ locationMarkers FeatureGroup 已初始化');
     }
     if (!locationCircles) {
         locationCircles = L.featureGroup().addTo(mapInstance);
-        console.log('✅ locationCircles FeatureGroup 已初始化');
+        debugLog('✅ locationCircles FeatureGroup 已初始化');
     }
 
     // 讓地圖在完成載入後隱藏載入中的文字
@@ -169,7 +174,7 @@ function initLocationMap(forceReload = false) {
     const observer = new MutationObserver(() => {
         if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
             mapInstance.invalidateSize();
-            console.log('✅ 地圖容器尺寸已重新計算');
+            debugLog('✅ 地圖容器尺寸已重新計算');
         }
     });
     _mapResizeObserver = observer;
@@ -185,7 +190,7 @@ function initLocationMap(forceReload = false) {
     setTimeout(() => {
         if (mapLoadingText && mapLoadingText.style.display !== 'none') {
             mapLoadingText.style.display = 'none';
-            console.log('✓ 地圖加載文本已隱藏');
+            debugLog('✓ 地圖加載文本已隱藏');
         }
     }, 1000);
 
@@ -194,7 +199,7 @@ function initLocationMap(forceReload = false) {
         const loadingEl = document.getElementById('map-loading-text');
         if (loadingEl) {
             loadingEl.style.display = 'none';
-            console.log('✓ 強制隱藏地圖加載文本');
+            debugLog('✓ 強制隱藏地圖加載文本');
         }
     }, 3000);
 
@@ -384,7 +389,8 @@ function initAdminAddLocationMapIfNeeded() {
     if (getLocBtn) {
         getLocBtn.addEventListener('click', () => {
             if (!navigator.geolocation) {
-                alert(t('MSG_GEOLOCATION_UNSUPPORTED'));
+                // U-L8：原生 alert 會擋住整個分頁且無法翻譯樣式，改用專案 toast
+                showNotification(t('MSG_GEOLOCATION_UNSUPPORTED'), 'error');
                 return;
             }
             getLocBtn.disabled = true;
@@ -399,7 +405,16 @@ function initAdminAddLocationMapIfNeeded() {
                 getLocBtn.textContent = t('GET_LOCATION_BTN') || '取得當前位置';
             }, (err) => {
                 console.error(err);
-                alert(t('MSG_GEOLOCATION_ERROR', { message: err.message || err.code || '' }));
+                // U-L8 + U-M8：不再用 alert，也不把瀏覽器英文原文（err.message）
+                // 丟給員工看；依 GeolocationPositionError.code 對應到既有的五語 key。
+                const GEO_KEY = {
+                    1: 'ERROR_GEOLOCATION_PERMISSION_DENIED',
+                    2: 'ERROR_GEOLOCATION_UNAVAILABLE',
+                    3: 'ERROR_GEOLOCATION_TIMEOUT',
+                };
+                const key = GEO_KEY[err && err.code] || 'ERROR_GEOLOCATION_UNAVAILABLE';
+                const msg = t(key);
+                showNotification(msg === key ? t('UNKNOWN_ERROR') : msg, 'error');
                 getLocBtn.disabled = false;
                 getLocBtn.textContent = t('GET_LOCATION_BTN') || '取得當前位置';
             }, { enableHighAccuracy: true, timeout: 10000 });
