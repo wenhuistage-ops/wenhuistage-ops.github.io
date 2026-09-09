@@ -8,6 +8,7 @@
  * - 集合名稱常數
  */
 
+const crypto = require("crypto");
 const admin = require("firebase-admin");
 const { getFirestore } = require("firebase-admin/firestore");
 const { defineSecret } = require("firebase-functions/params");
@@ -58,6 +59,18 @@ function safeRedirectUrl(url) {
   return DEFAULT_LINE_REDIRECT_URL;
 }
 
+/**
+ * B-L12：onCall 的 CORS 來源白名單。
+ * 原本全部端點寫 `cors:true`（等同 Access-Control-Allow-Origin: *），任何網站都能
+ * 從使用者瀏覽器帶著 sessionToken 呼叫這些 API。改成明確白名單：正式站 + 本機開發。
+ * 陣列元素可為字串（完全比對 origin）或 RegExp（cors 套件會用 test 比對 origin）。
+ */
+const CORS_ORIGINS = [
+  "https://wenhuistage-ops.github.io",
+  /^http:\/\/localhost(:\d+)?$/,
+  /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+];
+
 // 集合名稱常數（對應 GS/Constants.gs 的 SHEET_* 命名）
 const COLLECTIONS = {
   EMPLOYEES: "employees",
@@ -97,6 +110,23 @@ const SESSION_NEG_TTL_MS = 10 * 1000;
 const SESSION_CACHE_MAX = 500;
 const SESSION_NEG_MAX = 200;
 
+/**
+ * B-L3：session token 以 sha256 當 doc id。
+ * 明文當 doc id 時，任何能讀到 sessions collection 的人（誤設 rules、備份外流、
+ * Firestore Console 截圖）就等於直接拿到可用的 token。改存雜湊後，doc 內容外流
+ * 也無法反推出 token。
+ *
+ * 相容性：舊 session 的 doc id 仍是明文，verifySession 先查雜湊、再退回明文，
+ * 既有登入者不會被強制登出（舊 doc 自然於 30 天 TTL 後由 cleanExpiredSessions 清掉）。
+ */
+function hashSessionToken(token) {
+  return crypto.createHash("sha256").update(String(token)).digest("hex");
+}
+
+// session token 的合法字元（Firestore auto-id 為 [A-Za-z0-9]{20}）。
+// 先擋掉含 '/' 等字元的值，避免 .doc() 直接拋錯變成 500。
+const SESSION_TOKEN_RE = /^[A-Za-z0-9_-]{1,200}$/;
+
 function _capMap(map, max) {
   if (map.size > max) map.delete(map.keys().next().value); // FIFO 淘汰最舊
 }
@@ -128,10 +158,14 @@ function invalidateSessionCacheByUserId(userId) {
  * token 不存在也視為成功（冪等）。
  */
 async function revokeSession(sessionToken) {
-  if (typeof sessionToken !== "string" || !/^[A-Za-z0-9_-]+$/.test(sessionToken)) return;
+  if (typeof sessionToken !== "string" || !SESSION_TOKEN_RE.test(sessionToken)) return;
   SESSION_CACHE.delete(sessionToken);
   setSessionCache(sessionToken, { ok: false, code: "ERR_SESSION_INVALID" });
-  await db.collection(COLLECTIONS.SESSIONS).doc(sessionToken).delete();
+  // 雜湊 doc（新）與明文 doc（舊 session）都刪，確保登出真的撤銷
+  await Promise.all([
+    db.collection(COLLECTIONS.SESSIONS).doc(hashSessionToken(sessionToken)).delete(),
+    db.collection(COLLECTIONS.SESSIONS).doc(sessionToken).delete(),
+  ]);
 }
 
 /**
@@ -151,10 +185,25 @@ async function verifySession(sessionToken) {
     return cached.result;
   }
 
-  const sessionSnap = await db
+  if (typeof sessionToken !== "string" || !SESSION_TOKEN_RE.test(sessionToken)) {
+    // 非法字元直接判失敗，不讓它進 .doc()（含 '/' 會拋錯 → 500）
+    const result = { ok: false, code: "ERR_SESSION_INVALID" };
+    setSessionCache(sessionToken, result);
+    return result;
+  }
+
+  // B-L3：先查雜湊 doc（新 session），查不到再退回明文 doc（2026-09 前發出的舊 session）。
+  // 這個 fallback 讓既有登入者不會因為改雜湊而被強制登出。
+  let sessionSnap = await db
     .collection(COLLECTIONS.SESSIONS)
-    .doc(sessionToken)
+    .doc(hashSessionToken(sessionToken))
     .get();
+  if (!sessionSnap.exists) {
+    sessionSnap = await db
+      .collection(COLLECTIONS.SESSIONS)
+      .doc(sessionToken)
+      .get();
+  }
 
   if (!sessionSnap.exists) {
     const result = { ok: false, code: "ERR_SESSION_INVALID" };
@@ -221,13 +270,53 @@ async function verifyAdmin(sessionToken) {
 // 輸入驗證
 // ===================================
 
+// B-M1：可接受的月份下界。系統 2020 年前無資料，早於此一律拒絕。
+const MIN_VALID_MONTH = "2020-01";
+
 /**
- * 驗證月份參數格式（YYYY-MM）。
+ * 可接受的月份上界 = 台北時區「這個月 + 1 個月」。
+ * 允許多一個月是為了跨月操作（月底排班預先補卡 / 下月月曆）。
+ */
+function maxValidMonth() {
+  const t = new Date(Date.now() + TAIPEI_OFFSET_MS);
+  let y = t.getUTCFullYear();
+  let m = t.getUTCMonth() + 2; // getUTCMonth() 0-based，+1 變 1-based，再 +1 個月
+  if (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * 驗證月份參數（YYYY-MM）的格式與範圍。
  * month 會被拼進 attendanceMonthly 的 doc id（`${userId}_${month}`），
  * 垃圾字串會產生垃圾聚合 doc、含 '/' 會直接 500，故所有接收 month 的端點都須先驗。
  */
 function isValidMonth(month) {
-  return typeof month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
+  if (typeof month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return false;
+  // B-M1：只驗格式不夠。0001-01～9999-12 都能通過，任何登入員工可迴圈灌爆
+  // attendanceMonthly（每個新月份一個 doc + 一次 ~50 reads 的 lazy 重算）。
+  // 'YYYY-MM' 定長格式可直接字串比較。
+  return month >= MIN_VALID_MONTH && month <= maxValidMonth();
+}
+
+/**
+ * B-M5：打卡 type 白名單。原本各檔各寫一份 `["上班","下班"].includes()`，
+ * 管理員端（adjustPunchAsAdmin）整個漏掉，可寫入 type:'請假' + audit:'v' 讓當日工時歸零。
+ */
+const VALID_PUNCH_TYPES = ["上班", "下班"];
+function isValidPunchType(type) {
+  return VALID_PUNCH_TYPES.includes(type);
+}
+
+/**
+ * B-L9：Firestore doc id / userId 字元白名單。
+ * 未驗證就拼進 `.doc(id)`：含 '/' 會讓路徑段數變偶數直接拋錯（500），
+ * 且可能指向非預期 doc。LINE userId 與 Firestore auto-id 都只有英數。
+ */
+function isValidDocId(id) {
+  return typeof id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(id);
 }
 
 /**
@@ -252,6 +341,120 @@ function isReasonableAttendanceDate(d) {
 const MAX_TEXT_FIELD_CHARS = 500;
 function clampText(value) {
   return String(value || "").slice(0, MAX_TEXT_FIELD_CHARS);
+}
+
+/**
+ * B-M2：後端重複打卡防護。
+ *
+ * 冷卻原本只在前端記憶體（重整即歸零，curl 完全不受限），一秒可寫上千筆 attendance。
+ * 寫入前查同一 userId 在冷卻視窗內的「即時打卡」（adjustmentType 為空），
+ * 若已有同 type 紀錄就拒絕。
+ *
+ * 為什麼用 timestamp 範圍查而不是 orderBy type：
+ *   (userId ASC, timestamp ASC) 複合索引已存在（firestore.indexes.json），
+ *   加 type 條件會需要新索引；60 秒內的紀錄通常 0–2 筆，記憶體過濾即可。
+ *
+ * @returns {Promise<{ ok: true } | { ok: false, code: string, params: { seconds: number } }>}
+ */
+const PUNCH_COOLDOWN_MS = 60 * 1000;
+
+async function checkPunchCooldown(userId, type, windowMs = PUNCH_COOLDOWN_MS) {
+  if (!userId) return { ok: true };
+  const since = new Date(Date.now() - windowMs);
+  try {
+    const snap = await db
+      .collection(COLLECTIONS.ATTENDANCE)
+      .where("userId", "==", userId)
+      .where("timestamp", ">=", since)
+      .get();
+
+    let latest = 0;
+    snap.docs.forEach((doc) => {
+      const d = doc.data();
+      // 只比對「即時打卡」：補打卡 / 虛擬卡 / 請假記錄的 timestamp 是目標時間，
+      // 不代表使用者剛剛按了按鈕，不該擋住真正的打卡。
+      if ((d.adjustmentType || "") !== "") return;
+      if (d.type !== type) return;
+      const ts = d.timestamp?.toMillis?.() ?? 0;
+      if (ts > latest) latest = ts;
+    });
+
+    if (latest > 0) {
+      const remain = Math.ceil((windowMs - (Date.now() - latest)) / 1000);
+      if (remain > 0) {
+        return { ok: false, code: "ERR_PUNCH_COOLDOWN", params: { seconds: remain } };
+      }
+    }
+    return { ok: true };
+  } catch (err) {
+    // 查詢失敗（索引未建、暫時性錯誤）不該擋住正常打卡 —— 這是防濫用，不是授權檢查
+    console.warn("checkPunchCooldown 查詢失敗，放行:", err?.message);
+    return { ok: true };
+  }
+}
+
+// ===================================
+// 假別白名單（B-L11）
+// ===================================
+
+/**
+ * 正規假別 → 所屬群組。與 updateLeaveAsAdmin.js 的 LEAVE_KINDS 同一份定義。
+ * 薪資倒扣規則讀 attendance.locationName（實作在 js/labor-hours.js leaveDeductionUnits）：
+ *   病假 0.5 天、事假/其他 1 天、年假/特休/補休/颱風假 不扣。
+ */
+const LEAVE_KINDS = {
+  "請假": ["病假", "事假", "其他"],
+  "休假": ["年假", "特休", "補休", "颱風假"],
+};
+
+/**
+ * 別名表：把前端送來的值正規化成上面的中文假別。
+ *
+ * 為什麼需要：前端 <select> 的 value 是「翻譯後的文字」（i18n/*.json 的
+ * LEAVE_SICK / VACATION_ANNUAL…），越南籍員工送出的是 'Nghỉ ốm'、印尼籍是
+ * 'Izin Sakit'。這些值直接存進 locationName，薪資倒扣規則（只認中文）完全比不到，
+ * 病假被當成不扣薪；統計也被拆成一種假別好幾類。
+ *
+ * 相容性：新舊都收 —— 五個語系的既有字串、正規中文、以及固定代碼
+ * （sick/personal/other/annual/special/compensatory/typhoon）三種都接受，
+ * 一律正規化成中文後儲存。現有員工不會送不出假單。
+ * key 一律小寫 + NFC 正規化（越南文有組合字元兩種寫法）。
+ */
+const LEAVE_KIND_ALIASES = {};
+function _alias(canonical, values) {
+  values.forEach((v) => {
+    LEAVE_KIND_ALIASES[String(v).normalize("NFC").toLowerCase()] = canonical;
+  });
+}
+// 請假
+_alias("病假", ["病假", "sick", "sick leave", "Nghỉ ốm", "Izin Sakit", "病欠"]);
+_alias("事假", ["事假", "personal", "personal leave", "Nghỉ việc riêng", "Izin Pribadi", "私用欠勤"]);
+_alias("其他", ["其他", "other", "Khác", "Lainnya", "その他"]);
+// 休假
+_alias("年假", ["年假", "annual", "annual leave", "Nghỉ phép năm", "Cuti Tahunan", "年次休暇"]);
+_alias("特休", ["特休", "special", "special leave", "Nghỉ đặc biệt", "Cuti Khusus", "特別休暇"]);
+_alias("補休", ["補休", "comp", "compensatory", "compensatory leave", "Nghỉ bù", "Cuti Kompensasi", "代休"]);
+_alias("颱風假", ["颱風假", "typhoon", "typhoon leave", "Nghỉ bão", "Cuti Badai", "台風休暇"]);
+
+/**
+ * @param {string} raw 前端送來的假別（任一語言 / 固定代碼 / 中文）
+ * @returns {string|null} 正規中文假別；不在白名單回 null
+ */
+function normalizeLeaveKind(raw) {
+  const key = String(raw || "").normalize("NFC").trim().toLowerCase();
+  if (!key) return null;
+  return LEAVE_KIND_ALIASES[key] || null;
+}
+
+/**
+ * @param {string} kind 正規中文假別
+ * @returns {string|null} '請假' | '休假'
+ */
+function leaveGroupOf(kind) {
+  for (const group of Object.keys(LEAVE_KINDS)) {
+    if (LEAVE_KINDS[group].includes(kind)) return group;
+  }
+  return null;
 }
 
 // ===================================
@@ -383,7 +586,8 @@ async function upsertEmployee(profile) {
  */
 async function createOneTimeToken(userId) {
   const sessionToken = db.collection(COLLECTIONS.SESSIONS).doc().id;
-  await db.collection(COLLECTIONS.SESSIONS).doc(sessionToken).set({
+  // B-L3：doc id 存 sha256(token)，明文 token 只回給前端，不落 Firestore
+  await db.collection(COLLECTIONS.SESSIONS).doc(hashSessionToken(sessionToken)).set({
     userId,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     expiredAt: new Date(Date.now() + SESSION_TTL_MS),
@@ -540,12 +744,17 @@ async function sendLinePush(userId, message, accessToken) {
  *
  * @param {string} message - 通知文字
  * @param {string} accessToken - LINE_CHANNEL_ACCESS_TOKEN.value()
+ * @param {{ excludeUserId?: string }} [options] - U-L11：排除某位管理員
+ *        （例如 adjustPunchAsAdmin 不必通知動手的那個人自己）
  */
-async function notifyAdmins(message, accessToken) {
+async function notifyAdmins(message, accessToken, options = {}) {
   try {
-    const admins = await getAdminList();
+    const all = await getAdminList();
+    const admins = options.excludeUserId
+      ? all.filter((a) => a.userId !== options.excludeUserId)
+      : all;
     if (admins.length === 0) {
-      console.warn("notifyAdmins: 沒有管理員");
+      console.warn("notifyAdmins: 沒有（其他）管理員");
       return { ok: false, msg: "NO_ADMIN" };
     }
     const results = await Promise.all(
@@ -586,6 +795,7 @@ module.exports = {
   admin,
   db,
   COLLECTIONS,
+  CORS_ORIGINS,
   SESSION_TTL_MS,
   DEFAULT_LINE_REDIRECT_URL,
   safeRedirectUrl,
@@ -596,10 +806,18 @@ module.exports = {
   verifyAdmin,
   invalidateSessionCacheByUserId,
   revokeSession,
+  hashSessionToken,
   isValidMonth,
+  maxValidMonth,
+  isValidPunchType,
+  isValidDocId,
   isReasonableAttendanceDate,
   clampText,
   validateCoordinates,
+  checkPunchCooldown,
+  LEAVE_KINDS,
+  normalizeLeaveKind,
+  leaveGroupOf,
   getDistanceMeters,
   getAllLocations,
   invalidateLocationsCache,

@@ -14,8 +14,10 @@
 exports.checkSession = require("./src/checkSession");
 exports.getLoginUrl = require("./src/getLoginUrl");
 exports.getProfile = require("./src/getProfile");
-exports.exchangeToken = require("./src/exchangeToken");
 exports.logout = require("./src/logout"); // 撤銷 session（真正登出）
+// B-L2（2026-09-09）：exchangeToken 已刪除。它讀 oneTimeTokens collection，
+// 但全系統沒有任何地方寫入該 collection（getProfile 直接回可用的 sessionToken），
+// 是永遠回 ERR_INVALID_TOKEN 的死端點。
 
 // ===== 打卡寫入 =====
 exports.punch = require("./src/punch");
@@ -30,6 +32,7 @@ exports.deleteAdjustRequest = require("./src/deleteAdjustRequest"); // 員工刪
 
 // ===== 打卡查詢 =====
 exports.getLocations = require("./src/getLocations");
+exports.getHolidays = require("./src/getHolidays"); // 國定假日表（後端統一抓取＋快取）
 exports.getCalendarSummary = require("./src/getCalendarSummary");
 exports.getAttendanceDetails = require("./src/getAttendanceDetails");
 exports.getCompleteAttendanceRecords = require("./src/getCompleteAttendanceRecords");

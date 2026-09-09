@@ -10,7 +10,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, verifyAdmin } = require("./_helpers");
+const { CORS_ORIGINS, admin, db, verifyAdmin, clampText } = require("./_helpers");
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -23,7 +23,7 @@ function _toMin(hhmm) {
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token || null;
@@ -40,7 +40,9 @@ module.exports = onCall(
 
     const cleaned = [];
     for (const b of breaks) {
-      const name = String(b?.name || "").trim();
+      // B-L10：休息時段名稱無長度上限 → 用 clampText 截 500 字
+      // （start/end 已被 HH:MM 正規表達式限死，不需另外截）
+      const name = clampText(b?.name).trim();
       const start = String(b?.start || "").trim();
       const end = String(b?.end || "").trim();
       if (!name) return { ok: false, code: "ERR_BREAK_NAME_EMPTY", msg: "name required" };

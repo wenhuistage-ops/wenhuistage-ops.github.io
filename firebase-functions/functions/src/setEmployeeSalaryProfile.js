@@ -5,7 +5,7 @@
  *   salaryType            'monthly' | 'hourly'
  *   monthlySalary         數字（NT$，monthly 模式必填，須 ≥ 29500 = 2026 基本工資）
  *   hourlyRate            數字（NT$，hourly 模式必填）
- *   laborInsuranceGrade   1–23（依勞保投保薪資分級表）
+ *   laborInsuranceGrade   1–11（2026 勞保投保薪資分級表實際級數，見 MAX_LABOR_GRADE）
  *   hasLaborPension       boolean（是否提繳勞退）
  *   laborPensionRate      0–6（員工自願提繳率 %）
  *   housingExpense        數字 ≥ 0（每月住宿費扣款，外籍員工常用，預設 0）
@@ -20,7 +20,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, verifyAdmin } = require("./_helpers");
+const { CORS_ORIGINS, admin, db, verifyAdmin } = require("./_helpers");
 
 // 2026/01/01 起基本月薪 29,500（與 js/labor-hours.js 同步；每年元旦前手動更新）
 const MIN_MONTHLY_WAGE = 29500;
@@ -28,10 +28,17 @@ const MIN_MONTHLY_WAGE = 29500;
 // ponytail: 固定上限即可，真有超出者再調此常數。
 const MAX_MONEY = 10000000;
 
+// 勞保投保薪資分級表級數上限。2026 年（勞動部 114.11.21 令）只有 11 級，
+// 第 1 級 29,500、第 11 級 45,800。前端表單卻允許 1–23，後端原本也照收，
+// 存進去的 12–23 在 js/labor-hours.js 的 LABOR_INSURANCE_GRADES 查無對應，
+// 勞保費會靜默算錯。與 js/labor-hours.js 的 LABOR_INSURANCE_GRADES 同步維護；
+// 每年 1/1 級距表調整時一併更新。
+const MAX_LABOR_GRADE = 11;
+
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token || null;
@@ -106,11 +113,15 @@ module.exports = onCall(
       update.hourlyRate = r;
     }
 
-    // laborInsuranceGrade 1-23
+    // laborInsuranceGrade 1-11（實際級距表級數）
     if (data.laborInsuranceGrade !== undefined) {
       const g = Number(data.laborInsuranceGrade);
-      if (!Number.isInteger(g) || g < 1 || g > 23) {
-        return { ok: false, code: "ERR_INVALID_GRADE", msg: "laborInsuranceGrade must be integer 1-23" };
+      if (!Number.isInteger(g) || g < 1 || g > MAX_LABOR_GRADE) {
+        return {
+          ok: false,
+          code: "ERR_INVALID_GRADE",
+          msg: `laborInsuranceGrade must be integer 1-${MAX_LABOR_GRADE}`,
+        };
       }
       update.laborInsuranceGrade = g;
     }

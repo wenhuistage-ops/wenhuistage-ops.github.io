@@ -13,12 +13,12 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession } = require("./_helpers");
+const { CORS_ORIGINS, db, COLLECTIONS, verifySession } = require("./_helpers");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token || null;

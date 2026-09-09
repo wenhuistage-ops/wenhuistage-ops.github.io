@@ -29,7 +29,10 @@ function toTaipei(date) {
  * 例如 "2026-04" 在 Asia/Taipei = 2026-03-31 16:00 UTC ~ 2026-04-30 16:00 UTC
  */
 function parseMonth(monthStr) {
-  const m = String(monthStr || "").match(/^(\d{4})-(\d{1,2})$/);
+  // B-L16：原本是 \d{1,2}，'2026-13' 會被 Date.UTC 靜默進位成 2027-01，
+  // 腳本下 --month=2026-13 會回傳「看似正常」但完全錯誤的月份資料。
+  // 收緊成 01–12，非法月份一律回 null 由呼叫端擋掉。
+  const m = String(monthStr || "").match(/^(\d{4})-(0[1-9]|1[0-2])$/);
   if (!m) return null;
   const year = Number(m[1]);
   const month = Number(m[2]) - 1;
@@ -232,15 +235,28 @@ function summarizeByDay(records) {
       createdByAdmin: r.createdByAdmin || "",
     };
 
-    // 去重：同一天若已有 type + time + location 相同的記錄就跳過
-    // 避免來源 Sheet 重複申請（例如同一天兩筆 08:00 病假）造成顯示重複
-    const isDup = day.record.some(
+    // 去重：同一天若已有 type + time + location 相同的記錄
+    //
+    // B-L17：原本第二筆一律靜默丟棄，造成 Firestore 裡真實存在、但月曆上看不到
+    // 也刪不掉的幽靈紀錄（前端要 docId 才能呼叫 deleteAttendance）。
+    // 現在只有「連 docId 都相同」（同一份 doc 被讀兩次）才跳過；
+    // 不同 docId 的重複內容改為保留 + console.warn，讓 admin 看得到也刪得掉。
+    const dup = day.record.find(
       (p) =>
         p.time === newRecord.time &&
         p.type === newRecord.type &&
         p.location === newRecord.location
     );
-    if (!isDup) {
+    if (!dup) {
+      day.record.push(newRecord);
+    } else if (dup.id && newRecord.id && dup.id === newRecord.id) {
+      // 同一份 doc，真重複，跳過
+    } else {
+      console.warn(
+        `[dup-record] ${key} 同時間同類型重複紀錄 type=${newRecord.type} ` +
+          `time=${newRecord.time} keep=${dup.id || "(無id)"} also=${newRecord.id || "(無id)"}`
+      );
+      newRecord.isDuplicate = true; // 前端可標記/提示，docId 仍在 → 可刪
       day.record.push(newRecord);
     }
   });
@@ -571,6 +587,14 @@ async function getMonthlyDailyStatus(userId, month) {
   console.warn(
     `[reads] getMonthlyDailyStatus MISS u=${userId.slice(0, 8)} m=${month} reads=~${records.length + 2} (建議跑 backfill --month=${month})`
   );
+
+  // B-M1：完全沒有打卡紀錄的月份不寫聚合 doc。
+  // 原本無條件 tx.set，任何登入員工只要迴圈請求不同月份就能無限產生空 doc
+  // （灌爆 attendanceMonthly 與寫入帳單）。空月份直接回空陣列，下次仍走此路徑，
+  // 成本是 1 次 query（0 doc reads），比留一堆空 doc 便宜。
+  if (records.length === 0) {
+    return [];
+  }
 
   // 用 transaction 寫入，避免被並行 punch 蓋掉
   await db.runTransaction(async (tx) => {

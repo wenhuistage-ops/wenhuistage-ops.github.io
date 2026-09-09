@@ -26,11 +26,11 @@
 "use strict";
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifyAdmin } = require("./_helpers");
+const { CORS_ORIGINS, db, COLLECTIONS, verifyAdmin, isValidDocId } = require("./_helpers");
 const { applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const auth = await verifyAdmin(sessionToken);
@@ -38,6 +38,10 @@ module.exports = onCall(
 
     const id = String(request.data?.id || "").trim();
     if (!id) return { ok: false, code: "ERR_MISSING_ID", msg: "缺少 attendance id" };
+    // B-L9：docId 未驗字元就 .doc()，含 '/' 直接 500
+    if (!isValidDocId(id)) {
+      return { ok: false, code: "ERR_MISSING_ID", msg: "attendance id 格式不正確" };
+    }
 
     const ref = db.collection(COLLECTIONS.ATTENDANCE).doc(id);
     const snap = await ref.get();
@@ -47,9 +51,10 @@ module.exports = onCall(
     const data = snap.data();
 
     // 2026-08-04c：白名單放寬 — 一般打卡（adjustmentType=''）改為可刪。
-    //   原因：60 秒冷卻只擋「同型」連點，員工按錯「下班」後馬上按「上班」不會被擋，
-    //   聚合層的 _dedupeAdjacentSameType 也只去重同型，這種誤打卡沒有任何自動修正路徑。
-    //   舊註解說「由員工自己作廢」，但系統從未實作作廢功能 → admin 刪除是唯一出路。
+    //   原因：後端 60 秒冷卻（B-M2，punch.js）只擋「同 userId 同 type」的連點，
+    //   員工按錯「下班」後馬上按「上班」不會被擋；聚合層的 _dedupeAdjacentSameType
+    //   同樣只去重同型，這種誤打卡沒有任何自動修正路徑。
+    //   系統從未實作員工端作廢功能 → admin 刪除是唯一出路。
     //   請假記錄仍不可刪：影響員工權益，改假別請走 updateLeaveAsAdmin（編輯）。
     const DELETABLE_TYPES = new Set(["", "補打卡", "系統虛擬卡"]);
     if (!DELETABLE_TYPES.has(data.adjustmentType || "")) {
@@ -63,11 +68,15 @@ module.exports = onCall(
     const userId = data.userId;
     const punchDate = data.timestamp?.toDate?.() || data.timestamp;
 
-    // ponytail: 刪前把整筆內容寫進 log，誤刪可從 Cloud Logging 撈回手動重建。
-    //   比加 deleted 欄位做軟刪除便宜 — 那要改所有 attendance 查詢加 where 條件。
-    //   若誤刪頻繁到需要一鍵還原，再考慮軟刪除。
+    // B-L4：刪前留最小快照供誤刪追查。
+    //   原本 JSON.stringify(整筆 doc)，會把 GPS 座標、備註、甚至病假證明 base64
+    //   全部寫進 Cloud Logging（保留 30 天、多人可讀）。
+    //   改成只留重建所需的非 PII 欄位；真要復原可從審核紀錄與員工確認補齊。
     console.log(
-      `[admin-action] deleteAttendance-snapshot docId=${id} data=${JSON.stringify(data)}`
+      `[admin-action] deleteAttendance-snapshot docId=${id} ` +
+        `user=${data.userId?.slice?.(0, 8)} type=${data.type || ""} ` +
+        `adjType=${data.adjustmentType || ""} audit=${data.audit || ""} ` +
+        `at=${data.timestamp?.toDate?.()?.toISOString?.() || ""}`
     );
 
     await ref.delete();

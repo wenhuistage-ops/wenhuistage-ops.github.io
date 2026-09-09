@@ -15,12 +15,13 @@ const {
   getAdminList,
   formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
+  CORS_ORIGINS,
 } = require("./_helpers");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
     secrets: [LINE_CHANNEL_ACCESS_TOKEN],
   },
   async (request) => {

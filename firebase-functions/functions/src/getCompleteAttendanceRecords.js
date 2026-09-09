@@ -4,11 +4,11 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { verifySession, isValidMonth } = require("./_helpers");
+const { CORS_ORIGINS, verifySession, isValidMonth, isValidDocId } = require("./_helpers");
 const { getMonthlyAttendance } = require("./_attendance");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const { month, userId, targetUserId } = request.data || {};
@@ -19,6 +19,10 @@ module.exports = onCall(
     if (!isValidMonth(month)) return { ok: false, code: "ERR_MISSING_MONTH" };
 
     const requested = userId || targetUserId;
+    // B-L9：統一擋非法 userId 字元
+    if (requested && !isValidDocId(requested)) {
+      return { ok: false, code: "ERR_NO_PERMISSION" };
+    }
     const effectiveUserId =
       session.user.dept === "管理員" && requested ? requested : session.user.userId;
 

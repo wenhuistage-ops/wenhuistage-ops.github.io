@@ -27,11 +27,19 @@
 
 const admin = require("firebase-admin");
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession, clampText, isReasonableAttendanceDate } = require("./_helpers");
+const {
+  db,
+  COLLECTIONS,
+  verifySession,
+  clampText,
+  isReasonableAttendanceDate,
+  isValidDocId,
+  CORS_ORIGINS,
+} = require("./_helpers");
 const { applyEventToMonthly, invalidateMonthlyCacheForDate } = require("./_attendance");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const session = await verifySession(sessionToken);
@@ -44,6 +52,8 @@ module.exports = onCall(
     const rawNote = clampText(request.data?.note);
 
     if (!id) return { ok: false, code: "ERR_MISSING_ID", msg: "缺少申請 id" };
+    // B-L9：docId 未驗字元就 .doc()，含 '/' 直接 500
+    if (!isValidDocId(id)) return { ok: false, code: "ERR_MISSING_ID", msg: "申請 id 格式不正確" };
     if (!datetime) return { ok: false, code: "ERR_INVALID_DATETIME", msg: "缺少 datetime" };
 
     const newDate = new Date(datetime);

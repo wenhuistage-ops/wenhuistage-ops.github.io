@@ -29,13 +29,16 @@ const {
   validateCoordinates,
   getDistanceMeters,
   getAllLocations,
+  isValidPunchType,
+  checkPunchCooldown,
+  CORS_ORIGINS,
 } = require("./_helpers");
 const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const t0 = Date.now();
@@ -46,7 +49,7 @@ module.exports = onCall(
 
     // type 白名單（與 punchWithoutLocation / updateAttendanceAsAdmin 一致）：
     // 員工端不得寫入 '請假'/'休假' 等其他類型，那些只能走 submitLeave 審核流程
-    if (!["上班", "下班"].includes(type)) {
+    if (!isValidPunchType(type)) {
       return { ok: false, code: "ERR_INVALID_PUNCH_TYPE" };
     }
 
@@ -106,6 +109,12 @@ module.exports = onCall(
       }
       return { ok: false, code: "ERR_OUT_OF_RANGE" };
     }
+
+    // 3.5 B-M2：後端 60 秒重複打卡防護。
+    // 前端冷卻只在記憶體（重整即歸零），curl 完全不受限。放在地理圍欄之後、
+    // 寫入之前：範圍外的請求本來就會被擋，不必為它多花一次 query。
+    const cooldown = await checkPunchCooldown(user.userId, type);
+    if (!cooldown.ok) return cooldown;
 
     // 4. 寫入 attendance
     const t5 = Date.now();

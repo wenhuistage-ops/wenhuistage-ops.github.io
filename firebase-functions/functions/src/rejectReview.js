@@ -4,11 +4,67 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifyAdmin } = require("./_helpers");
+const {
+  admin,
+  db,
+  COLLECTIONS,
+  verifyAdmin,
+  isValidDocId,
+  sendLinePush,
+  formatTaipei,
+  LINE_CHANNEL_ACCESS_TOKEN,
+  CORS_ORIGINS,
+} = require("./_helpers");
 const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
+// U-M1：審核結果通知員工。多語字典寫法比照 checkYesterdayPunch.js 的 BROADCAST_TEXT。
+// {kind}=補打卡/請假、{date}=目標日期（台北時區）
+const REJECTED_TEXT = {
+  "zh-TW": "❌ 您的{kind}申請（{date}）已被退回。",
+  vi: "❌ Đơn {kind} của bạn ({date}) đã bị từ chối.",
+  id: "❌ Pengajuan {kind} Anda ({date}) ditolak.",
+  en: "❌ Your {kind} request ({date}) was rejected.",
+  ja: "❌ あなたの{kind}申請（{date}）は差し戻されました。",
+  ko: "❌ 귀하의 {kind} 신청({date})이 반려되었습니다.",
+};
+// 退回原因前綴（有填 reason 時才附上）
+const REASON_LABEL = {
+  "zh-TW": "退回原因",
+  vi: "Lý do",
+  id: "Alasan",
+  en: "Reason",
+  ja: "理由",
+  ko: "사유",
+};
+const KIND_TEXT = {
+  adjust: {
+    "zh-TW": "補打卡",
+    vi: "bổ sung chấm công",
+    id: "koreksi absensi",
+    en: "punch correction",
+    ja: "打刻修正",
+    ko: "출퇴근 정정",
+  },
+  leave: {
+    "zh-TW": "請假",
+    vi: "nghỉ phép",
+    id: "izin/cuti",
+    en: "leave",
+    ja: "休暇",
+    ko: "휴가",
+  },
+};
+
+function pick(dict, lang) {
+  return dict[lang] || dict[String(lang || "").split("-")[0]] || dict["zh-TW"];
+}
+
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  {
+    region: "asia-southeast1",
+    cors: CORS_ORIGINS,
+    secrets: [LINE_CHANNEL_ACCESS_TOKEN],
+  },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const auth = await verifyAdmin(sessionToken);
@@ -16,6 +72,8 @@ module.exports = onCall(
 
     const id = request.data?.id;
     if (!id) return { ok: false, msg: "缺少審核 ID" };
+    // B-L9：docId 未驗字元就 .doc()，含 '/' 直接 500
+    if (!isValidDocId(id)) return { ok: false, code: "ERR_MISSING_ID", msg: "審核 ID 格式不正確" };
 
     // 退回原因（可選）：讓員工在「我的申請」看到為何被退。上限 500 字。
     const rejectReason = String(request.data?.reason || "").trim().slice(0, 500);
@@ -32,6 +90,10 @@ module.exports = onCall(
         if (d.audit !== "?") throw { _code: "ERR_ALREADY_REVIEWED" };
         if (d.adjustmentType !== "補打卡" && d.adjustmentType !== "系統請假記錄") {
           throw { _code: "ERR_NOT_REVIEWABLE" };
+        }
+        // B-L7：不得自審自批（同 approveReview）
+        if (d.userId && d.userId === auth.user.userId) {
+          throw { _code: "ERR_CANNOT_SELF_APPROVE" };
         }
         tx.update(ref, {
           audit: "x",
@@ -59,6 +121,23 @@ module.exports = onCall(
         );
       }
     }
+
+    // U-M1：通知申請人「已退回」＋原因。fire-and-forget，失敗不影響審核結果。
+    (async () => {
+      try {
+        if (!data.userId) return;
+        const empSnap = await db.collection(COLLECTIONS.EMPLOYEES).doc(data.userId).get();
+        const lang = empSnap.data()?.preferredLanguage || "zh-TW";
+        const kind = data.adjustmentType === "系統請假記錄" ? "leave" : "adjust";
+        let msg = pick(REJECTED_TEXT, lang)
+          .replace("{kind}", pick(KIND_TEXT[kind], lang))
+          .replace("{date}", formatTaipei(punchDate).slice(0, 10));
+        if (rejectReason) msg += `\n${pick(REASON_LABEL, lang)}：${rejectReason}`;
+        await sendLinePush(data.userId, msg, LINE_CHANNEL_ACCESS_TOKEN.value());
+      } catch (err) {
+        console.error("rejectReview 通知申請人失敗:", err?.message);
+      }
+    })();
 
     return { ok: true, msg: "審核成功" };
   }

@@ -184,7 +184,9 @@ module.exports = onSchedule(
     employeesSnap.docs.forEach((doc) => {
       const emp = doc.data();
       const userId = emp.userId || doc.id;
-      const name = emp.name || "(未命名)";
+      // B-L4：不再把員工姓名寫進 Cloud Logging（保留 30 天、多人可讀）。
+      // 只留 userId 前 8 碼，足以在 Firestore 對得回人，又不是可直接辨識的 PII。
+      const uidTag = String(userId || "").slice(0, 8);
       const status = emp.status || "啟用";
       const lang = emp.preferredLanguage || "zh-TW";
 
@@ -194,18 +196,22 @@ module.exports = onSchedule(
         return;
       }
 
-      const records = recordsByUser.get(userId) || [];
+      // B-L15：被退回（audit === 'x'）的補卡不算「有打卡」。
+      // 原本只在請假判斷裡排除 'x'，上/下班判斷沒排除 —— 員工的補卡被管理員退回後，
+      // 系統仍認為他昨天有打卡，於是不再提醒，該補的卡就這樣漏掉了。
+      const records = (recordsByUser.get(userId) || []).filter((r) => r.audit !== "x");
 
       // 昨天有請假/休假申請（已核准或待審）→ 本來就不用打卡，不催。
-      // 被退回（audit 'x'）的不算；假日不在此判斷（後端沒有假日資料，且本行假日常上班）。
-      if (records.some((r) => /請假|休假/.test(r.type || "") && r.audit !== "x")) {
+      // 被退回（audit 'x'）的已在上面 filter 掉；假日不在此判斷（後端沒有假日資料，
+      // 且本行假日常上班）。
+      if (records.some((r) => /請假|休假/.test(r.type || ""))) {
         onLeave++;
         return;
       }
 
       if (records.length === 0) {
         allMiss++;
-        console.log(`${name} 昨天無打卡`);
+        console.log(`[reminder] u=${uidTag} 昨天無打卡`);
         sendTasks.push(
           sendLineButtonMessage({
             to: userId,
@@ -224,7 +230,7 @@ module.exports = onSchedule(
 
       if (!hasOn) {
         inMiss++;
-        console.log(`${name} 昨天無打上班卡`);
+        console.log(`[reminder] u=${uidTag} 昨天無打上班卡`);
         sendTasks.push(
           sendLineButtonMessage({
             to: userId,
@@ -236,7 +242,7 @@ module.exports = onSchedule(
         );
       } else if (!hasOff) {
         outMiss++;
-        console.log(`${name} 昨天無打下班卡`);
+        console.log(`[reminder] u=${uidTag} 昨天無打下班卡`);
         sendTasks.push(
           sendLineButtonMessage({
             to: userId,

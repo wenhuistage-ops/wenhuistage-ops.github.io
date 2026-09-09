@@ -9,7 +9,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, verifySession } = require("./_helpers");
+const { CORS_ORIGINS, db, verifySession } = require("./_helpers");
 
 const DEFAULT_BREAKS = [
   { name: "早餐", start: "06:00", end: "06:30" },
@@ -20,7 +20,7 @@ const DEFAULT_BREAKS = [
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token || null;

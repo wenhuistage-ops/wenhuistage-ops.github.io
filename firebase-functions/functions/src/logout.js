@@ -9,12 +9,12 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { revokeSession } = require("./_helpers");
+const { CORS_ORIGINS, revokeSession } = require("./_helpers");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || null;

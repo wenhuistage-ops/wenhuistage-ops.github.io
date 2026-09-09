@@ -18,7 +18,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession, invalidateLocationsCache } = require("./_helpers");
+const { CORS_ORIGINS, db, COLLECTIONS, verifySession, invalidateLocationsCache } = require("./_helpers");
 
 // in-process cache（5 分鐘 TTL）
 const LOCATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -48,7 +48,7 @@ async function _getCachedLocations() {
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token || null;

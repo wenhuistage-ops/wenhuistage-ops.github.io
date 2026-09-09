@@ -26,14 +26,18 @@ const {
   clampText,
   isReasonableAttendanceDate,
   notifyAdmins,
+  normalizeLeaveKind,
+  leaveGroupOf,
+  formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
+  CORS_ORIGINS,
 } = require("./_helpers");
 const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
     secrets: [LINE_CHANNEL_ACCESS_TOKEN],
   },
   async (request) => {
@@ -71,8 +75,30 @@ module.exports = onCall(
       proofPhoto = photo;
     }
 
+    // B-L11：假別走白名單並正規化成中文。
+    //
+    // 原本 reason 是自由文字直接存進 locationName，而薪資倒扣規則（js/labor-hours.js）
+    // 只認中文假別 —— 越南籍員工送出的 'Nghỉ ốm' 比不到任何規則，病假不但沒扣半天，
+    // 統計也把同一種假拆成五種。type 也沒白名單，任意字串都能寫進 attendance.type。
+    //
+    // 相容性：normalizeLeaveKind 同時接受中文、五語系翻譯字串與固定代碼，
+    // 現有前端（送翻譯後文字）不需改動也能通過。
+    const leaveKind = normalizeLeaveKind(reason);
+    if (!leaveKind) {
+      return { ok: false, code: "ERR_INVALID_LEAVE_TYPE" };
+    }
+    // 群組由假別反推（兩組假別互斥），確保 type 與 reason 永遠一致 ——
+    // 前端傳的 type 只當作沒帶假別時的參考，不能拿來覆寫。
+    const typeText = leaveGroupOf(leaveKind);
+    if (!typeText) {
+      return { ok: false, code: "ERR_INVALID_LEAVE_TYPE" };
+    }
+    // type 仍檢查一次，擋掉明顯亂送的值（前端送 'leave' / 'vacation'）
+    if (!["leave", "vacation", "請假", "休假"].includes(String(type))) {
+      return { ok: false, code: "ERR_INVALID_LEAVE_TYPE" };
+    }
+
     const applicationTime = new Date();
-    const typeText = type === "leave" ? "請假" : "休假";
 
     const docData = {
       timestamp: admin.firestore.Timestamp.fromDate(punchDate),
@@ -81,8 +107,11 @@ module.exports = onCall(
       name: user.name || "",
       type: typeText,
       coords: `申請時間: ${applicationTime.toISOString()}`,
-      locationName: reason, // GS 版把原因存在地點欄位；此處欄位同
-      reason,
+      // 薪資倒扣規則讀 locationName，故存正規中文假別（不是使用者介面語言的字串）
+      locationName: leaveKind,
+      reason: leaveKind,
+      // 保留使用者實際送出的原字串，方便日後追溯 / 稽核
+      leaveKindRaw: reason,
       note: note || "",
       audit: "?",
       adjustmentType: "系統請假記錄",
@@ -113,10 +142,11 @@ module.exports = onCall(
       `📋 新${typeText}申請\n` +
       `👤 申請人：${user.name || ""}\n` +
       `📅 日期：${date}\n` +
-      `📝 原因：${reason}\n` +
+      `📝 原因：${leaveKind}\n` +
       (note ? `📋 備註：${note}\n` : "") +
       (proofPhoto ? `📎 已附證明照片\n` : "") +
-      `🕒 申請時間：${applicationTime.toISOString()}`;
+      // U-L11：原本是 UTC 的 toISOString()，管理員看到的申請時間少 8 小時
+      `🕒 申請時間：${formatTaipei(applicationTime)}`;
     notifyAdmins(notifMsg, LINE_CHANNEL_ACCESS_TOKEN.value()).catch((err) =>
       console.error("submitLeave notifyAdmins 失敗:", err)
     );

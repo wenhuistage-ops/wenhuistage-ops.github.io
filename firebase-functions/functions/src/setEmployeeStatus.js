@@ -21,12 +21,21 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifySession, invalidateAdminListCache, invalidateSessionCacheByUserId } = require("./_helpers");
+const {
+  admin,
+  db,
+  COLLECTIONS,
+  verifySession,
+  invalidateAdminListCache,
+  invalidateSessionCacheByUserId,
+  isValidDocId,
+  CORS_ORIGINS,
+} = require("./_helpers");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token || null;
@@ -40,6 +49,10 @@ module.exports = onCall(
 
     if (!userId) {
       return { ok: false, code: "ERR_MISSING_USER_ID", msg: "userId required" };
+    }
+    // B-L9：userId 直接拼進 employees/{userId} 路徑，含 '/' 會拋錯 500
+    if (!isValidDocId(userId)) {
+      return { ok: false, code: "ERR_MISSING_USER_ID", msg: "userId 格式不正確" };
     }
     if (!["isAdmin", "active", "resign", "punchReminder"].includes(field)) {
       return {

@@ -91,19 +91,29 @@ cd firebase-functions
 firebase deploy --only functions
 ```
 
-部署成功後可於 Firebase Console → Functions 查看（17 個）：
+部署成功後可於 Firebase Console → Functions 查看（33 個）：
 
 **身份與 session**：
 - `checkSession`
 - `getLoginUrl`
 - `getProfile`
-- `exchangeToken`
 - `logout`（撤銷 session，真正登出）
+
+> `exchangeToken` 已於 2026-09-09 移除（B-L2）：它讀 `oneTimeTokens` collection，
+> 但系統沒有任何地方寫入該 collection —— `getProfile` 直接回可用的 sessionToken，
+> 前端也從未呼叫它。若你的專案裡還留著這個已部署的 function，請手動刪除：
+> `firebase functions:delete exchangeToken --region asia-southeast1`
 
 **打卡寫入**：
 - `punch`
 - `punchWithoutLocation`
 - `adjustPunch`
+- `adjustPunchAsAdmin`（admin 代員工補卡）
+- `deleteAttendance`
+- `updateAttendanceAsAdmin`
+- `updateLeaveAsAdmin`
+- `updateAdjustRequest`
+- `deleteAdjustRequest`
 
 **打卡查詢**：
 - `getLocations`
@@ -115,12 +125,40 @@ firebase deploy --only functions
 **管理員**：
 - `getEmployeeList`
 - `addLocation`
+- `setEmployeeSalaryProfile`
+- `setEmployeeStatus`
 
 **請假與審核**：
 - `submitLeave`
+- `getLeaveProof`
 - `getReviewRequest`
 - `approveReview`
 - `rejectReview`
+
+**通知測試**：
+- `testNotification`
+
+**公司設定**：
+- `getBreakTimes`
+- `setBreakTimes`
+
+**排程任務（無前端 action 對應）**：
+- `cleanExpiredSessions`（每日 03:00）
+- `dailyVirtualPunch`
+- `checkYesterdayPunch`（每日 09:00）
+
+### CORS 白名單（2026-09-09，B-L12）
+
+所有 `onCall` 的 `cors` 由 `true`（任何來源）改為 `_helpers.js` 的 `CORS_ORIGINS`：
+`https://wenhuistage-ops.github.io` 與 `http://localhost:*` / `http://127.0.0.1:*`。
+**若日後換網域或加自訂網域，必須同步改 `functions/src/_helpers.js` 的 `CORS_ORIGINS` 並重新部署，
+否則前端所有 API 會被瀏覽器擋下。**
+
+### 部署前 lint（2026-09-09，B-L13）
+
+`firebase.json` 的 predeploy 會跑 `npm --prefix functions run lint`，該 script 現在是真的
+`eslint .`（設定在 `functions/eslint.config.js`，只抓語法錯與未定義變數）。
+部署前請先在 `functions/` 執行過 `npm install`，否則 predeploy 會因找不到 eslint 而中止。
 
 ## Step 7 — 產生測試資料
 
@@ -204,6 +242,7 @@ location.reload()
 - [ ] Firestore 已啟用（asia-southeast1）
 - [ ] `npm install` 於 `firebase-functions/functions/` 完成
 - [ ] `firebase deploy --only firestore:rules` 成功
+- [ ] `npm --prefix functions run lint` 通過（predeploy 會自動跑）
 - [ ] `firebase deploy --only functions` 成功
 - [ ] 手動加入測試資料（employees、sessions、locations 各一筆）
 - [ ] 前端 `?backend=firestore` 可呼叫 `checkSession` 與 `getLocations`

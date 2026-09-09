@@ -15,10 +15,10 @@
 "use strict";
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession } = require("./_helpers");
+const { CORS_ORIGINS, db, COLLECTIONS, verifySession, isValidDocId } = require("./_helpers");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const session = await verifySession(sessionToken);
@@ -26,6 +26,7 @@ module.exports = onCall(
 
     const id = String(request.data?.id || "").trim();
     if (!id) return { ok: false, code: "ERR_MISSING_ID" };
+    if (!isValidDocId(id)) return { ok: false, code: "ERR_MISSING_ID" }; // B-L9
 
     const snap = await db.collection(COLLECTIONS.ATTENDANCE).doc(id).get();
     if (!snap.exists) return { ok: false, code: "ERR_NOT_FOUND" };

@@ -12,7 +12,7 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifyAdmin, verifySession, formatTaipei } = require("./_helpers");
+const { CORS_ORIGINS, db, COLLECTIONS, verifySession, formatTaipei, isValidDocId } = require("./_helpers");
 
 const VALID_AUDIT = new Set(["?", "v", "x", "all"]);
 
@@ -27,12 +27,16 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
 
     // 員工查自己的審核紀錄 → 用 verifySession（一般員工）；查全公司 → verifyAdmin
     const requestedUserId = String(request.data?.userId || "").trim();
+    // B-L9：userId 進 where 條件雖不會像 .doc() 那樣拋錯，仍統一擋非法字元
+    if (requestedUserId && !isValidDocId(requestedUserId)) {
+      return { ok: false, code: "ERR_NO_PERMISSION" };
+    }
     const session = await verifySession(sessionToken);
     if (!session.ok) return { ok: false, code: session.code };
 
@@ -56,9 +60,15 @@ module.exports = onCall(
     // 計算「N 天前的午夜」為時間下界
     const sinceDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
 
-    let q = db
-      .collection(COLLECTIONS.ATTENDANCE)
-      .where("timestamp", ">=", sinceDate);
+    // B-L8：timestamp 是「申請的目標日期」而非申請時間。
+    // 舊寫法對待審清單也套 timestamp >= 90 天前，於是「幫三個月前的日子補卡」
+    // 這種申請一送出就落在視窗外，管理員永遠看不到，員工也永遠等不到審核。
+    // 待審（audit='?'）改為不套時間下界——待審件本來就少（實務 < 20 筆／月），
+    // 由 limit 控制成本即可；已審核（v/x/all）維持時間視窗，避免全表掃描。
+    const isPendingOnly = audit === "?";
+
+    let q = db.collection(COLLECTIONS.ATTENDANCE);
+    if (!isPendingOnly) q = q.where("timestamp", ">=", sinceDate);
     if (audit !== "all") q = q.where("audit", "==", audit);
     if (requestedUserId) q = q.where("userId", "==", requestedUserId);
     q = q.orderBy("timestamp", "desc").limit(limit);
@@ -68,7 +78,7 @@ module.exports = onCall(
     // 讀取監測 log：方便辨識「200 limit + 無時間範圍」型的熱點
     console.log(
       `[reads] getReviewRequest u=${requestedUserId ? requestedUserId.slice(0, 8) : 'ALL'} ` +
-        `audit=${audit} daysBack=${daysBack} limit=${limit} reads=${snap.size}`
+        `audit=${audit} daysBack=${isPendingOnly ? "all" : daysBack} limit=${limit} reads=${snap.size}`
     );
 
     const reviewRequest = snap.docs

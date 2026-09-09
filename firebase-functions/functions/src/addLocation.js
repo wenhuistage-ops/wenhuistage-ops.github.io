@@ -4,10 +4,19 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { admin, db, COLLECTIONS, verifyAdmin, validateCoordinates, invalidateLocationsCache } = require("./_helpers");
+const {
+  admin,
+  db,
+  COLLECTIONS,
+  verifyAdmin,
+  validateCoordinates,
+  invalidateLocationsCache,
+  clampText,
+  CORS_ORIGINS,
+} = require("./_helpers");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const { name, lat, lng, radius } = request.data || {};
@@ -15,7 +24,10 @@ module.exports = onCall(
     const auth = await verifyAdmin(sessionToken);
     if (!auth.ok) return { ok: false, code: auth.code };
 
-    if (!name) return { ok: false, code: "ERR_MISSING_NAME" };
+    // B-L10：地點名稱無長度上限。名稱會進 attendance.locationName、再進
+    // attendanceMonthly 聚合 doc，超長字串會撐爆 Firestore 1MiB 單 doc 上限。
+    const cleanName = clampText(name).trim();
+    if (!cleanName) return { ok: false, code: "ERR_MISSING_NAME" };
     const validation = validateCoordinates(lat, lng);
     if (!validation.valid) return { ok: false, code: validation.error };
 
@@ -26,7 +38,7 @@ module.exports = onCall(
     }
 
     const ref = await db.collection(COLLECTIONS.LOCATIONS).add({
-      name: String(name).trim(),
+      name: cleanName,
       lat: validation.lat,
       lng: validation.lng,
       radius: radiusNum,

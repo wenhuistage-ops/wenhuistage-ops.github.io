@@ -15,13 +15,14 @@ const {
   notifyAdmins,
   formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
+  CORS_ORIGINS,
 } = require("./_helpers");
 const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
     secrets: [LINE_CHANNEL_ACCESS_TOKEN],
   },
   async (request) => {

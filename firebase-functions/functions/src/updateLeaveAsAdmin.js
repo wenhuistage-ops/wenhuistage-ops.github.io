@@ -17,19 +17,14 @@
 
 const admin = require("firebase-admin");
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifyAdmin } = require("./_helpers");
+const { CORS_ORIGINS, db, COLLECTIONS, verifyAdmin, isValidDocId, LEAVE_KINDS } = require("./_helpers");
 const { applyEventToMonthly, invalidateMonthlyCacheForDate } = require("./_attendance");
 
-// 假別白名單（對應前端 make-up.js 的請假/休假選項）。
-// 薪資倒扣讀 locationName（規則實作在 js/labor-hours.js leaveDeductionUnits）：
-//   病假 0.5 天、事假/其他 1 天、年假/特休/補休/颱風假 不扣。
-const LEAVE_KINDS = {
-  "請假": ["病假", "事假", "其他"],
-  "休假": ["年假", "特休", "補休", "颱風假"],
-};
+// 假別白名單改由 _helpers.js 統一維護（LEAVE_KINDS），與 submitLeave 共用同一份定義，
+// 避免兩處各寫一份日後漂移。薪資倒扣規則讀 locationName（js/labor-hours.js）。
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const auth = await verifyAdmin(sessionToken);
@@ -37,6 +32,7 @@ module.exports = onCall(
 
     const id = String(request.data?.id || "").trim();
     if (!id) return { ok: false, code: "ERR_MISSING_ID" };
+    if (!isValidDocId(id)) return { ok: false, code: "ERR_MISSING_ID" }; // B-L9
 
     const group = String(request.data?.leaveGroup || "");
     const kind = String(request.data?.leaveKind || "");

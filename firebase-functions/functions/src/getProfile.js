@@ -27,6 +27,7 @@ const {
   consumeOAuthState,
   upsertEmployee,
   createOneTimeToken,
+  CORS_ORIGINS,
 } = require("./_helpers");
 
 /**
@@ -93,14 +94,11 @@ async function getLineUserInfo(tokenJson) {
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
     secrets: [LINE_CHANNEL_ID, LINE_CHANNEL_SECRET],
   },
   async (request) => {
     const code = request.data?.otoken || request.data?.code;
-    // redirect_uri 必須與 getLoginUrl 送給 LINE 的一致；同樣過白名單，
-    // 不接受前端任意值（防授權碼被導向攻擊者頁面）。
-    const redirectUrl = safeRedirectUrl(request.data?.redirectUrl || DEFAULT_LINE_REDIRECT_URL);
 
     if (!code) {
       return { ok: false, code: "ERR_MISSING_CODE" };
@@ -112,6 +110,14 @@ module.exports = onCall(
     if (!stateCheck.valid) {
       return { ok: false, code: "ERR_INVALID_STATE" };
     }
+
+    // B-L1：redirect_uri 以「getLoginUrl 當時記錄在 state 上的那個」為準，
+    // 而不是這次請求帶來的值。兩者必須與送給 LINE 的完全一致才能換到 token；
+    // 用 state 綁定的版本，前端就沒有任何空間在授權與交換之間換掉回跳網址。
+    // （state 查不到 redirectUrl 的舊資料才退回請求值，仍過白名單。）
+    const redirectUrl = safeRedirectUrl(
+      stateCheck.redirectUrl || request.data?.redirectUrl || DEFAULT_LINE_REDIRECT_URL
+    );
 
     try {
       const tokenJson = await exchangeCodeForToken(
@@ -135,12 +141,12 @@ module.exports = onCall(
         sToken: oneTimeToken,
       };
     } catch (err) {
-      console.error("getProfile 失敗:", err);
-      return {
-        ok: false,
-        code: "ERR_LINE_AUTH_FAILED",
-        msg: err?.message || String(err),
-      };
+      // B-L5：不要把 LINE 原始錯誤回給前端。
+      // exchangeCodeForToken 失敗時 err.message 內含 LINE 回應的完整 JSON
+      // （error_description、有時帶 client_id 等設定線索），對攻擊者是免費的偵察資訊，
+      // 對員工則是一串看不懂的英文。詳細只寫進 console.error 供維運查。
+      console.error("getProfile 失敗:", err?.message || err);
+      return { ok: false, code: "ERR_LINE_AUTH_FAILED" };
     }
   }
 );

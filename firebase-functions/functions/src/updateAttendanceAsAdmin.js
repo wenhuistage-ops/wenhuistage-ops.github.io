@@ -36,17 +36,25 @@
 
 const admin = require("firebase-admin");
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifyAdmin } = require("./_helpers");
+const {
+  db,
+  COLLECTIONS,
+  verifyAdmin,
+  clampText,
+  isValidDocId,
+  isValidPunchType,
+  isReasonableAttendanceDate,
+  CORS_ORIGINS,
+} = require("./_helpers");
 const {
   applyEventToMonthly,
   invalidateMonthlyCacheForDate,
 } = require("./_attendance");
 
 const VALID_AUDIT = new Set(["?", "v", "x"]);
-const VALID_TYPE = new Set(["上班", "下班"]); // 其他類型（如請假）admin 不該透過此 endpoint 改 type
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const auth = await verifyAdmin(sessionToken);
@@ -54,6 +62,10 @@ module.exports = onCall(
 
     const id = String(request.data?.id || "").trim();
     if (!id) return { ok: false, code: "ERR_MISSING_ID", msg: "缺少 attendance id" };
+    // B-L9：docId 未驗字元就 .doc()，含 '/' 直接 500
+    if (!isValidDocId(id)) {
+      return { ok: false, code: "ERR_MISSING_ID", msg: "attendance id 格式不正確" };
+    }
 
     const ref = db.collection(COLLECTIONS.ATTENDANCE).doc(id);
     const snap = await ref.get();
@@ -72,7 +84,9 @@ module.exports = onCall(
     let newDate = null;
     if (request.data?.timestamp !== undefined) {
       newDate = new Date(request.data.timestamp);
-      if (isNaN(newDate.getTime())) {
+      // B-M5：只驗 isNaN 不夠。年份 9999 之類的極端值會為遠期月份建立
+      // attendanceMonthly 聚合 doc（每個新月 ~50 reads）。
+      if (!isReasonableAttendanceDate(newDate)) {
         return { ok: false, code: "ERR_INVALID_DATETIME" };
       }
       updateData.timestamp = admin.firestore.Timestamp.fromDate(newDate);
@@ -80,7 +94,7 @@ module.exports = onCall(
 
     // type
     if (request.data?.type !== undefined && request.data.type !== "") {
-      if (!VALID_TYPE.has(request.data.type)) {
+      if (!isValidPunchType(request.data.type)) {
         return {
           ok: false,
           code: "ERR_INVALID_TYPE",
@@ -91,8 +105,10 @@ module.exports = onCall(
     }
 
     // note（admin 改 note 不強制 prefix tag — 完全替換）
+    // B-M5：clampText 截 500 字。900KB 的 note 會把聚合 doc 撐過 Firestore
+    // 1MiB 上限，該員工整月月曆從此 500。
     if (request.data?.note !== undefined) {
-      updateData.note = String(request.data.note);
+      updateData.note = clampText(request.data.note);
     }
 
     // audit
@@ -114,7 +130,7 @@ module.exports = onCall(
 
     // locationName
     if (request.data?.locationName !== undefined) {
-      updateData.locationName = String(request.data.locationName);
+      updateData.locationName = clampText(request.data.locationName); // B-M5：同上，限長
     }
 
     // 至少一個欄位要更新（除 editedByAdmin / editedAt）

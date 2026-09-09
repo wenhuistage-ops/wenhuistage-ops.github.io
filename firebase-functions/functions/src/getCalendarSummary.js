@@ -10,11 +10,11 @@
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { verifySession, isValidMonth } = require("./_helpers");
+const { CORS_ORIGINS, verifySession, isValidMonth, isValidDocId } = require("./_helpers");
 const { getMonthlyDailyStatus } = require("./_attendance");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const { month, userId } = request.data || {};
@@ -24,6 +24,12 @@ module.exports = onCall(
 
     // 驗格式（month 會拼進聚合 doc id，垃圾字串會產生垃圾 doc、含 '/' 直接 500）
     if (!isValidMonth(month)) return { ok: false, code: "ERR_MISSING_MONTH" };
+
+    // B-L9：userId 會拼進 attendanceMonthly 的 doc id（`${userId}_${month}`），
+    // 含 '/' 會讓 .doc() 拋錯 500，非法字元也可能指向非預期 doc
+    if (userId && !isValidDocId(userId)) {
+      return { ok: false, code: "ERR_NO_PERMISSION" };
+    }
 
     // 權限：一般員工只能看自己；管理員可查指定 userId
     const effectiveUserId =

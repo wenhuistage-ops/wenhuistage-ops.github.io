@@ -25,11 +25,11 @@
 "use strict";
 
 const { onCall } = require("firebase-functions/v2/https");
-const { db, COLLECTIONS, verifySession } = require("./_helpers");
+const { CORS_ORIGINS, db, COLLECTIONS, verifySession, isValidDocId } = require("./_helpers");
 const { applyEventToMonthly, invalidateMonthlyCacheForDate } = require("./_attendance");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: true },
+  { region: "asia-southeast1", cors: CORS_ORIGINS },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const session = await verifySession(sessionToken);
@@ -37,6 +37,8 @@ module.exports = onCall(
 
     const id = String(request.data?.id || "").trim();
     if (!id) return { ok: false, code: "ERR_MISSING_ID", msg: "缺少申請 id" };
+    // B-L9：docId 未驗字元就 .doc()，含 '/' 直接 500
+    if (!isValidDocId(id)) return { ok: false, code: "ERR_MISSING_ID", msg: "申請 id 格式不正確" };
 
     const ref = db.collection(COLLECTIONS.ATTENDANCE).doc(id);
     const snap = await ref.get();

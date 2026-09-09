@@ -17,12 +17,12 @@
 
 const crypto = require("crypto");
 const { onCall } = require("firebase-functions/v2/https");
-const { LINE_CHANNEL_ID, DEFAULT_LINE_REDIRECT_URL, safeRedirectUrl, saveOAuthState } = require("./_helpers");
+const { CORS_ORIGINS, LINE_CHANNEL_ID, DEFAULT_LINE_REDIRECT_URL, safeRedirectUrl, saveOAuthState } = require("./_helpers");
 
 module.exports = onCall(
   {
     region: "asia-southeast1",
-    cors: true,
+    cors: CORS_ORIGINS,
     secrets: [LINE_CHANNEL_ID],
   },
   async (request) => {
