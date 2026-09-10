@@ -54,9 +54,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
         .day-cell.holiday-text { color: #ef4444 !important; font-weight: 700 !important; }
         html.dark .day-cell.holiday-text { color: #fb7185 !important; font-weight: 700 !important; }
 
-        /* Phase 2：管理員 view 在桌機 break out #app-container 的 max-w-md，
-           讓員工 dashboard 真的能 2/3 col。手機/平板維持原 max-w-md 視覺。 */
-        @media (min-width: 1024px) {
+        /* Phase 2：管理員 view break out #app-container 的 max-w-md，讓員工 dashboard 真的能 2/3 col。
+           斷點必須跟內層 grid 一致（640px）：內層 .employee-dashboard-grid / .employee-kpi-grid /
+           .kpi-labor-grid / .emp-punch-table-wrap 都在 sm(640) 就切成多欄＋桌機表格，
+           容器若還卡在 max-w-md(448px)，手機橫向與平板會被壓成 216px 兩欄而跑版。 */
+        @media (min-width: 640px) {
             #admin-view {
                 position: relative;
                 left: 50%;
