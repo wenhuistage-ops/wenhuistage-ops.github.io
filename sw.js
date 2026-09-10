@@ -13,7 +13,7 @@
  * 改版時請更新 CACHE_VERSION，activate 時會清掉舊快取。
  */
 // 2026-09-09：UI/CSS 大幅調整（Font Awesome、深色模式、版面），bump 版本以淘汰舊 runtime 快取
-const CACHE_VERSION = 'wh-v5';
+const CACHE_VERSION = 'wh-v6';
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
 // 離線備援的最小集合（首頁殼層）。其餘檔案改由執行時動態快取。

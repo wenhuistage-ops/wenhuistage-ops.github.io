@@ -298,9 +298,14 @@ async function renderAdminCalendar(userId, date) {
     const cacheKey = adminMonthCacheKey(userId, apiMonthParam);
 
     // 定義一個內部函式來執行 UI 更新 (避免重複程式碼)
+    //
+    // 錯誤處理放這裡而不是呼叫端：快取命中（情境 A）與 API 回應（情境 B）都經過這個
+    // 函式，但情境 A 完全在 try/catch 之外——渲染一丟例外就是「無提示的空白月曆」。
+    // 包在唯一匯流點，兩條路徑一次覆蓋。
     const updateCalendarUI = (records) => {
         const uiStartTime = performance.now();
 
+      try {
         // 清空並渲染日曆 (renderCalendarWithData 來自 ui.js)
         // ✅ XSS防護：使用 replaceChildren() 替代 innerHTML
         console.time('  ├─ replaceChildren');
@@ -315,6 +320,20 @@ async function renderAdminCalendar(userId, date) {
         console.time('  ├─ addWeekdayLabels');
         _addWeekdayLabelsToAdminCalendar(year, month);
         console.timeEnd('  ├─ addWeekdayLabels');
+      } catch (err) {
+        console.error('渲染員工月曆失敗：', err);
+        // 這份快取渲染會炸，留著只會讓「重試」永遠踩同一顆地雷 → 丟掉，重試才會重抓
+        delete adminMonthDataCache[cacheKey];
+        showNotification(_errText(err, 'MSG_SYSTEM_ERROR'), 'error');
+        if (typeof renderCalendarLoadError === 'function') {
+            renderCalendarLoadError(
+                calendarGrid,
+                () => renderAdminCalendar(userId, date),
+                err && err.message ? err.message : ''
+            );
+        }
+        return;
+      }
 
         const uiEndTime = performance.now();
         debugLog(`  └─ UI更新完成: ${(uiEndTime - uiStartTime).toFixed(2)}ms`);
@@ -379,7 +398,7 @@ async function renderAdminCalendar(userId, date) {
                 showNotification(_errText(res, 'ERROR_FETCH_RECORDS'), "error");
                 // U-M9：失敗要留一條路回來，不能停在「正在載入…」
                 if (typeof renderCalendarLoadError === 'function') {
-                    renderCalendarLoadError(calendarGrid, () => renderAdminCalendar(userId, date));
+                    renderCalendarLoadError(calendarGrid, () => renderAdminCalendar(userId, date), res.code || '');
                 }
             }
         } catch (err) {
@@ -387,7 +406,7 @@ async function renderAdminCalendar(userId, date) {
             console.error("System Error in renderAdminCalendar:", err);
             showNotification(_errText(err, 'MSG_SYSTEM_ERROR'), "error");
             if (typeof renderCalendarLoadError === 'function') {
-                renderCalendarLoadError(calendarGrid, () => renderAdminCalendar(userId, date));
+                renderCalendarLoadError(calendarGrid, () => renderAdminCalendar(userId, date), err && err.message ? err.message : '');
             }
         }
     }

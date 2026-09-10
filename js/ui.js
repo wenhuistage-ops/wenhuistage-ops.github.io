@@ -35,8 +35,10 @@ let _calendarRequestSeq = 0;
  *
  * @param {HTMLElement} grid  #calendar-grid
  * @param {Function} onRetry  點擊時要重跑的函式
+ * @param {string} [detail]   技術原因（例外訊息）。手機看不到 console，
+ *                            管理員回報時只能靠這行；一般員工端不傳。
  */
-function renderCalendarLoadError(grid, onRetry) {
+function renderCalendarLoadError(grid, onRetry, detail) {
     if (!grid) return;
     grid.replaceChildren();
     const wrap = document.createElement('div');
@@ -54,6 +56,12 @@ function renderCalendarLoadError(grid, onRetry) {
     btn.textContent = (retryText && retryText !== RETRY_KEY) ? retryText : '載入失敗，點此重試';
     btn.addEventListener('click', () => { if (typeof onRetry === 'function') onRetry(); });
     wrap.appendChild(btn);
+    if (detail) {
+        const note = document.createElement('p');
+        note.className = 'mt-2 text-xs text-gray-500 dark:text-gray-400 break-words';
+        note.textContent = String(detail).slice(0, 200);
+        wrap.appendChild(note);
+    }
     grid.appendChild(wrap);
     if (typeof renderTranslations === 'function') renderTranslations(wrap);
 }
@@ -270,6 +278,14 @@ function getPredictedMonthKeys(currentDate) {
 
 // 新增一個獨立的渲染函式，以便從快取或 API 回應中調用
 function renderCalendarWithData(year, month, today, records, calendarGrid, monthTitle, isForAdmin = false) {
+    // 後端回應是信任邊界：dailyStatus 只要有一列少了 date（舊 schema 的聚合 doc、
+    // 半寫入的紀錄），下面的 recordsByDate[r.date] / r.date.startsWith() 就丟 TypeError，
+    // 整個月曆炸成空白 + 「發生系統錯誤」。這裡是管理員月曆與員工月份檢視的唯一匯流點，
+    // 過濾一次兩邊都受保護（下方 defaultDateKey 早就有同樣的 r.date && 判斷，補齊即可）。
+    records = Array.isArray(records)
+        ? records.filter((r) => r && typeof r.date === 'string' && r.date)
+        : [];
+
     // 確保日曆網格在每次渲染前被清空
     calendarGrid.replaceChildren();
     monthTitle.textContent = t("MONTH_YEAR_TEMPLATE", {
