@@ -3094,6 +3094,12 @@ async function handleDetailedPayrollExport(userId, year, month) {
     const pad = (n) => String(n).padStart(2, '0');
     const monthKey = `${year}-${pad(month + 1)}`;
 
+    // 匯出一律重抓：月曆 / enriched 快取沒有 TTL，只在「管理員自己」改資料時才清。
+    // 員工在手機上新送的補打卡不會清到管理員這邊的快取 → 開著頁面匯出就缺那筆。
+    // ponytail: 匯出很少按，多 1 次 getCalendarSummary（聚合 doc 1 read）換正確
+    invalidateEnrichedMonthCache(userId, monthKey);
+    delete adminMonthDataCache[adminMonthCacheKey(userId, monthKey)];
+
     // 取資料
     const [dailyStatusRaw, breakTimes] = await Promise.all([
         loadEnrichedMonthData(monthKey, userId),
