@@ -64,8 +64,11 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # remote URL 有嵌 username 會繞過 credential helper（github 已停用密碼登入）
+# 例外：該 username 已在 gh 登入 → 是故意的（~/.local/bin/gh-credential-by-user 靠它選帳號），
+# 拔掉會改用 gh 的 active 帳號，沒權限就 403
 REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
-if echo "$REMOTE_URL" | grep -qE "https://[^@]+@github\.com"; then
+URL_USER=$(echo "$REMOTE_URL" | sed -nE 's#https://([^@]+)@github\.com.*#\1#p')
+if [ -n "$URL_USER" ] && ! gh auth token --user "$URL_USER" > /dev/null 2>&1; then
     warn "remote URL 嵌了 username，會跳過 gh credential helper"
     info "自動修正：移除 username"
     CLEAN_URL=$(echo "$REMOTE_URL" | sed -E 's#https://[^@]+@github\.com#https://github.com#')
