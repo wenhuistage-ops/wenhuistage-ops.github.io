@@ -48,6 +48,7 @@ exports.getLeaveProof = require("./src/getLeaveProof"); // 按需取病假證明
 exports.getReviewRequest = require("./src/getReviewRequest");
 exports.approveReview = require("./src/approveReview");
 exports.rejectReview = require("./src/rejectReview");
+exports.lineWebhook = require("./src/lineWebhook"); // LINE 卡片按鈕直接核准 / 退回補打卡
 
 // ===== 通知測試 =====
 exports.testNotification = require("./src/testNotification");
@@ -66,3 +67,4 @@ exports.setEmployeeStatus = require("./src/setEmployeeStatus");
 exports.cleanExpiredSessions = require("./src/cleanExpiredSessions");
 exports.dailyVirtualPunch = require("./src/dailyVirtualPunch");
 exports.checkYesterdayPunch = require("./src/checkYesterdayPunch");
+exports.notifyAbnormalPunch = require("./src/notifyAbnormalPunch"); // 本月缺卡 ≥3 天通知管理員

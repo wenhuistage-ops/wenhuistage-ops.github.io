@@ -383,3 +383,58 @@ describe('_dedupeAdjacentSameType（補打卡匯出有時不見）', () => {
     expect(out.map((r) => r.id)).toEqual(['rejected', 'resent']);
   });
 });
+
+// ------------------------------------------- 缺卡天數（notifyAbnormalPunch）
+const ABNORMAL_SRC = fs.readFileSync(
+  path.join(__dirname, '../firebase-functions/functions/src/notifyAbnormalPunch.js'),
+  'utf8'
+);
+const missingPunchDays = new Function(
+  `${grabLine(ABNORMAL_SRC, 'const MISSING_REASONS')}${grab(ABNORMAL_SRC, 'function missingPunchDays(')}; return missingPunchDays;`
+)();
+
+describe('missingPunchDays（本月缺卡 ≥3 天通知管理員）', () => {
+  const days = [
+    { date: '2026-10-01', reason: 'STATUS_PUNCH_OUT_MISSING' },
+    { date: '2026-10-02', reason: 'STATUS_BOTH_MISSING' }, // 整天沒打：可能是休假，不算
+    { date: '2026-10-03', reason: 'STATUS_PUNCH_IN_MISSING' },
+    { date: '2026-10-04', reason: 'STATUS_REPAIR_PENDING' }, // 已送補卡，不算
+    { date: '2026-10-05', reason: 'STATUS_PUNCH_NORMAL' },
+    { date: '2026-10-06', reason: 'STATUS_PUNCH_OUT_MISSING' }, // 超過截止日（昨天），不算
+  ];
+
+  it('只算缺上班 / 缺下班，且只到截止日', () => {
+    expect(missingPunchDays(days, '2026-10-05')).toEqual(['2026-10-01', '2026-10-03']);
+  });
+
+  it('沒資料 → 空陣列', () => {
+    expect(missingPunchDays(undefined, '2026-10-05')).toEqual([]);
+  });
+});
+
+// --------------------------------------------- LINE webhook 簽章（lineWebhook）
+const WEBHOOK_SRC = fs.readFileSync(
+  path.join(__dirname, '../firebase-functions/functions/src/lineWebhook.js'),
+  'utf8'
+);
+const isValidLineSignature = new Function(
+  'crypto',
+  `${grab(WEBHOOK_SRC, 'function isValidLineSignature(')}; return isValidLineSignature;`
+)(require('crypto'));
+
+describe('isValidLineSignature（LINE 卡片審核：擋偽造的 webhook）', () => {
+  const secret = 'test-secret';
+  const body = '{"events":[{"type":"postback"}]}';
+  const sign = (b, s) => require('crypto').createHmac('sha256', s).update(b).digest('base64');
+
+  it('LINE 正確簽章 → 通過', () => {
+    expect(isValidLineSignature(Buffer.from(body), sign(body, secret), secret)).toBe(true);
+  });
+
+  it('內容被竄改 / 用錯 secret / 沒帶簽章 → 擋下', () => {
+    expect(isValidLineSignature(Buffer.from(body + ' '), sign(body, secret), secret)).toBe(false);
+    expect(isValidLineSignature(Buffer.from(body), sign(body, 'other'), secret)).toBe(false);
+    expect(isValidLineSignature(Buffer.from(body), undefined, secret)).toBe(false);
+    expect(isValidLineSignature(Buffer.from(body), 'abc', secret)).toBe(false);
+  });
+});

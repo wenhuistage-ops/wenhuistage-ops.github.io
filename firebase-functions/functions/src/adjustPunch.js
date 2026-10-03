@@ -13,11 +13,11 @@ const {
   validateCoordinates,
   isReasonableAttendanceDate,
   notifyAdmins,
-  formatTaipei,
   LINE_CHANNEL_ACCESS_TOKEN,
   CORS_ORIGINS,
 } = require("./_helpers");
 const { invalidateMonthlyCacheForDate, applyEventToMonthly } = require("./_attendance");
+const { buildAdjustReviewCard } = require("./_review");
 
 module.exports = onCall(
   {
@@ -59,7 +59,7 @@ module.exports = onCall(
     const noteWithTag = note
       ? `[員工補卡] ${clampText(note)}`
       : "[員工補卡]";
-    await db.collection(COLLECTIONS.ATTENDANCE).add({
+    const docRef = await db.collection(COLLECTIONS.ATTENDANCE).add({
       timestamp: admin.firestore.Timestamp.fromDate(punchDate),
       userId: user.userId,
       dept: user.dept || "",
@@ -87,18 +87,20 @@ module.exports = onCall(
       );
     }
 
-    // 異步通知管理員（fire-and-forget）
-    const notifMsg =
-      `🕒 新補打卡申請\n` +
-      `👤 申請人：${user.name || ""}\n` +
-      `📝 類型：補打卡（${type || ""}）\n` +
-      `📅 補打卡時間：${formatTaipei(punchDate)}\n` +
-      `🕒 申請時間：${formatTaipei(applicationTime)}\n` +
-      `📍 部門：${user.dept || "未設定"}` +
-      (note ? `\n📋 備註：${note}` : "");
-    notifyAdmins(notifMsg, LINE_CHANNEL_ACCESS_TOKEN.value()).catch((err) =>
-      console.error("adjustPunch notifyAdmins 失敗:", err)
-    );
+    // 通知管理員：Flex 卡片，可直接在 LINE 上按核准 / 退回（lineWebhook 處理）
+    notifyAdmins(
+      buildAdjustReviewCard({
+        id: docRef.id,
+        name: user.name || "",
+        dept: user.dept || "",
+        type,
+        punchDate,
+        applicationTime,
+        note: note ? clampText(note) : "",
+      }),
+      LINE_CHANNEL_ACCESS_TOKEN.value(),
+      { excludeUserId: user.userId } // 管理員自己的申請不能自己審（B-L7），不發給他
+    ).catch((err) => console.error("adjustPunch notifyAdmins 失敗:", err));
 
     return { ok: true, code: "ADJUST_PUNCH_SUCCESS", params: { type: type || "" } };
   }

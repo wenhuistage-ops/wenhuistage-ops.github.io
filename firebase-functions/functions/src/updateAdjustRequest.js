@@ -34,12 +34,15 @@ const {
   clampText,
   isReasonableAttendanceDate,
   isValidDocId,
+  notifyAdmins,
+  LINE_CHANNEL_ACCESS_TOKEN,
   CORS_ORIGINS,
 } = require("./_helpers");
 const { applyEventToMonthly, invalidateMonthlyCacheForDate } = require("./_attendance");
+const { buildAdjustReviewCard } = require("./_review");
 
 module.exports = onCall(
-  { region: "asia-southeast1", cors: CORS_ORIGINS },
+  { region: "asia-southeast1", cors: CORS_ORIGINS, secrets: [LINE_CHANNEL_ACCESS_TOKEN] },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
     const session = await verifySession(sessionToken);
@@ -123,6 +126,26 @@ module.exports = onCall(
         `applyEventToMonthly 失敗 user=${session.user.userId} (updateAdjustRequest):`,
         err?.message
       );
+    }
+
+    // 管理員手上的舊卡片 ts 已對不上（按了會被擋），補發一張新卡片才能在 LINE 上審
+    try {
+      await notifyAdmins(
+        buildAdjustReviewCard({
+          id,
+          name: session.user.name || data.name || "",
+          dept: session.user.dept || data.dept || "",
+          type: data.type,
+          punchDate: newDate,
+          applicationTime: data.applicationTime?.toDate?.() || newDate,
+          note: rawNote,
+          edited: true,
+        }),
+        LINE_CHANNEL_ACCESS_TOKEN.value(),
+        { excludeUserId: session.user.userId } // 管理員自己的申請不能自己審（B-L7），不發給他
+      );
+    } catch (err) {
+      console.error("updateAdjustRequest notifyAdmins 失敗:", err?.message);
     }
 
     console.log(

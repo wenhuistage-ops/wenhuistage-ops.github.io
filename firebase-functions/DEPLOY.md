@@ -63,7 +63,15 @@ firebase functions:secrets:set LINE_CHANNEL_ID
 
 firebase functions:secrets:set LINE_CHANNEL_SECRET
 firebase functions:secrets:set LINE_CHANNEL_ACCESS_TOKEN
+
+# lineWebhook（LINE 卡片審核）用：Messaging API channel → Basic settings → Channel secret
+# 注意：和上面 LINE Login 的 LINE_CHANNEL_SECRET 是不同 channel、不同值
+firebase functions:secrets:set LINE_MESSAGING_CHANNEL_SECRET
 ```
+
+部署完 `lineWebhook` 後，到 LINE Developers → Messaging API channel → Messaging API 分頁：
+- Webhook URL 填 `https://asia-southeast1-wenhui-check-in-system.cloudfunctions.net/lineWebhook`，按 Verify
+- 打開 Use webhook
 
 Secret Manager 需啟用 API（首次會提示）。若遇權限錯誤：
 - GCP Console → IAM & Admin → Service Accounts → 找到 App Engine default service account → 加「Secret Manager Secret Accessor」角色
@@ -134,6 +142,7 @@ firebase deploy --only functions
 - `getReviewRequest`
 - `approveReview`
 - `rejectReview`
+- `lineWebhook`（LINE 補打卡卡片的「核准 / 退回」按鈕；HTTP，非前端 action）
 
 **通知測試**：
 - `testNotification`
@@ -146,6 +155,7 @@ firebase deploy --only functions
 - `cleanExpiredSessions`（每日 03:00）
 - `dailyVirtualPunch`
 - `checkYesterdayPunch`（每日 09:00）
+- `notifyAbnormalPunch`（每日 09:00，本月缺上班/下班卡累計 ≥3 天 → 通知管理員）
 
 ### CORS 白名單（2026-09-09，B-L12）
 

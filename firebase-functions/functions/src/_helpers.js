@@ -32,6 +32,9 @@ const db = getFirestore(admin.app(), FIRESTORE_DATABASE_ID);
 const LINE_CHANNEL_ID = defineSecret("LINE_CHANNEL_ID");
 const LINE_CHANNEL_SECRET = defineSecret("LINE_CHANNEL_SECRET");
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
+// Messaging API channel 的 secret（≠ 上面 LINE Login 的 LINE_CHANNEL_SECRET），
+// 只給 lineWebhook 驗簽章用：firebase functions:secrets:set LINE_MESSAGING_CHANNEL_SECRET
+const LINE_MESSAGING_CHANNEL_SECRET = defineSecret("LINE_MESSAGING_CHANNEL_SECRET");
 
 // LINE OAuth 預設回跳（可由前端參數覆寫，但須通過白名單）
 const DEFAULT_LINE_REDIRECT_URL = "https://wenhuistage-ops.github.io/";
@@ -704,7 +707,7 @@ function invalidateAdminListCache() {
 /**
  * 推送 LINE 訊息給單一使用者（對應 GS sendLinePushMessage）
  * @param {string} userId - LINE userId
- * @param {string} message - 訊息內容
+ * @param {string|Object} message - 文字，或完整 LINE message 物件（如 Flex 卡片）
  * @param {string} accessToken - LINE_CHANNEL_ACCESS_TOKEN.value()
  */
 async function sendLinePush(userId, message, accessToken) {
@@ -721,7 +724,7 @@ async function sendLinePush(userId, message, accessToken) {
       },
       body: JSON.stringify({
         to: userId,
-        messages: [{ type: "text", text: message }],
+        messages: [typeof message === "string" ? { type: "text", text: message } : message],
       }),
     });
     if (resp.ok) return { ok: true };
@@ -742,7 +745,7 @@ async function sendLinePush(userId, message, accessToken) {
  * 才能立即回應前端不阻塞。Cloud Function 會等所有非同步工作完成才結束實例，
  * 所以即使前端已收到回應，通知仍會送出。
  *
- * @param {string} message - 通知文字
+ * @param {string|Object} message - 通知文字或 LINE message 物件
  * @param {string} accessToken - LINE_CHANNEL_ACCESS_TOKEN.value()
  * @param {{ excludeUserId?: string }} [options] - U-L11：排除某位管理員
  *        （例如 adjustPunchAsAdmin 不必通知動手的那個人自己）
@@ -802,6 +805,7 @@ module.exports = {
   LINE_CHANNEL_ID,
   LINE_CHANNEL_SECRET,
   LINE_CHANNEL_ACCESS_TOKEN,
+  LINE_MESSAGING_CHANNEL_SECRET,
   verifySession,
   verifyAdmin,
   invalidateSessionCacheByUserId,
