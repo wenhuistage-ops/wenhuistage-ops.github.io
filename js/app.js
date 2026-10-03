@@ -540,6 +540,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (loginResult.isLoggedIn) {
         checkAutoPunch(); // 來自 punch.js
         if (typeof checkMakeupDeepLink === 'function') checkMakeupDeepLink(); // LINE 提醒按鈕 → 直接開那天的補卡表單
+        // LINE 圖文選單深層連結（scripts/line-richmenu/）：
+        // #monthly-view 開月曆；#review 管理員開表單審核、員工開「我的申請」看自己的審核進度
+        const deepTab = location.hash.slice(1);
+        if (deepTab === 'monthly-view') {
+            switchTab('monthly-view');
+        } else if (deepTab === 'review') {
+            if (loginResult.isAdmin) {
+                switchTab('admin-view');
+                switchAdminSubTab('form-review-view');
+            } else {
+                switchTab('my-requests-view');
+            }
+        }
         renderCalendar(currentMonthDate); // 來自 ui.js，員工自己的日曆
         // 載入今日打卡紀錄到 dashboard 即時回饋區
         if (typeof renderTodayPunches === 'function') {
