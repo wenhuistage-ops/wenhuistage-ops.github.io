@@ -350,3 +350,36 @@ describe('checkPunchCooldown（B-M2：後端 60 秒重複打卡防護）', () =>
     await expect(fn('U1', '上班')).resolves.toEqual({ ok: true });
   });
 });
+
+// ------------------------------------------------- 相鄰同型去重（補打卡不得被吃掉）
+const dedupeSrc = [
+  grab(ATTENDANCE_SRC, 'function _hhmmToMin(s)'),
+  grab(ATTENDANCE_SRC, 'function _dedupeAdjacentSameType(records)'),
+].join('\n');
+const dedupe = new Function(`${dedupeSrc}; return _dedupeAdjacentSameType;`)();
+
+describe('_dedupeAdjacentSameType（補打卡匯出有時不見）', () => {
+  it('即時打卡 5 分鐘內連按兩次 → 只留第一筆', () => {
+    const out = dedupe([
+      { id: 'a', time: '09:00', type: '上班', adjustmentType: '' },
+      { id: 'b', time: '09:02', type: '上班', adjustmentType: '' },
+    ]);
+    expect(out.map((r) => r.id)).toEqual(['a']);
+  });
+
+  it('補打卡落在同型即時卡 5 分鐘內 → 兩筆都保留', () => {
+    const out = dedupe([
+      { id: 'live', time: '08:58', type: '上班', adjustmentType: '' },
+      { id: 'fix', time: '09:00', type: '上班', adjustmentType: '補打卡', audit: '?' },
+    ]);
+    expect(out.map((r) => r.id)).toEqual(['live', 'fix']);
+  });
+
+  it('被拒後重送同一時間的補打卡 → 已拒絕與新申請都保留', () => {
+    const out = dedupe([
+      { id: 'rejected', time: '09:00', type: '上班', adjustmentType: '補打卡', audit: 'x' },
+      { id: 'resent', time: '09:00', type: '上班', adjustmentType: '補打卡', audit: 'v' },
+    ]);
+    expect(out.map((r) => r.id)).toEqual(['rejected', 'resent']);
+  });
+});

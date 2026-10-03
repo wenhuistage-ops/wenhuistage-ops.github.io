@@ -187,7 +187,10 @@ function _dedupeAdjacentSameType(records) {
       continue;
     }
     const last = out[out.length - 1];
-    if (last.type === r.type) {
+    // 只合併「兩筆都是即時打卡」：補打卡 / 虛擬卡 / 請假是刻意寫入的單據，不是手抖。
+    // 舊版不分來源，補打卡若落在同型卡 5 分鐘內（或被拒後重送同一時間）會被隨機吃掉，
+    // 月曆、完整打卡紀錄匯出、薪資匯出全部看不到它（規則同 checkPunchCooldown）。
+    if (last.type === r.type && !last.adjustmentType && !r.adjustmentType) {
       const lastMin = _hhmmToMin(last.time);
       const curMin = _hhmmToMin(r.time);
       if (lastMin != null && curMin != null && curMin - lastMin <= DEDUP_WINDOW_MIN) {
