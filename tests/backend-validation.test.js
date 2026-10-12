@@ -438,3 +438,125 @@ describe('isValidLineSignature（LINE 卡片審核：擋偽造的 webhook）', (
     expect(isValidLineSignature(Buffer.from(body), 'abc', secret)).toBe(false);
   });
 });
+
+// ------------------------------------------------- 地點快取跨實例失效（版本戳）
+//
+// addLocation / getLocations / punch 是三個獨立的 Cloud Function 實例，
+// module-level cache 不互通。改用 meta/locations.version 版本戳後，
+// 讀取端每次先讀 1 個 doc 比對版本，版本變了才重掃 locations collection。
+describe('getAllLocations 版本戳快取', () => {
+  const locSrc = [
+    grabLine(HELPERS_SRC, 'const LOCATIONS_CACHE_TTL_MS'),
+    grabLine(HELPERS_SRC, 'const LOCATIONS_META_DOC'),
+    grabLine(HELPERS_SRC, 'let _locationsCache'),
+    grab(HELPERS_SRC, 'async function getLocationsVersion()'),
+    grab(HELPERS_SRC, 'async function getAllLocations()'),
+    grab(HELPERS_SRC, 'async function bumpLocationsVersion()'),
+  ].join('\n');
+
+  /** 假 Firestore：記錄 meta 讀取、collection 掃描與寫入次數 */
+  function makeFakeDb() {
+    const state = {
+      version: null, // null = meta doc 不存在
+      locations: [
+        { name: '總公司', lat: 25.03, lng: 121.56, radius: 100 },
+        { name: '壞座標', lat: 999, lng: 0, radius: 100 },
+      ],
+      metaReads: 0,
+      scans: 0,
+      writes: [],
+    };
+    const db = {
+      collection(name) {
+        return {
+          doc(id) {
+            return {
+              async get() {
+                state.metaReads++;
+                if (state.version === null) return { exists: false };
+                return { exists: true, data: () => ({ version: state.version }) };
+              },
+              async set(data, opts) {
+                state.writes.push({ name, id, data, opts });
+                state.version = (state.version || 0) + 1;
+              },
+            };
+          },
+          async get() {
+            state.scans++;
+            return { docs: state.locations.map((d, i) => ({ id: `L${i}`, data: () => d })) };
+          },
+        };
+      },
+    };
+    return { db, state };
+  }
+
+  function build() {
+    const { db, state } = makeFakeDb();
+    const fakeAdmin = {
+      firestore: {
+        FieldValue: {
+          increment: (n) => ({ __increment: n }),
+          serverTimestamp: () => '__serverTimestamp',
+        },
+      },
+    };
+    const api = new Function(
+      'db', 'COLLECTIONS', 'admin',
+      `${locSrc}; return { getAllLocations, bumpLocationsVersion, getLocationsVersion };`
+    )(db, { META: 'meta', LOCATIONS: 'locations' }, fakeAdmin);
+    return { api, state };
+  }
+
+  test('首次呼叫掃 collection，回傳含 id 並過濾壞座標', async () => {
+    const { api, state } = build();
+    const locs = await api.getAllLocations();
+    expect(state.scans).toBe(1);
+    expect(locs).toEqual([{ id: 'L0', name: '總公司', lat: 25.03, lng: 121.56, radius: 100 }]);
+  });
+
+  test('版本沒變：只讀版本戳，不重掃 collection', async () => {
+    const { api, state } = build();
+    await api.getAllLocations();
+    await api.getAllLocations();
+    expect(state.metaReads).toBe(2);
+    expect(state.scans).toBe(1);
+  });
+
+  test('別的實例 bump 版本後，下一次呼叫就重掃（不必等 TTL）', async () => {
+    const { api, state } = build();
+    await api.getAllLocations();
+    state.version = 7; // 模擬 addLocation 跑在另一個實例，只改了 Firestore
+    state.locations.push({ name: '新倉庫', lat: 24.1, lng: 120.6, radius: 50 });
+    const locs = await api.getAllLocations();
+    expect(state.scans).toBe(2);
+    expect(locs.map((l) => l.name)).toEqual(['總公司', '新倉庫']);
+  });
+
+  test('bumpLocationsVersion 以 merge 寫 meta/locations.version +1，並清本實例快取', async () => {
+    const { api, state } = build();
+    await api.getAllLocations();
+    await api.bumpLocationsVersion();
+    expect(state.writes).toEqual([
+      {
+        name: 'meta',
+        id: 'locations',
+        data: { version: { __increment: 1 }, updatedAt: '__serverTimestamp' },
+        opts: { merge: true },
+      },
+    ]);
+    await api.getAllLocations();
+    expect(state.scans).toBe(2);
+  });
+
+  test('addLocation 必須 bump 版本；getLocations 不得再養自己的 cache', () => {
+    const addSrc = fs.readFileSync(
+      path.join(__dirname, '../firebase-functions/functions/src/addLocation.js'), 'utf8');
+    const getSrc = fs.readFileSync(
+      path.join(__dirname, '../firebase-functions/functions/src/getLocations.js'), 'utf8');
+    expect(addSrc).toMatch(/await bumpLocationsVersion\(\)/);
+    expect(getSrc).toMatch(/getAllLocations\(\)/);
+    expect(getSrc).not.toMatch(/_cache|TTL_MS/);
+  });
+});

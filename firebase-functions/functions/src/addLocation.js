@@ -10,7 +10,7 @@ const {
   COLLECTIONS,
   verifyAdmin,
   validateCoordinates,
-  invalidateLocationsCache,
+  bumpLocationsVersion,
   clampText,
   CORS_ORIGINS,
 } = require("./_helpers");
@@ -46,8 +46,9 @@ module.exports = onCall(
       createdBy: auth.user.userId,
     });
 
-    // 同容器 cache 立即清掉；其他容器最多 5 分鐘 TTL 後生效
-    invalidateLocationsCache();
+    // meta/locations.version +1：getLocations / punch 跑在別的實例，
+    // 靠這個版本戳在下一次呼叫就重讀，不必等 TTL（原本要等 5 分鐘）
+    await bumpLocationsVersion();
 
     return { ok: true, code: "新增地點成功", id: ref.id };
   }

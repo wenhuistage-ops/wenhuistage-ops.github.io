@@ -87,6 +87,7 @@ const COLLECTIONS = {
   OAUTH_STATES: "oauthStates", // LINE OAuth state（後端一次性 CSRF 驗證，M5）
   REVIEW_REQUESTS: "reviewRequests",
   NOTIFICATION_QUEUE: "notificationQueue",
+  META: "meta", // 跨實例快取版本戳（meta/locations，見 getAllLocations）
 };
 
 // session 有效期（與 GS 保持一致）。可於需要時改由環境變數讀取。
@@ -494,25 +495,44 @@ function getDistanceMeters(lat1, lng1, lat2, lng2) {
 }
 
 /**
- * 讀取所有地點（in-process cache，TTL 5 分鐘）
+ * 讀取所有地點（in-process cache + Firestore 版本戳）
  *
  * 為什麼快取：每次打卡 + getLocations API 都會跑這個全 collection scan，
- * 但地點資料極少變動。容器活躍期共享 cache 可大幅省 reads。
+ * 但地點資料極少變動。
  *
- * 取捨：addLocation 後其他 Cloud Function 容器最多 5 分鐘才看到新地點；
- * 地點變更頻率極低（年級），可接受。
+ * 為什麼要版本戳：addLocation / getLocations / punch 是三個獨立的 Cloud Function，
+ * 各跑在自己的實例裡，module-level 變數不互通。原本 addLocation 只清自己實例的
+ * cache，其他函式要等 TTL 到期才看到新地點，管理員新增後「顯示成功卻找不到、
+ * 要等很久才出現」。改成 addLocation 把 meta/locations.version +1，讀取端每次
+ * 先讀這一個 doc（1 read）比對版本，不同才重掃 collection。
+ *
+ * TTL 保留 1 小時當保險：直接在 Firestore Console 改地點不會 bump 版本，
+ * 最多一小時後仍會生效。
  */
-const LOCATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-let _locationsCache = null; // { value, expiry }
+const LOCATIONS_CACHE_TTL_MS = 60 * 60 * 1000;
+const LOCATIONS_META_DOC = "locations";
+let _locationsCache = null; // { value, version, expiry }
+
+/** 目前的地點版本號（meta/locations.version；doc 不存在視為 0） */
+async function getLocationsVersion() {
+  const snap = await db.collection(COLLECTIONS.META).doc(LOCATIONS_META_DOC).get();
+  return snap.exists ? Number(snap.data().version || 0) : 0;
+}
 
 async function getAllLocations() {
-  if (_locationsCache && _locationsCache.expiry > Date.now()) {
+  const version = await getLocationsVersion();
+  if (
+    _locationsCache &&
+    _locationsCache.version === version &&
+    _locationsCache.expiry > Date.now()
+  ) {
     return _locationsCache.value;
   }
 
   const snap = await db.collection(COLLECTIONS.LOCATIONS).get();
   const value = snap.docs
     .map((doc) => ({
+      id: doc.id,
       name: String(doc.data().name || ""),
       lat: Number(doc.data().lat || 0),
       lng: Number(doc.data().lng || 0),
@@ -528,17 +548,26 @@ async function getAllLocations() {
         loc.lng <= 180
     );
 
-  _locationsCache = { value, expiry: Date.now() + LOCATIONS_CACHE_TTL_MS };
+  _locationsCache = { value, version, expiry: Date.now() + LOCATIONS_CACHE_TTL_MS };
   return value;
 }
 
 /**
- * 主動清除地點快取（addLocation 等 mutation 端使用）
- *
- * 注意：只清同一容器的 cache，跨容器仍要等 TTL 過期。
+ * 地點有異動時呼叫（addLocation 等 mutation 端）：
+ * 清掉本實例 cache，並把 meta/locations.version +1，讓所有實例下一次讀取都重掃。
  */
-function invalidateLocationsCache() {
+async function bumpLocationsVersion() {
   _locationsCache = null;
+  await db
+    .collection(COLLECTIONS.META)
+    .doc(LOCATIONS_META_DOC)
+    .set(
+      {
+        version: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 }
 
 /**
@@ -824,7 +853,7 @@ module.exports = {
   leaveGroupOf,
   getDistanceMeters,
   getAllLocations,
-  invalidateLocationsCache,
+  bumpLocationsVersion,
   upsertEmployee,
   createOneTimeToken,
   consumeOneTimeToken,
