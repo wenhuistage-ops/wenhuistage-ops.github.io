@@ -2095,6 +2095,11 @@ function initAdminEvents() {
                 getLocationBtn.textContent = t('GET_LOCATION_BTN');
                 getLocationBtn.disabled = false;
                 addLocationBtn.disabled = true;
+                // 員工端地圖若已初始化，立刻重畫，不必重新整理才看得到新地點
+                if (typeof fetchAndRenderLocationsOnMap === 'function' &&
+                    typeof mapInstance !== 'undefined' && mapInstance) {
+                    fetchAndRenderLocationsOnMap().catch(console.warn);
+                }
             } else {
                 // U-M8：MSG_ADD_LOCATION_FAILED 帶 {msg} 佔位，接後端原文會露出英文碼
                 showNotification(_errText(res, 'MSG_ADD_LOCATION_FAILED_GENERIC'), "error");

@@ -11,39 +11,13 @@
  *   成功：{ ok: true, locations: [{ id, name, lat, lng, scope, radius }, ...] }
  *   失敗：{ ok: false, code: 'ERR_SESSION_INVALID' | ... }
  *
- * 2026-05-14：加入 in-process 5 分鐘 cache（與 punch.js 的 getAllLocations 並行）
- *   - 同容器活躍期 cache hit → 0 Firestore reads
- *   - 保留 doc.id（getAllLocations 沒給 id，前端 addLocation 操作會用到）
- *   - addLocation 端點之後若有寫入新地點，需呼叫 _cache=null 清此 cache
+ * 快取：共用 _helpers.getAllLocations（in-process cache + meta/locations 版本戳）。
+ *   原本這裡自己再養一份 5 分鐘 cache，addLocation 清不到它（不同實例），
+ *   新增地點後地圖上要等很久才看得到；現在每次只多 1 read 讀版本戳。
  */
 
 const { onCall } = require("firebase-functions/v2/https");
-const { CORS_ORIGINS, db, COLLECTIONS, verifySession, invalidateLocationsCache } = require("./_helpers");
-
-// in-process cache（5 分鐘 TTL）
-const LOCATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-let _cache = null; // { value, expiry }
-
-async function _getCachedLocations() {
-  if (_cache && _cache.expiry > Date.now()) {
-    return { value: _cache.value, fromCache: true };
-  }
-  const snap = await db.collection(COLLECTIONS.LOCATIONS).get();
-  const value = snap.docs.map((doc) => {
-    const d = doc.data();
-    const r = Number(d.radius || 100);
-    return {
-      id: doc.id,
-      name: d.name || "",
-      lat: Number(d.lat || 0),
-      lng: Number(d.lng || 0),
-      scope: r,
-      radius: r,
-    };
-  });
-  _cache = { value, expiry: Date.now() + LOCATIONS_CACHE_TTL_MS };
-  return { value, fromCache: false, reads: snap.size };
-}
+const { CORS_ORIGINS, verifySession, getAllLocations } = require("./_helpers");
 
 module.exports = onCall(
   {
@@ -59,18 +33,15 @@ module.exports = onCall(
       return { ok: false, code: session.code };
     }
 
-    const cached = await _getCachedLocations();
-    if (cached.fromCache) {
-      console.log(`[reads] getLocations reads=0 (cache hit)`);
-    } else {
-      console.log(`[reads] getLocations reads=${cached.reads} (cache miss → refilled)`);
-      // 順便清 _helpers.getAllLocations 的 cache，避免新增地點時兩邊不同步
-      invalidateLocationsCache();
-    }
+    const locations = (await getAllLocations()).map((loc) => ({
+      id: loc.id,
+      name: loc.name,
+      lat: loc.lat,
+      lng: loc.lng,
+      scope: loc.radius, // 前端 location.js 讀 scope 畫圓
+      radius: loc.radius,
+    }));
 
-    return { ok: true, locations: cached.value };
+    return { ok: true, locations };
   }
 );
-
-// 暴露 cache 清除 hook（給 addLocation 等 mutation 端點可主動清除）
-module.exports.invalidateLocalCache = () => { _cache = null; };
