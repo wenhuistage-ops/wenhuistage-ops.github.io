@@ -1219,9 +1219,11 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
 
                 <section id="punch-mgmt-view" class="space-y-6" style="display: none;">
                     <div class="card p-6 mt-6">
-                        <h2 data-i18n="ADD_LOCATION_TITLE"
+                        <h2 data-i18n="ADD_LOCATION_TITLE" id="location-form-title"
                             class="text-xl font-bold text-gray-800 mb-2  dark:text-white mb-1">新增打卡地點</h2>
-                        <p data-i18n="ADD_LOCATION_DESCRIPTION" class="text-gray-500 mb-4 dark:text-gray-400">輸入地點名稱，並使用您的當前位置作為經緯度。</p>
+                        <p data-i18n="ADD_LOCATION_DESCRIPTION" id="location-form-desc" class="text-gray-500 mb-4 dark:text-gray-400">輸入地點名稱，並使用您的當前位置作為經緯度。</p>
+                        <!-- 編輯模式：由 admin.js 的地點清單「修改」填入；空字串＝新增模式 -->
+                        <input type="hidden" id="editing-location-id" value="">
 
                         <!-- 地標搜尋（Admin 新增地點） -->
                         <div id="admin-map-search" class="mb-3">
@@ -1289,6 +1291,19 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                                 <button data-i18n="ADD_LOCATION_BTN" id="add-location-btn"
                                     class="w-full py-2 px-4 rounded-lg font-bold btn-primary" disabled>新增地點</button>
                             </div>
+                            <button data-i18n="BTN_CANCEL" id="cancel-edit-location-btn"
+                                class="w-full py-2 px-4 rounded-lg font-bold btn-secondary" style="display:none">取消</button>
+                        </div>
+                    </div>
+
+                    <!-- 現有打卡地點清單（修改 / 刪除） -->
+                    <div class="card p-6 mt-6">
+                        <h2 data-i18n="LOCATION_LIST_TITLE"
+                            class="text-xl font-bold text-gray-800 dark:text-white mb-2">現有打卡地點</h2>
+                        <p data-i18n="LOCATION_LIST_DESC" class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            按「修改」會把資料帶入上方表單，可在地圖重新點選位置或調整範圍；按「刪除」後員工將無法再於該處打卡，歷史紀錄不受影響。</p>
+                        <div id="location-list" class="space-y-3" aria-live="polite">
+                            <div data-i18n="LOCATION_LIST_LOADING" class="text-center text-gray-500 py-4 dark:text-gray-400">正在載入地點...</div>
                         </div>
                     </div>
 

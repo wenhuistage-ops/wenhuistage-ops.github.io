@@ -2065,8 +2065,11 @@ function initAdminEvents() {
             return;
         }
 
-        // 🌟 修正點 (問題8.6)：添加確認對話框
-        const confirmMsg = t('CONFIRM_ADD_LOCATION', { name: name });
+        // 編輯模式：清單「修改」會把 doc id 填進 #editing-location-id，此時改走 updateLocation
+        const editingId = _editingLocationId();
+        const confirmMsg = editingId
+            ? t('CONFIRM_UPDATE_LOCATION', { name: name })
+            : t('CONFIRM_ADD_LOCATION', { name: name });
         const confirmed = await showConfirmDialog(confirmMsg);
 
         if (!confirmed) {
@@ -2078,36 +2081,44 @@ function initAdminEvents() {
         const radiusVal = radiusSliderEl ? Number(radiusSliderEl.value) || 100 : 100;
 
         try {
-            const res = await callApifetch({
-                action: 'addLocation',
+            const payload = {
+                action: editingId ? 'updateLocation' : 'addLocation',
                 name: name,
                 lat: encodeURIComponent(lat),
                 lng: encodeURIComponent(lng),
                 radius: radiusVal,
-            });
+            };
+            if (editingId) payload.id = editingId;
+            const res = await callApifetch(payload);
             if (res.ok) {
-                showNotification(t("MSG_LOCATION_ADDED"), "success");
-                // 清空輸入欄位
-                locationName.value = ''; // 假設您有宣告 locationName
-                locationLatInput.value = '';
-                locationLngInput.value = '';
-                // 重設按鈕狀態
-                getLocationBtn.textContent = t('GET_LOCATION_BTN');
-                getLocationBtn.disabled = false;
-                addLocationBtn.disabled = true;
-                // 員工端地圖若已初始化，立刻重畫，不必重新整理才看得到新地點
-                if (typeof fetchAndRenderLocationsOnMap === 'function' &&
-                    typeof mapInstance !== 'undefined' && mapInstance) {
-                    fetchAndRenderLocationsOnMap().catch(console.warn);
-                }
+                showNotification(t(editingId ? "MSG_LOCATION_UPDATED" : "MSG_LOCATION_ADDED"), "success");
+                resetLocationForm();
+                refreshLocationsEverywhere();
             } else {
                 // U-M8：MSG_ADD_LOCATION_FAILED 帶 {msg} 佔位，接後端原文會露出英文碼
-                showNotification(_errText(res, 'MSG_ADD_LOCATION_FAILED_GENERIC'), "error");
+                showNotification(
+                    _errText(res, editingId ? 'MSG_UPDATE_LOCATION_FAILED_GENERIC' : 'MSG_ADD_LOCATION_FAILED_GENERIC'),
+                    "error");
             }
         } catch (err) {
             console.error(err);
         }
     });
+
+    const cancelEditBtn = document.getElementById('cancel-edit-location-btn');
+    if (cancelEditBtn) cancelEditBtn.addEventListener('click', resetLocationForm);
+    // 地點清單的「修改 / 刪除」按鈕走事件委派（清單會重畫）
+    const locationListEl = document.getElementById('location-list');
+    if (locationListEl) {
+        locationListEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-loc-action]');
+            if (!btn) return;
+            const loc = _locationListCache.find((l) => l.id === btn.dataset.locId);
+            if (!loc) return;
+            if (btn.dataset.locAction === 'edit') startEditLocation(loc);
+            else if (btn.dataset.locAction === 'delete') deleteLocationById(loc).catch(console.error);
+        });
+    }
 
     // 註冊月薪收折與匯出功能（確保 DOM 元素已存在）
     setupAdminExport();
@@ -2760,6 +2771,208 @@ if (_testApiBtn) _testApiBtn.addEventListener('click', async () => {
 // ===================================
 
 // ===================================
+// #region 4.5 打卡地點清單（修改 / 刪除）
+// ===================================
+//
+// 流程：
+//   loadLocationList() → getLocations → renderLocationList()
+//   「修改」→ startEditLocation(loc)：把 name/lat/lng/radius 填進上方表單、地圖放標記、
+//            #editing-location-id 記 doc id，送出鍵改走 updateLocation
+//   「刪除」→ deleteLocationById(loc)：危險色確認框 → deleteLocation
+//   成功後 refreshLocationsEverywhere()：清單 + 員工端地圖一起重畫
+
+let _locationListCache = [];
+
+function _editingLocationId() {
+    const el = document.getElementById('editing-location-id');
+    return el ? el.value.trim() : '';
+}
+
+/** 表單回到「新增」模式並清空欄位 */
+function resetLocationForm() {
+    const idEl = document.getElementById('editing-location-id');
+    if (idEl) idEl.value = '';
+    const nameEl = document.getElementById('location-name');
+    const latEl = document.getElementById('location-lat');
+    const lngEl = document.getElementById('location-lng');
+    if (nameEl) nameEl.value = '';
+    if (latEl) latEl.value = '';
+    if (lngEl) lngEl.value = '';
+    const addBtn = document.getElementById('add-location-btn');
+    if (addBtn) {
+        addBtn.disabled = true;
+        setTranslatedTextSafe(addBtn, 'ADD_LOCATION_BTN', '新增地點');
+    }
+    const getBtn = document.getElementById('get-location-btn');
+    if (getBtn) {
+        getBtn.disabled = false;
+        setTranslatedTextSafe(getBtn, 'GET_LOCATION_BTN', '取得當前位置');
+    }
+    const cancelBtn = document.getElementById('cancel-edit-location-btn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    setTranslatedTextSafe(document.getElementById('location-form-title'), 'ADD_LOCATION_TITLE', '新增打卡地點');
+    const descEl = document.getElementById('location-form-desc');
+    if (descEl) {
+        descEl.setAttribute('data-i18n', 'ADD_LOCATION_DESCRIPTION');
+        descEl.textContent = _tt('ADD_LOCATION_DESCRIPTION', '輸入地點名稱，並使用您的當前位置作為經緯度。');
+    }
+    document.querySelectorAll('#location-list [data-loc-editing]').forEach((el) => el.removeAttribute('data-loc-editing'));
+}
+
+/** 設定文字並同步 data-i18n，切換語言時 renderTranslations 才會用對的 key 重翻 */
+function setTranslatedTextSafe(el, key, fallback) {
+    if (!el) return;
+    el.setAttribute('data-i18n', key);
+    el.textContent = _tt(key, fallback);
+}
+
+/** 「修改」：把地點帶入表單，切成編輯模式 */
+function startEditLocation(loc) {
+    const idEl = document.getElementById('editing-location-id');
+    if (!idEl) return;
+    idEl.value = loc.id;
+    const nameEl = document.getElementById('location-name');
+    const latEl = document.getElementById('location-lat');
+    const lngEl = document.getElementById('location-lng');
+    if (nameEl) nameEl.value = loc.name || '';
+    if (latEl) latEl.value = Number(loc.lat).toFixed(6);
+    if (lngEl) lngEl.value = Number(loc.lng).toFixed(6);
+    // 地圖標記 + 半徑滑桿（location.js 內閉包，透過 window 提供；地圖尚未初始化時僅填欄位）
+    if (typeof window.adminMapSetPoint === 'function') {
+        window.adminMapSetPoint(loc.lat, loc.lng, loc.radius);
+    } else {
+        const slider = document.getElementById('location-radius-slider');
+        const display = document.getElementById('location-radius-display');
+        if (slider && loc.radius) {
+            if (Number(loc.radius) > Number(slider.max)) slider.max = String(loc.radius);
+            slider.value = String(loc.radius);
+        }
+        if (display && loc.radius) display.textContent = `${loc.radius} m`;
+    }
+    const addBtn = document.getElementById('add-location-btn');
+    if (addBtn) {
+        addBtn.disabled = false;
+        setTranslatedTextSafe(addBtn, 'BTN_SAVE', '儲存修改');
+    }
+    const cancelBtn = document.getElementById('cancel-edit-location-btn');
+    if (cancelBtn) cancelBtn.style.display = '';
+    setTranslatedTextSafe(document.getElementById('location-form-title'), 'EDIT_LOCATION_TITLE', '修改打卡地點');
+    const descEl = document.getElementById('location-form-desc');
+    if (descEl) {
+        // 含 {name} 參數，切語言時 renderTranslations 會失去參數，故拿掉 data-i18n 改手動填
+        descEl.removeAttribute('data-i18n');
+        descEl.textContent = t('EDIT_LOCATION_DESCRIPTION', { name: loc.name || '' });
+    }
+    document.querySelectorAll('#location-list [data-loc-editing]').forEach((el) => el.removeAttribute('data-loc-editing'));
+    const row = document.querySelector(`#location-list [data-loc-row="${CSS.escape(loc.id)}"]`);
+    if (row) row.setAttribute('data-loc-editing', '1');
+    const formTitle = document.getElementById('location-form-title');
+    if (formTitle && typeof formTitle.scrollIntoView === 'function') {
+        formTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (nameEl) nameEl.focus({ preventScroll: true });
+}
+
+/** 「刪除」：危險色確認框後呼叫 deleteLocation */
+async function deleteLocationById(loc) {
+    const isAdmin = await verifyAdminPermission();
+    if (!isAdmin) {
+        showNotification(t("ERR_NO_PERMISSION") || "您沒有管理員權限", "error");
+        return;
+    }
+    const ok = typeof showConfirmDialog === 'function'
+        ? await showConfirmDialog(t('CONFIRM_DELETE_LOCATION', { name: loc.name || '' }), { variant: 'danger' })
+        : true;
+    if (!ok) return;
+    const res = await callApifetch({ action: 'deleteLocation', id: loc.id });
+    if (res && res.ok) {
+        showNotification(t('MSG_LOCATION_DELETED'), 'success');
+        if (_editingLocationId() === loc.id) resetLocationForm();
+        refreshLocationsEverywhere();
+    } else {
+        showNotification(_errText(res, 'MSG_DELETE_LOCATION_FAILED_GENERIC'), 'error');
+    }
+}
+
+/** 清單 + 員工端地圖（若已初始化）一起重畫 */
+function refreshLocationsEverywhere() {
+    loadLocationList().catch(console.error);
+    if (typeof fetchAndRenderLocationsOnMap === 'function' &&
+        typeof mapInstance !== 'undefined' && mapInstance) {
+        fetchAndRenderLocationsOnMap().catch(console.warn);
+    }
+}
+
+async function loadLocationList() {
+    const listEl = document.getElementById('location-list');
+    if (!listEl) return;
+    let res;
+    try {
+        res = await callApifetch({ action: 'getLocations' });
+    } catch (err) {
+        console.error('loadLocationList 失敗：', err);
+        res = { ok: false, code: 'ERR_FIRESTORE_CALL_FAILED' };
+    }
+    if (!res || !res.ok || !Array.isArray(res.locations)) {
+        _locationListCache = [];
+        listEl.replaceChildren();
+        const p = document.createElement('p');
+        p.className = 'text-center text-red-600 dark:text-red-300 py-4';
+        p.textContent = _errText(res, 'ERROR_FETCH_LOCATIONS');
+        listEl.appendChild(p);
+        return;
+    }
+    _locationListCache = res.locations
+        .map((l) => ({
+            id: String(l.id || ''),
+            name: String(l.name || ''),
+            lat: Number(l.lat),
+            lng: Number(l.lng),
+            radius: Number(l.radius || l.scope || 100),
+        }))
+        .filter((l) => l.id)
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+    renderLocationList(listEl, _locationListCache);
+}
+
+function renderLocationList(listEl, locations) {
+    const editingId = _editingLocationId();
+    const rows = locations.map((loc) => {
+        const editing = loc.id === editingId ? ' data-loc-editing="1"' : '';
+        return `
+            <div data-loc-row="${escapeHtml(loc.id)}"${editing}
+                 class="location-row flex flex-wrap items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                <div class="flex-1 min-w-0">
+                    <p class="font-semibold text-gray-800 dark:text-gray-100 truncate">${escapeHtml(loc.name)}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        ${escapeHtml(loc.lat.toFixed(6))}, ${escapeHtml(loc.lng.toFixed(6))}
+                        · ${escapeHtml(t('LOCATION_RADIUS_SHORT', { radius: String(loc.radius) }))}
+                    </p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button type="button" data-loc-action="edit" data-loc-id="${escapeHtml(loc.id)}"
+                        class="py-2 px-3 rounded-md text-sm font-semibold btn-secondary">${escapeHtml(_tt('BTN_EDIT', '修改'))}</button>
+                    <button type="button" data-loc-action="delete" data-loc-id="${escapeHtml(loc.id)}"
+                        class="py-2 px-3 rounded-md text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60">${escapeHtml(_tt('BTN_DELETE', '刪除'))}</button>
+                </div>
+            </div>`;
+    });
+    if (!rows.length) {
+        listEl.replaceChildren();
+        const p = document.createElement('p');
+        p.className = 'text-center text-gray-500 dark:text-gray-400 py-4';
+        p.setAttribute('data-i18n', 'LOCATION_LIST_EMPTY');
+        p.textContent = _tt('LOCATION_LIST_EMPTY', '尚未建立任何打卡地點。');
+        listEl.appendChild(p);
+        return;
+    }
+    // ✅ XSS 防護：所有使用者可控欄位已 escapeHtml，再過一次 DOMPurify
+    const html = rows.join('');
+    listEl.innerHTML = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(html) : html;
+}
+// #endregion
+
+// ===================================
 // #region 5. 管理員子頁籤切換邏輯
 // ===================================
 /**
@@ -2804,6 +3017,8 @@ const switchAdminSubTab = (subTabId) => {
     if (newTabElement) {
         newTabElement.style.display = 'block'; // 顯示內容
     }
+    // 打卡管理：每次進來都重抓地點清單（可能剛在別處新增/修改）
+    if (subTabId === 'punch-mgmt-view') loadLocationList().catch(console.error);
 
     // 4. 設定新頁籤按鈕的選中狀態
     const newBtnElement = document.getElementById(`tab-${subTabId.replace('-view', '-btn')}`);

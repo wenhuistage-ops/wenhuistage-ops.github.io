@@ -650,5 +650,19 @@
   "REQUEST_EMPTY_PENDING": "目前沒有待審核的申請",
   "REQUEST_EMPTY_APPROVED": "目前沒有已批准的申請",
   "REQUEST_EMPTY_REJECTED": "目前沒有已退回的申請",
-  "REJECTION_REASON_PLACEHOLDER": "員工會看到這段文字，可留空"
+  "REJECTION_REASON_PLACEHOLDER": "員工會看到這段文字，可留空",
+  "LOCATION_LIST_TITLE": "現有打卡地點",
+  "LOCATION_LIST_DESC": "按「修改」會把資料帶入上方表單，可在地圖重新點選位置或調整範圍；按「刪除」後員工將無法再於該處打卡，歷史紀錄不受影響。",
+  "LOCATION_LIST_LOADING": "正在載入地點...",
+  "LOCATION_LIST_EMPTY": "尚未建立任何打卡地點。",
+  "LOCATION_RADIUS_SHORT": "範圍 {radius} 公尺",
+  "EDIT_LOCATION_TITLE": "修改打卡地點",
+  "EDIT_LOCATION_DESCRIPTION": "正在修改「{name}」。調整後按「儲存修改」，或按「取消」放棄變更。",
+  "CONFIRM_UPDATE_LOCATION": "確定要儲存地點「{name}」的修改嗎？",
+  "CONFIRM_DELETE_LOCATION": "確定要刪除地點「{name}」嗎？已有的打卡紀錄不受影響，但員工之後無法再於此處打卡。",
+  "MSG_LOCATION_UPDATED": "地點已更新！",
+  "MSG_LOCATION_DELETED": "地點已刪除。",
+  "MSG_UPDATE_LOCATION_FAILED_GENERIC": "更新地點失敗，請稍後再試",
+  "MSG_DELETE_LOCATION_FAILED_GENERIC": "刪除地點失敗，請稍後再試",
+  "ERR_LOCATION_NOT_FOUND": "找不到這個地點，可能已被刪除，請重新整理後再試。"
 }

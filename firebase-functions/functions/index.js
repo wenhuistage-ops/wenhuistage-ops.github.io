@@ -41,6 +41,8 @@ exports.getAbnormalRecords = require("./src/getAbnormalRecords");
 // ===== 管理員 =====
 exports.getEmployeeList = require("./src/getEmployeeList");
 exports.addLocation = require("./src/addLocation");
+exports.updateLocation = require("./src/updateLocation"); // admin 修改打卡地點
+exports.deleteLocation = require("./src/deleteLocation"); // admin 刪除打卡地點
 
 // ===== 請假與審核 =====
 exports.submitLeave = require("./src/submitLeave");

@@ -560,3 +560,36 @@ describe('getAllLocations 版本戳快取', () => {
     expect(getSrc).not.toMatch(/_cache|TTL_MS/);
   });
 });
+
+// ------------------------------------------------- 打卡地點修改 / 刪除端點
+//
+// 這兩支是 admin 寫入端點，無法在測試環境 require（需 firebase-admin 憑證），
+// 以原始碼約束確認：驗 admin、驗 docId 字元、找不到 doc 要回 ERR_LOCATION_NOT_FOUND、
+// 寫完要 bump 版本戳（否則 getLocations / punch 要等 TTL 才看到變更）。
+describe('updateLocation / deleteLocation 原始碼約束', () => {
+  const read = (f) =>
+    fs.readFileSync(path.join(__dirname, '../firebase-functions/functions/src', f), 'utf8');
+
+  test.each(['updateLocation.js', 'deleteLocation.js'])('%s', (file) => {
+    const src = read(file);
+    expect(src).toMatch(/await verifyAdmin\(sessionToken\)/);
+    expect(src).toMatch(/isValidDocId\(docId\)/);
+    expect(src).toMatch(/ERR_LOCATION_NOT_FOUND/);
+    expect(src).toMatch(/await bumpLocationsVersion\(\)/);
+    expect(src).toMatch(/cors: CORS_ORIGINS/);
+  });
+
+  test('updateLocation 套用與 addLocation 相同的名稱 / 座標 / 半徑驗證', () => {
+    const src = read('updateLocation.js');
+    expect(src).toMatch(/clampText\(name\)\.trim\(\)/);
+    expect(src).toMatch(/validateCoordinates\(lat, lng\)/);
+    expect(src).toMatch(/radiusNum < 10 \|\| radiusNum > 10000/);
+  });
+
+  test('index.js 有匯出兩支端點', () => {
+    const idx = fs.readFileSync(
+      path.join(__dirname, '../firebase-functions/functions/index.js'), 'utf8');
+    expect(idx).toMatch(/exports\.updateLocation = require\("\.\/src\/updateLocation"\)/);
+    expect(idx).toMatch(/exports\.deleteLocation = require\("\.\/src\/deleteLocation"\)/);
+  });
+});
