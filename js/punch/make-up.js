@@ -122,6 +122,47 @@ function validateAdjustTime(value, now = new Date()) {
     return true;
 }
 
+/** 本地日期 'YYYY-MM-DD' */
+function _localDateKey(d = new Date()) {
+    return _toLocalInputValue(d, true);
+}
+
+/**
+ * 補卡表單的預設時間 'HH:mm'。
+ * 上班預設 08:00、下班預設 18:00；但若補的是「今天」且預設時間還沒到
+ * （下午三點補下班），就用現在時間，免得員工沒注意送出一個未來的下班卡。
+ * @param {string} date 'YYYY-MM-DD'
+ * @param {'in'|'out'} kind
+ * @param {Date} [now]
+ */
+function _defaultMakeupTime(date, kind, now = new Date()) {
+    const preset = kind === 'in' ? '08:00' : '18:00';
+    if (date !== _localDateKey(now)) return preset;
+    const p = (n) => String(n).padStart(2, '0');
+    const nowHm = `${p(now.getHours())}:${p(now.getMinutes())}`;
+    return preset > nowHm ? nowHm : preset;
+}
+
+/**
+ * 「今日補卡」預設模式：今天還沒有上班卡 → 'in'；有上班沒下班 → 'out'；都有 → 'in'
+ * （都有還要補，通常是雙班的第二段上班）。被退回（audit 'x'）的不算。
+ * @param {Array<{type:string, audit?:string}>} records 今天的打卡紀錄
+ */
+function getTodayMakeupMode(records) {
+    const valid = (records || []).filter((r) => r && r.audit !== 'x');
+    const hasIn = valid.some((r) => r.type === '上班');
+    const hasOut = valid.some((r) => r.type === '下班');
+    if (!hasIn) return 'in';
+    if (!hasOut) return 'out';
+    return 'in';
+}
+
+/**
+ * 補卡原因快選（固定代碼，後端 _helpers.MAKEUP_REASONS 轉成中文存檔）。
+ * 員工用自己的語言選，資料庫與管理端一律中文，與假別同一做法。
+ */
+const MAKEUP_REASON_CODES = ['phone', 'forgot', 'gps', 'network', 'app', 'other'];
+
 // U-M3：補卡送出中的防重入旗標（補全日會連打兩支 API，中途重按會重複申請）
 let _adjustSubmitInFlight = false;
 
@@ -141,8 +182,9 @@ const _fullDayInSubmitted = {};
  * @param {string} mode 'in' | 'out' | 'full'
  * @param {boolean} showModeSelector 是否顯示模式切換按鈕（月曆觸發 true，異常清單觸發 false）
  */
-function _renderMakeupFormHtml(container, date, mode, showModeSelector) {
+function _renderMakeupFormHtml(container, date, mode, showModeSelector, preset = {}) {
     const tt = (k, fallback) => (typeof t === 'function' ? (t(k) || fallback) : fallback);
+    const esc = (v) => (typeof escapeHtml === 'function' ? escapeHtml(v) : String(v));
     const isIn = mode === 'in';
     const isOut = mode === 'out';
     const isFull = mode === 'full';
@@ -200,11 +242,31 @@ function _renderMakeupFormHtml(container, date, mode, showModeSelector) {
                     data-mode="full" data-date="${date}" data-i18n="MAKEUP_MODE_FULL">${tt('MAKEUP_MODE_FULL', '補全日')}</button>
         </div>` : '';
 
+    // 補卡原因快選：一排 chip，點一下就選好（手機上比下拉選單快）；值存在隱藏欄位
+    const reasonChipCls = 'makeup-reason-btn px-3 py-1.5 rounded-full text-sm font-medium border transition';
+    const reasonChipsHtml = MAKEUP_REASON_CODES.map((code) => {
+        const key = `MAKEUP_REASON_${code.toUpperCase()}`;
+        return `<button type="button" class="${reasonChipCls}" data-reason="${code}" data-i18n="${key}"
+                    aria-pressed="false">${esc(tt(key, code))}</button>`;
+    }).join('');
+    const reasonHtml = `
+        <div class="form-group mb-3">
+            <p class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300" data-i18n="MAKEUP_REASON_LABEL">${esc(tt('MAKEUP_REASON_LABEL', '補卡原因：'))}</p>
+            <div id="makeupReasonChips" class="flex flex-wrap gap-2" role="group">${reasonChipsHtml}</div>
+            <input type="hidden" id="adjustReason" value="">
+        </div>
+        <div class="form-group mb-3">
+            <input id="adjustNote" type="text" maxlength="200"
+                data-i18n-placeholder="MAKEUP_NOTE_PLACEHOLDER" placeholder="${esc(tt('MAKEUP_NOTE_PLACEHOLDER', '補充說明（可不填）'))}"
+                class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white focus:ring-indigo-500 focus:border-indigo-500">
+        </div>`;
+
     const formHtml = `
         <div class="p-4 ${showModeSelector ? '' : 'border-t border-gray-200'} fade-in ">
             ${selectorHtml}
             <p class="font-semibold mb-2">${formTitle}：<span class="text-indigo-600">${date}</span></p>
             <div id="timeInputsContainer">${inputsHtml}</div>
+            ${reasonHtml}
             <div class="grid grid-cols-1 sm:grid-cols-1 gap-2">${buttonsHtml}</div>
         </div>`;
 
@@ -214,17 +276,46 @@ function _renderMakeupFormHtml(container, date, mode, showModeSelector) {
     // U-H1：min/max 用 JS 設（而非寫在 HTML 字串裡），確保不受 DOMPurify 屬性白名單影響
     _applyMakeupDateLimits(container);
 
-    // 設置默認時間值
+    // 設置默認時間值（補今天時不會預設到未來，見 _defaultMakeupTime）
     if (isFull) {
         const inEl = container.querySelector('#adjustInTime');
         const outEl = container.querySelector('#adjustOutTime');
-        if (inEl) inEl.value = `${date}T08:00`;
-        if (outEl) outEl.value = `${date}T18:00`;
+        if (inEl) inEl.value = `${date}T${_defaultMakeupTime(date, 'in')}`;
+        if (outEl) outEl.value = `${date}T${_defaultMakeupTime(date, 'out')}`;
     } else {
-        const defaultTime = isIn ? '08:00' : '18:00';
         const el = container.querySelector('#adjustDateTime');
-        if (el) el.value = `${date}T${defaultTime}`;
+        if (el) el.value = `${date}T${_defaultMakeupTime(date, isIn ? 'in' : 'out')}`;
     }
+
+    // 原因 chip 先全部設成未選樣式；切換 上班/下班/全日 會整個重畫，把剛才選的原因與備註帶回來
+    _selectMakeupReason(container, preset.reason || '');
+    const noteEl = container.querySelector('#adjustNote');
+    if (noteEl && preset.note) noteEl.value = preset.note;
+}
+
+/** 讀取表單目前的原因代碼與備註（給 mode 切換保留用） */
+function _readMakeupFormPreset(container) {
+    if (!container) return {};
+    return {
+        reason: container.querySelector('#adjustReason')?.value || '',
+        note: container.querySelector('#adjustNote')?.value || '',
+    };
+}
+
+/** 把某個原因 chip 設成選取（同時寫入隱藏欄位）；傳空字串＝全部未選 */
+function _selectMakeupReason(container, code) {
+    if (!container) return;
+    const hidden = container.querySelector('#adjustReason');
+    const value = MAKEUP_REASON_CODES.includes(code) ? code : '';
+    if (hidden) hidden.value = value;
+    const activeCls = ['bg-indigo-600', 'text-white', 'border-indigo-600'];
+    const idleCls = ['bg-white', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-200', 'border-gray-300', 'dark:border-gray-600'];
+    container.querySelectorAll('.makeup-reason-btn').forEach((btn) => {
+        const on = value !== '' && btn.dataset.reason === value;
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.classList.remove(...activeCls, ...idleCls);
+        btn.classList.add(...(on ? activeCls : idleCls));
+    });
 }
 
 // 2026-06-10：病假證明照片暫存（壓縮後的 base64 data URL，提交時帶給 submitLeave）
@@ -432,13 +523,43 @@ function bindPunchEvents() {
             // 排除 admin 代補卡（由 admin.js 自己 handler）
             if (e.target.classList.contains('adjust-btn-as-admin')) return;
 
-            // 月曆 modal 內 mode 切換按鈕（上班 / 下班 / 全日）
+            // 補卡原因 chip：點一下選取（可換），值寫進 #adjustReason
+            if (e.target.classList.contains('makeup-reason-btn')) {
+                const host = e.target.closest('#makeup-modal-form-container') || adjustmentFormContainer;
+                _selectMakeupReason(host, e.target.dataset.reason);
+                return;
+            }
+
+            // mode 切換按鈕（上班 / 下班 / 全日）：modal 與儀表板內嵌表單（補今天）都可能出現
             if (e.target.classList.contains('makeup-mode-btn')) {
                 const newMode = e.target.dataset.mode;
                 const date = e.target.dataset.date;
-                const container = document.getElementById('makeup-modal-form-container');
+                const container = e.target.closest('#makeup-modal-form-container') || adjustmentFormContainer;
                 if (container && newMode && date) {
-                    _renderMakeupFormHtml(container, date, newMode, /* showModeSelector */ true);
+                    _renderMakeupFormHtml(container, date, newMode, /* showModeSelector */ true,
+                        _readMakeupFormPreset(container));
+                }
+                return;
+            }
+
+            // 儀表板「今日補卡」：開 modal，預設模式依今天已打的卡決定（沒上班卡 → 補上班）
+            if (e.target.id === 'today-makeup-btn') {
+                const todayKey = _localDateKey();
+                const container = _openMakeupModal();
+                if (!container) return;
+                _renderMakeupFormHtml(container, todayKey, 'in', /* showModeSelector */ true);
+                // 預設模式要看今天的紀錄，非同步取；取不到就維持「補上班」
+                const monthKey = todayKey.slice(0, 7);
+                if (typeof loadMonthDetailData === 'function') {
+                    loadMonthDetailData(monthKey).then((days) => {
+                        const rec = (days || []).find((d) => d.date === todayKey);
+                        const mode = getTodayMakeupMode((rec && rec.record) || []);
+                        // 使用者可能已經動手了：只在還是初始狀態時才改預設
+                        const preset = _readMakeupFormPreset(container);
+                        if (mode !== 'in' && !preset.reason && !preset.note && container.querySelector('#timeInputsContainer')) {
+                            _renderMakeupFormHtml(container, todayKey, mode, true);
+                        }
+                    }).catch(() => { /* 維持預設 */ });
                 }
                 return;
             }
@@ -465,7 +586,11 @@ function bindPunchEvents() {
 
                 // 月曆觸發的補卡才顯示 mode selector（讓使用者切換 上/下/全日）
                 // 異常清單觸發的不顯示（reason 由系統判定，使用者不該切換）
-                _renderMakeupFormHtml(targetContainer, date, initialMode, isFromCalendar);
+                // 例外：補「今天」永遠給 selector —— 今天還沒過完，系統判的「本日未打卡」
+                // 不代表要補全日，手機壞掉打不了上班卡時只需要補上班那一筆。
+                const isToday = date === _localDateKey();
+                if (isToday && initialMode === 'full') initialMode = 'in';
+                _renderMakeupFormHtml(targetContainer, date, initialMode, isFromCalendar || isToday);
             } else if (e.target.classList.contains('leave-btn')) {
                 // 請假按鈕處理邏輯
                 const date = e.target.dataset.date;
@@ -579,6 +704,15 @@ function bindPunchEvents() {
                     return;
                 }
 
+                // 補卡原因必選（chip 快選），備註可空
+                const makeupReason = hostContainer?.querySelector('#adjustReason')?.value || '';
+                if (!makeupReason) {
+                    showNotification(tOr('MSG_SELECT_MAKEUP_REASON', '請先選擇補卡原因'), 'error');
+                    hostContainer?.querySelector('#makeupReasonChips')?.scrollIntoView?.({ block: 'center' });
+                    return;
+                }
+                const makeupNote = (hostContainer?.querySelector('#adjustNote')?.value || '').trim();
+
                 // 判斷是否為全日打卡（兩個時間輸入框都存在）
                 const adjustInTimeInput = document.getElementById("adjustInTime");
                 const adjustOutTimeInput = document.getElementById("adjustOutTime");
@@ -635,6 +769,8 @@ function bindPunchEvents() {
                 // F-L5：備註只留極簡裝置標記（例：iOS/LINE），不再把整串 userAgent
                 // 寫進人資紀錄並顯示給管理員
                 const noteTag = (typeof deviceTag === 'function') ? deviceTag() : '';
+                // 備註 = 員工補充說明 +（裝置標記）；原因另以代碼送，後端轉中文一起寫進 note
+                const noteText = makeupNote ? (noteTag ? `${makeupNote}（${noteTag}）` : makeupNote) : noteTag;
 
                 try {
                     if (type === 'full') {
@@ -651,7 +787,8 @@ function bindPunchEvents() {
                                 lat: lat,
                                 lng: lng,
                                 datetime: new Date(inDateTime).toISOString(),
-                                note: noteTag
+                                note: noteText,
+                                reason: makeupReason,
                             }, "loadingMsg");
 
                             if (!inRes.ok) {
@@ -668,7 +805,8 @@ function bindPunchEvents() {
                             lat: lat,
                             lng: lng,
                             datetime: new Date(outDateTime).toISOString(),
-                            note: noteTag
+                            note: noteText,
+                            reason: makeupReason,
                         }, "loadingMsg");
 
                         if (outRes.ok) {
@@ -685,7 +823,8 @@ function bindPunchEvents() {
                             showNotification(tOr("MSG_PUNCH_IN_SENT_RETRY_OUT",
                                 "上班補卡已送出，只差下班：{msg}。請確認下班時間後再送一次。", { msg }), "warning");
                             if (hostContainer) {
-                                _renderMakeupFormHtml(hostContainer, dayKey, 'out', inModal);
+                                _renderMakeupFormHtml(hostContainer, dayKey, 'out', inModal,
+                                    { reason: makeupReason, note: makeupNote });
                                 const outEl = hostContainer.querySelector('#adjustDateTime');
                                 if (outEl) outEl.value = outDateTime;
                             }
@@ -699,7 +838,8 @@ function bindPunchEvents() {
                             lat: lat,
                             lng: lng,
                             datetime: new Date(datetime).toISOString(),
-                            note: noteTag
+                            note: noteText,
+                            reason: makeupReason,
                         }, "loadingMsg");
                         const msg = t(res.code || "UNKNOWN_ERROR", res.params || {});
                         showNotification(msg, res.ok ? "success" : "error");
@@ -883,5 +1023,8 @@ if (typeof module !== 'undefined' && module.exports) {
         MAKEUP_MAX_BACKDAYS,
         getMakeupMinDate,
         getMakeupMaxDate,
+        MAKEUP_REASON_CODES,
+        getTodayMakeupMode,
+        _defaultMakeupTime,
     };
 }

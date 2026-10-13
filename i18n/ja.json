@@ -650,5 +650,17 @@
   "REQUEST_EMPTY_PENDING": "承認待ちの申請はありません",
   "REQUEST_EMPTY_APPROVED": "承認済みの申請はありません",
   "REQUEST_EMPTY_REJECTED": "却下された申請はありません",
-  "REJECTION_REASON_PLACEHOLDER": "この文章は従業員に表示されます。空欄でも構いません。"
+  "REJECTION_REASON_PLACEHOLDER": "この文章は従業員に表示されます。空欄でも構いません。",
+  "BTN_TODAY_MAKEUP": "本日の打刻修正",
+  "TODAY_MAKEUP_HINT": "打刻に失敗した・忘れた場合は、ここから本日の出勤／退勤を申請できます。管理者が確認します。",
+  "MAKEUP_REASON_LABEL": "修正理由：",
+  "MAKEUP_REASON_PHONE": "スマホの不具合",
+  "MAKEUP_REASON_FORGOT": "打刻忘れ",
+  "MAKEUP_REASON_GPS": "位置情報の失敗",
+  "MAKEUP_REASON_NETWORK": "通信障害",
+  "MAKEUP_REASON_APP": "システム障害",
+  "MAKEUP_REASON_OTHER": "その他",
+  "MAKEUP_NOTE_PLACEHOLDER": "補足（任意）",
+  "MSG_SELECT_MAKEUP_REASON": "先に修正理由を選んでください",
+  "ERR_INVALID_MAKEUP_REASON": "修正理由が正しくありません。選び直してください。"
 }

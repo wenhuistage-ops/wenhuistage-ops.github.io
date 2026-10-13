@@ -650,5 +650,17 @@
   "REQUEST_EMPTY_PENDING": "Tidak ada pengajuan yang menunggu",
   "REQUEST_EMPTY_APPROVED": "Tidak ada pengajuan yang disetujui",
   "REQUEST_EMPTY_REJECTED": "Tidak ada pengajuan yang ditolak",
-  "REJECTION_REASON_PLACEHOLDER": "Karyawan akan melihat teks ini. Boleh dikosongkan."
+  "REJECTION_REASON_PLACEHOLDER": "Karyawan akan melihat teks ini. Boleh dikosongkan.",
+  "BTN_TODAY_MAKEUP": "Absen susulan hari ini",
+  "TODAY_MAKEUP_HINT": "Absen gagal atau lupa? Ajukan absen masuk/pulang hari ini di sini, admin akan meninjaunya.",
+  "MAKEUP_REASON_LABEL": "Alasan:",
+  "MAKEUP_REASON_PHONE": "Ponsel bermasalah",
+  "MAKEUP_REASON_FORGOT": "Lupa absen",
+  "MAKEUP_REASON_GPS": "GPS gagal",
+  "MAKEUP_REASON_NETWORK": "Jaringan bermasalah",
+  "MAKEUP_REASON_APP": "Gangguan sistem",
+  "MAKEUP_REASON_OTHER": "Lainnya",
+  "MAKEUP_NOTE_PLACEHOLDER": "Keterangan tambahan (opsional)",
+  "MSG_SELECT_MAKEUP_REASON": "Pilih alasan terlebih dahulu",
+  "ERR_INVALID_MAKEUP_REASON": "Alasan tidak valid, silakan pilih lagi."
 }

@@ -650,5 +650,17 @@
   "REQUEST_EMPTY_PENDING": "Không có đơn nào chờ duyệt",
   "REQUEST_EMPTY_APPROVED": "Không có đơn nào đã duyệt",
   "REQUEST_EMPTY_REJECTED": "Không có đơn nào bị từ chối",
-  "REJECTION_REASON_PLACEHOLDER": "Nhân viên sẽ thấy nội dung này. Có thể để trống."
+  "REJECTION_REASON_PLACEHOLDER": "Nhân viên sẽ thấy nội dung này. Có thể để trống.",
+  "BTN_TODAY_MAKEUP": "Bổ sung hôm nay",
+  "TODAY_MAKEUP_HINT": "Chấm công thất bại hoặc quên? Gửi chấm công bổ sung vào/ra của hôm nay tại đây, quản lý sẽ duyệt.",
+  "MAKEUP_REASON_LABEL": "Lý do bổ sung:",
+  "MAKEUP_REASON_PHONE": "Điện thoại lỗi",
+  "MAKEUP_REASON_FORGOT": "Quên chấm công",
+  "MAKEUP_REASON_GPS": "Định vị thất bại",
+  "MAKEUP_REASON_NETWORK": "Lỗi mạng",
+  "MAKEUP_REASON_APP": "Lỗi hệ thống",
+  "MAKEUP_REASON_OTHER": "Khác",
+  "MAKEUP_NOTE_PLACEHOLDER": "Ghi chú thêm (không bắt buộc)",
+  "MSG_SELECT_MAKEUP_REASON": "Vui lòng chọn lý do trước",
+  "ERR_INVALID_MAKEUP_REASON": "Lý do không hợp lệ, vui lòng chọn lại."
 }

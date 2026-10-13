@@ -650,5 +650,17 @@
   "REQUEST_EMPTY_PENDING": "No pending requests",
   "REQUEST_EMPTY_APPROVED": "No approved requests",
   "REQUEST_EMPTY_REJECTED": "No rejected requests",
-  "REJECTION_REASON_PLACEHOLDER": "The employee will see this text. You may leave it blank."
+  "REJECTION_REASON_PLACEHOLDER": "The employee will see this text. You may leave it blank.",
+  "BTN_TODAY_MAKEUP": "Adjust today",
+  "TODAY_MAKEUP_HINT": "Punch failed or forgot? Submit today's punch-in / punch-out here; an admin will review it.",
+  "MAKEUP_REASON_LABEL": "Reason:",
+  "MAKEUP_REASON_PHONE": "Phone issue",
+  "MAKEUP_REASON_FORGOT": "Forgot to punch",
+  "MAKEUP_REASON_GPS": "GPS failed",
+  "MAKEUP_REASON_NETWORK": "Network issue",
+  "MAKEUP_REASON_APP": "System error",
+  "MAKEUP_REASON_OTHER": "Other",
+  "MAKEUP_NOTE_PLACEHOLDER": "Additional note (optional)",
+  "MSG_SELECT_MAKEUP_REASON": "Please select a reason first",
+  "ERR_INVALID_MAKEUP_REASON": "Invalid reason. Please select again."
 }

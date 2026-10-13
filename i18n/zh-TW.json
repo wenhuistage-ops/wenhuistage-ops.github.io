@@ -650,5 +650,17 @@
   "REQUEST_EMPTY_PENDING": "目前沒有待審核的申請",
   "REQUEST_EMPTY_APPROVED": "目前沒有已批准的申請",
   "REQUEST_EMPTY_REJECTED": "目前沒有已退回的申請",
-  "REJECTION_REASON_PLACEHOLDER": "員工會看到這段文字，可留空"
+  "REJECTION_REASON_PLACEHOLDER": "員工會看到這段文字，可留空",
+  "BTN_TODAY_MAKEUP": "今日補卡",
+  "TODAY_MAKEUP_HINT": "打卡失敗或忘了打？可直接補今天的上班／下班卡，送出後由管理員審核。",
+  "MAKEUP_REASON_LABEL": "補卡原因：",
+  "MAKEUP_REASON_PHONE": "手機異常",
+  "MAKEUP_REASON_FORGOT": "忘記打卡",
+  "MAKEUP_REASON_GPS": "定位失敗",
+  "MAKEUP_REASON_NETWORK": "網路異常",
+  "MAKEUP_REASON_APP": "系統異常",
+  "MAKEUP_REASON_OTHER": "其他",
+  "MAKEUP_NOTE_PLACEHOLDER": "補充說明（可不填）",
+  "MSG_SELECT_MAKEUP_REASON": "請先選擇補卡原因",
+  "ERR_INVALID_MAKEUP_REASON": "補卡原因不正確，請重新選擇。"
 }
