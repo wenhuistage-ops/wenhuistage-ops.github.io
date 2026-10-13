@@ -108,3 +108,16 @@ describe('i18n - t() 真實函式', () => {
     });
   });
 });
+
+// 五語 key 必須一致：新增 key 時漏翻某一語言，該語言畫面會直接露出 key 名稱
+describe('i18n - 五語 key 一致', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const langs = ['zh-TW', 'en-US', 'ja', 'vi', 'id'];
+  const keysOf = (l) =>
+    Object.keys(JSON.parse(fs.readFileSync(path.join(__dirname, '../i18n', `${l}.json`), 'utf8'))).sort();
+  const base = keysOf('zh-TW');
+  it.each(langs.slice(1))('%s 與 zh-TW 的 key 完全相同', (l) => {
+    expect(keysOf(l)).toEqual(base);
+  });
+});

@@ -31,6 +31,7 @@
 | `approveRequest` / `rejectRequest` | `exports.approveRequest` / `rejectRequest` | 管理員審核 |
 | `getEmployeeList` | `exports.getEmployeeList` | 員工清單（管理員） |
 | `getLocations` | `exports.getLocations` | 打卡地點 |
+| `addLocation` / `updateLocation` / `deleteLocation` | `exports.addLocation` / `updateLocation` / `deleteLocation` | 打卡地點新增 / 修改 / 刪除（管理員） |
 
 ## 啟動步驟（待執行）
 
