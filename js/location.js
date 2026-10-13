@@ -426,6 +426,19 @@ function initAdminAddLocationMapIfNeeded() {
         nameInput.addEventListener('input', enableAddIfReady);
     }
 
+    // 給 admin.js「修改地點」用：把既有地點的座標與半徑套到地圖與滑桿上。
+    // placeMarker / adminRadius 都是這個閉包內的，所以掛在 window 上對外提供。
+    window.adminMapSetPoint = (lat, lng, radius) => {
+        const r = Number(radius);
+        if (radiusSlider && !isNaN(r) && r > 0) {
+            // 既有地點的半徑可能超過滑桿上限（後端允許到 10000），先放寬上限再設值
+            if (r > Number(radiusSlider.max)) radiusSlider.max = String(r);
+            radiusSlider.value = String(r);
+            radiusSlider.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        placeMarker({ lat: Number(lat), lng: Number(lng) });
+    };
+
     // If lat/lng already present (e.g., restored), place marker
     if (latInput && lngInput && latInput.value && lngInput.value) {
         const lat = parseFloat(latInput.value);

@@ -15,10 +15,12 @@
 // ===================================
 
 /**
- * 檢查 URL 參數，若有 ?action=in|out 則詢問後觸發打卡。
+ * 檢查 URL 參數，若有 ?action=in|out 且已登入，直接觸發打卡。
  *
- * F-M2：原本一開連結就直接打卡，完全沒有確認 —— 任何人把 `?action=out` 貼給同事，
- * 對方一點開就被打了下班卡。改成先跳確認框，由本人按下去才送出。
+ * 2026-10-13：取消確認框。LINE 圖文選單的「上班 / 下班」就是這個連結，使用者要的是
+ * 「點了就打卡」，再問一次等於每天多按一下。先前 F-M2 加確認框是擔心連結被轉傳給同事，
+ * 但連結本身只會對「已登入的本人」打卡（需本機 sessionToken），轉傳給別人只會打到對方自己的卡，
+ * 風險可接受；URL 參數仍會先清掉，避免重新整理 / PWA 還原分頁時重複打卡。
  * @returns {Promise<void>}
  */
 async function checkAutoPunch() {
@@ -42,18 +44,11 @@ async function checkAutoPunch() {
         return;
     }
 
-    // 先把 URL 參數清掉：無論按確認或取消都不該留著，
-    // 否則重新整理／PWA 還原分頁時又會再問一次（甚至又打一次卡）。
-    const typeText = t(action === 'in' ? 'PUNCH_IN' : 'PUNCH_OUT');
+    // 先把 URL 參數清掉，否則重新整理／PWA 還原分頁時會又打一次卡。
     history.replaceState(null, '', window.location.pathname);
 
-    const confirmed = (typeof showConfirmDialog === 'function')
-        ? await showConfirmDialog(tOr('CONFIRM_AUTO_PUNCH', '確定要打「{type}」卡嗎？', { type: typeText }))
-        : true;
-    if (!confirmed) return;
-
     showNotification(t("PUNCH_AUTO_TRIGGERED") || '正在自動打卡...', "info");
-    // 保留原本的小延遲，讓通知先畫出來、也避開確認框關閉動畫
+    // 保留小延遲，讓通知先畫出來
     setTimeout(() => targetButton.click(), 300);
 }
 // #endregion
