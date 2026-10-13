@@ -32,7 +32,7 @@ const menu = {
   name: "考勤選單",
   chatBarText: "Menu",
   areas: [
-    area(0, 0, `${SITE}?action=in`), // 上班：auto-punch.js 會跳確認框再打卡
+    area(0, 0, `${SITE}?action=in`), // 上班：auto-punch.js 登入狀態下直接打卡（不再跳確認框）
     area(W, 0, `${SITE}?action=out`), // 下班
     area(0, H, `${SITE}#monthly-view`), // 打卡紀錄（月曆）
     area(W, H, `${SITE}#review`), // 審核：管理員開表單審核、員工開我的申請（app.js）
