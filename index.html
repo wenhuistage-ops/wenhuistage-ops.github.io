@@ -471,6 +471,15 @@ Please credit "0J (Lin Jie / 0rigin1856)" when redistributing or modifying this 
                             class="w-full py-3 px-4 rounded-lg font-bold btn-secondary">下班打卡</button>
                     </div>
 
+                    <!-- 當日補卡入口：手機／定位／網路異常打不了卡時，不必等到隔天從異常清單補。
+                         make-up.js 綁 click → 開補卡 modal（含 上班/下班/全日 切換與原因快選） -->
+                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <p data-i18n="TODAY_MAKEUP_HINT" class="text-xs text-gray-500 dark:text-gray-400 flex-1 min-w-[12rem]">
+                            打卡失敗或忘了打？可直接補今天的上班／下班卡，送出後由管理員審核。</p>
+                        <button id="today-makeup-btn" type="button" data-i18n="BTN_TODAY_MAKEUP"
+                            class="py-2 px-3 rounded-lg text-sm font-semibold btn-secondary whitespace-nowrap">今日補卡</button>
+                    </div>
+
                     <div class="mt-4 mb-2">
                         <div class="bg-gray-50 p-4 dark:bg-gray-700 rounded-lg mb-4">
                             <p class="text-sm text-gray-600 dark:text-gray-200">

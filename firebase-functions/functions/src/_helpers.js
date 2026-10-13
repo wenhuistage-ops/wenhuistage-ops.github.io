@@ -348,6 +348,34 @@ function clampText(value) {
 }
 
 /**
+ * 員工補卡原因：固定代碼 → 中文標籤。
+ * 前端以代碼送出（員工可用自己的語言選），後端統一存中文，與假別
+ * （normalizeLeaveKind）同一慣例，管理端與 LINE 卡片才不會混進五種語言的文字。
+ */
+const MAKEUP_REASONS = {
+  phone: "手機異常",
+  forgot: "忘記打卡",
+  gps: "定位失敗",
+  network: "網路異常",
+  app: "系統異常",
+  other: "其他",
+};
+
+/** 代碼 → 中文標籤；不認得的代碼回空字串 */
+function makeupReasonLabel(code) {
+  return MAKEUP_REASONS[String(code || "")] || "";
+}
+
+/**
+ * 補卡 note 組字：`[員工補卡] 原因｜備註`。
+ * prefix 讓 UI / Firestore Console 一眼能識別來源；原因與備註都可缺。
+ */
+function formatMakeupNote(reasonCode, note) {
+  const parts = [makeupReasonLabel(reasonCode), clampText(note).trim()].filter(Boolean);
+  return parts.length ? `[員工補卡] ${parts.join("｜")}` : "[員工補卡]";
+}
+
+/**
  * B-M2：後端重複打卡防護。
  *
  * 冷卻原本只在前端記憶體（重整即歸零，curl 完全不受限），一秒可寫上千筆 attendance。
@@ -846,6 +874,9 @@ module.exports = {
   isValidDocId,
   isReasonableAttendanceDate,
   clampText,
+  MAKEUP_REASONS,
+  makeupReasonLabel,
+  formatMakeupNote,
   validateCoordinates,
   checkPunchCooldown,
   LEAVE_KINDS,

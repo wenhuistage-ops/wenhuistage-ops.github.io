@@ -664,5 +664,17 @@
   "MSG_LOCATION_DELETED": "Lokasi dihapus.",
   "MSG_UPDATE_LOCATION_FAILED_GENERIC": "Gagal memperbarui lokasi, coba lagi nanti",
   "MSG_DELETE_LOCATION_FAILED_GENERIC": "Gagal menghapus lokasi, coba lagi nanti",
-  "ERR_LOCATION_NOT_FOUND": "Lokasi ini tidak ditemukan, mungkin sudah dihapus. Muat ulang lalu coba lagi."
+  "ERR_LOCATION_NOT_FOUND": "Lokasi ini tidak ditemukan, mungkin sudah dihapus. Muat ulang lalu coba lagi.",
+  "BTN_TODAY_MAKEUP": "Absen susulan hari ini",
+  "TODAY_MAKEUP_HINT": "Absen gagal atau lupa? Ajukan absen masuk/pulang hari ini di sini, admin akan meninjaunya.",
+  "MAKEUP_REASON_LABEL": "Alasan:",
+  "MAKEUP_REASON_PHONE": "Ponsel bermasalah",
+  "MAKEUP_REASON_FORGOT": "Lupa absen",
+  "MAKEUP_REASON_GPS": "GPS gagal",
+  "MAKEUP_REASON_NETWORK": "Jaringan bermasalah",
+  "MAKEUP_REASON_APP": "Gangguan sistem",
+  "MAKEUP_REASON_OTHER": "Lainnya",
+  "MAKEUP_NOTE_PLACEHOLDER": "Keterangan tambahan (opsional)",
+  "MSG_SELECT_MAKEUP_REASON": "Pilih alasan terlebih dahulu",
+  "ERR_INVALID_MAKEUP_REASON": "Alasan tidak valid, silakan pilih lagi."
 }

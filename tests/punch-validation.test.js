@@ -293,3 +293,42 @@ describe('裝置標記取代 userAgent（F-L5）', () => {
         expect(buildWith(undefined)).toBe('Other/Other');
     });
 });
+
+// ===================================
+// 當日補卡：預設時間不跑到未來、今日預設模式（js/punch/make-up.js）
+// ===================================
+describe('當日補卡預設值', () => {
+    const src = readSrc('js/punch/make-up.js');
+    const body = [
+        extractFn(src, '_toLocalInputValue'),
+        extractFn(src, '_localDateKey'),
+        extractFn(src, '_defaultMakeupTime'),
+        extractFn(src, 'getTodayMakeupMode'),
+    ].join('\n');
+    const mod = new Function(`${body}; return { _defaultMakeupTime, getTodayMakeupMode };`)();
+
+    it('補過去的日子：上班 08:00、下班 18:00', () => {
+        const now = new Date(2026, 9, 13, 15, 20);
+        expect(mod._defaultMakeupTime('2026-10-10', 'in', now)).toBe('08:00');
+        expect(mod._defaultMakeupTime('2026-10-10', 'out', now)).toBe('18:00');
+    });
+
+    it('補今天且預設時間還沒到：改用現在時間（下午三點補下班 → 15:20）', () => {
+        const now = new Date(2026, 9, 13, 15, 20);
+        expect(mod._defaultMakeupTime('2026-10-13', 'out', now)).toBe('15:20');
+        expect(mod._defaultMakeupTime('2026-10-13', 'in', now)).toBe('08:00');
+    });
+
+    it('補今天但預設時間已過：維持預設（早上七點補上班 → 07:05；晚上補下班 → 18:00）', () => {
+        expect(mod._defaultMakeupTime('2026-10-13', 'in', new Date(2026, 9, 13, 7, 5))).toBe('07:05');
+        expect(mod._defaultMakeupTime('2026-10-13', 'out', new Date(2026, 9, 13, 21, 0))).toBe('18:00');
+    });
+
+    it('今日預設模式：沒上班卡補上班、有上班沒下班補下班、退回的不算', () => {
+        expect(mod.getTodayMakeupMode([])).toBe('in');
+        expect(mod.getTodayMakeupMode([{ type: '上班' }])).toBe('out');
+        expect(mod.getTodayMakeupMode([{ type: '上班' }, { type: '下班' }])).toBe('in');
+        expect(mod.getTodayMakeupMode([{ type: '上班', audit: 'x' }])).toBe('in');
+        expect(mod.getTodayMakeupMode([{ type: '上班', audit: '?' }])).toBe('out');
+    });
+});

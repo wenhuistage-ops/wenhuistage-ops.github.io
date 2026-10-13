@@ -10,6 +10,9 @@ const {
   COLLECTIONS,
   verifySession,
   clampText,
+  MAKEUP_REASONS,
+  makeupReasonLabel,
+  formatMakeupNote,
   validateCoordinates,
   isReasonableAttendanceDate,
   notifyAdmins,
@@ -27,11 +30,17 @@ module.exports = onCall(
   },
   async (request) => {
     const sessionToken = request.data?.sessionToken || request.data?.token;
-    const { type, lat, lng, note, datetime } = request.data || {};
+    const { type, lat, lng, note, datetime, reason } = request.data || {};
 
     // type 白名單：員工端補打卡只能是上下班，不得偽造 '請假'/'休假' 類型紀錄
     if (!["上班", "下班"].includes(type)) {
       return { ok: false, code: "ERR_INVALID_PUNCH_TYPE" };
+    }
+    // 補卡原因：固定代碼白名單（phone / forgot / gps / network / app / other）。
+    // 舊版前端不帶 reason，仍接受；帶了就必須是合法代碼。
+    const reasonCode = reason === undefined || reason === null || reason === "" ? "" : String(reason);
+    if (reasonCode && !MAKEUP_REASONS[reasonCode]) {
+      return { ok: false, code: "ERR_INVALID_MAKEUP_REASON" };
     }
 
     const session = await verifySession(sessionToken);
@@ -56,9 +65,9 @@ module.exports = onCall(
 
     const applicationTime = new Date();
     // 2026-05-15：在 note 加 [員工補卡] prefix，UI / Firestore Console 一眼能識別來源
-    const noteWithTag = note
-      ? `[員工補卡] ${clampText(note)}`
-      : "[員工補卡]";
+    // 2026-10-13：原因代碼轉中文標籤一起寫進 note（`[員工補卡] 手機異常｜iOS/LINE`），
+    // 另存 makeupReason 代碼欄位，之後要做多語顯示或統計不必解析字串
+    const noteWithTag = formatMakeupNote(reasonCode, note);
     const docRef = await db.collection(COLLECTIONS.ATTENDANCE).add({
       timestamp: admin.firestore.Timestamp.fromDate(punchDate),
       userId: user.userId,
@@ -70,6 +79,7 @@ module.exports = onCall(
       coords: `申請時間: ${applicationTime.toISOString()}`,
       locationName: "", // 補打卡不填地點
       note: noteWithTag,
+      makeupReason: reasonCode,
       audit: "?", // 待審核
       adjustmentType: "補打卡",
       applicationTime: admin.firestore.Timestamp.fromDate(applicationTime),
@@ -96,6 +106,7 @@ module.exports = onCall(
         type,
         punchDate,
         applicationTime,
+        reason: makeupReasonLabel(reasonCode),
         note: note ? clampText(note) : "",
       }),
       LINE_CHANNEL_ACCESS_TOKEN.value(),

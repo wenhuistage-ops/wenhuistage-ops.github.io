@@ -160,7 +160,7 @@ function _row(label, value) {
  * postback data 帶 ts（補卡時間毫秒）：員工改過申請後舊卡片的 ts 對不上，
  * reviewRequest 會回 ERR_REQUEST_CHANGED，不會照舊內容核准到新時間。
  */
-function buildAdjustReviewCard({ id, name, dept, type, punchDate, applicationTime, note, edited }) {
+function buildAdjustReviewCard({ id, name, dept, type, punchDate, applicationTime, reason, note, edited }) {
   const ts = punchDate.getTime();
   const who = name || "員工";
   const btn = (decision, label, style) => ({
@@ -196,6 +196,7 @@ function buildAdjustReviewCard({ id, name, dept, type, punchDate, applicationTim
           _row("類型", type),
           _row("補卡時間", formatTaipei(punchDate)),
           _row("申請時間", formatTaipei(applicationTime)),
+          ...(reason ? [_row("原因", reason)] : []),
           ...(note ? [_row("備註", note)] : []),
         ],
       },

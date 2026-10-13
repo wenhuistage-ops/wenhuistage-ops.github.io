@@ -593,3 +593,49 @@ describe('updateLocation / deleteLocation 原始碼約束', () => {
     expect(idx).toMatch(/exports\.deleteLocation = require\("\.\/src\/deleteLocation"\)/);
   });
 });
+
+// ------------------------------------------------- 補卡原因代碼 → 中文 note
+describe('補卡原因（MAKEUP_REASONS / formatMakeupNote）', () => {
+  const src = [
+    grabLine(HELPERS_SRC, 'const MAX_TEXT_FIELD_CHARS'),
+    grab(HELPERS_SRC, 'function clampText(value)'),
+    grab(HELPERS_SRC, 'const MAKEUP_REASONS = {'),
+    grab(HELPERS_SRC, 'function makeupReasonLabel(code)'),
+    grab(HELPERS_SRC, 'function formatMakeupNote(reasonCode, note)'),
+  ].join('\n');
+  const { MAKEUP_REASONS, makeupReasonLabel, formatMakeupNote } = new Function(
+    `${src}; return { MAKEUP_REASONS, makeupReasonLabel, formatMakeupNote };`
+  )();
+
+  test('六個固定代碼都有中文標籤，與前端 MAKEUP_REASON_CODES 一致', () => {
+    const frontend = fs.readFileSync(path.join(__dirname, '../js/punch/make-up.js'), 'utf8');
+    const m = frontend.match(/const MAKEUP_REASON_CODES = \[([^\]]+)\]/);
+    const codes = m[1].split(',').map((x) => x.trim().replace(/['"]/g, '')).filter(Boolean);
+    expect(Object.keys(MAKEUP_REASONS).sort()).toEqual(codes.sort());
+    expect(makeupReasonLabel('phone')).toBe('手機異常');
+    expect(makeupReasonLabel('forgot')).toBe('忘記打卡');
+  });
+
+  test('不認得的代碼回空字串，不會把使用者輸入寫進標籤', () => {
+    expect(makeupReasonLabel('<script>')).toBe('');
+    expect(makeupReasonLabel(undefined)).toBe('');
+  });
+
+  test('note 組字：原因｜備註，各自可缺', () => {
+    expect(formatMakeupNote('phone', 'iOS/LINE')).toBe('[員工補卡] 手機異常｜iOS/LINE');
+    expect(formatMakeupNote('gps', '')).toBe('[員工補卡] 定位失敗');
+    expect(formatMakeupNote('', 'iOS/LINE')).toBe('[員工補卡] iOS/LINE');
+    expect(formatMakeupNote('', '')).toBe('[員工補卡]');
+    expect(formatMakeupNote('bogus', '  手滑  ')).toBe('[員工補卡] 手滑');
+  });
+
+  test('adjustPunch / updateAdjustRequest 拒絕非法代碼、存 makeupReason 欄位', () => {
+    for (const f of ['adjustPunch.js', 'updateAdjustRequest.js']) {
+      const s = fs.readFileSync(path.join(__dirname, '../firebase-functions/functions/src', f), 'utf8');
+      expect(s).toMatch(/ERR_INVALID_MAKEUP_REASON/);
+      expect(s).toMatch(/makeupReason: reasonCode/);
+      expect(s).toMatch(/formatMakeupNote\(/);
+      expect(s).toMatch(/reason: makeupReasonLabel\(reasonCode\)/);
+    }
+  });
+});

@@ -32,6 +32,9 @@ const {
   COLLECTIONS,
   verifySession,
   clampText,
+  MAKEUP_REASONS,
+  makeupReasonLabel,
+  formatMakeupNote,
   isReasonableAttendanceDate,
   isValidDocId,
   notifyAdmins,
@@ -53,6 +56,12 @@ module.exports = onCall(
     // 與 punch/adjustPunch/submitLeave 同樣截斷：漏這條路徑就能繞過 clampText
     // 把超長 note 寫進聚合 doc 撐爆 1MiB 上限
     const rawNote = clampText(request.data?.note);
+    // 補卡原因代碼：沒帶（舊前端 / 我的申請編輯框）就沿用原紀錄的 makeupReason
+    const reasonInput = request.data?.reason;
+    const reasonGiven = !(reasonInput === undefined || reasonInput === null || reasonInput === "");
+    if (reasonGiven && !MAKEUP_REASONS[String(reasonInput)]) {
+      return { ok: false, code: "ERR_INVALID_MAKEUP_REASON" };
+    }
 
     if (!id) return { ok: false, code: "ERR_MISSING_ID", msg: "缺少申請 id" };
     // B-L9：docId 未驗字元就 .doc()，含 '/' 直接 500
@@ -92,10 +101,9 @@ module.exports = onCall(
       };
     }
 
-    // 保留 [員工補卡] prefix，使用者送過來的 note 是新內容
-    const noteWithTag = rawNote
-      ? `[員工補卡] ${rawNote}`
-      : "[員工補卡]";
+    // 保留 [員工補卡] prefix 與原因標籤，使用者送過來的 note 是新內容
+    const reasonCode = reasonGiven ? String(reasonInput) : String(data.makeupReason || "");
+    const noteWithTag = formatMakeupNote(reasonCode, rawNote);
 
     // 同步聚合：先記舊月份 cache invalidate，再 update，再 invalidate 新月份
     const oldPunchDate = data.timestamp?.toDate?.() || data.timestamp;
@@ -103,6 +111,7 @@ module.exports = onCall(
     await ref.update({
       timestamp: admin.firestore.Timestamp.fromDate(newDate),
       note: noteWithTag,
+      makeupReason: reasonCode,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
@@ -138,6 +147,7 @@ module.exports = onCall(
           type: data.type,
           punchDate: newDate,
           applicationTime: data.applicationTime?.toDate?.() || newDate,
+          reason: makeupReasonLabel(reasonCode),
           note: rawNote,
           edited: true,
         }),
